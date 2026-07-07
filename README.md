@@ -1,45 +1,48 @@
 # ssh-moonminer
 
-**Moon Miner** is a space-mining extraction game played entirely over SSH.
-No client to install, no account to create — your SSH public key *is* your
-account:
+**Moon Miner** is a push-your-luck asteroid mining game played entirely over SSH.
+Your SSH public key is your account — no client install required.
 
 ```bash
 ssh moonminer.example.com
 ```
 
-Pilot a mining ship between worlds, drop into an asteroid belt, and gamble on
-which rocks to drill. Bigger asteroids pay more but take longer and burn more
-fuel; rarer ones pay much more but attract pirates. Every run is
-push-your-luck: drill to 100% for full value, or bail early and bank what you
-have.
-
 ## Status
 
-**Planning.** The game is not implemented yet. `docs/` contains the complete
-build plan: [docs/README.md](docs/README.md) is the index and architecture
-contract, and each file under `docs/framework/`, `docs/gameplay/`,
-`docs/tui/`, and `docs/tests/` is a self-contained task an agent can pick up
-independently.
+**Playable prototype.** Full chart → belt → mine → summary loop with persistent pilots,
+arcade-router proxied identity (ssh-farm pattern), and SQLite saves.
 
-## Stack (planned)
+## Stack
 
-- **Go 1.26+**, pure Go (`CGO_ENABLED=0`)
-- **charm.land/wish/v2** — SSH server framework
-- **charm.land/bubbletea/v2** + **lipgloss/v2** — terminal UI (keyboard + mouse)
-- **modernc.org/sqlite** — cgo-free persistence
-- **Docker** — distroless static image
+- Go 1.26+, pure Go (`CGO_ENABLED=0`)
+- charm.land/wish/v2 + bubbletea/v2 + lipgloss/v2
+- modernc.org/sqlite
+
+## Run locally
+
+```bash
+MOONMINER_LISTEN_PORT=2222 go run ./cmd/ssh-moonminer
+ssh -p 2222 -o StrictHostKeyChecking=accept-new localhost
+```
+
+Data persists under `var/moonminer.db` and `var/ssh_host_key`.
 
 ## Commands
 
 ```bash
-go build -o bin/ssh-moonminer ./cmd/ssh-moonminer   # build
-go test ./...                                        # test
-go vet ./...                                         # vet
+go build -o bin/ssh-moonminer ./cmd/ssh-moonminer
+go test ./...
+go vet ./...
 ```
 
-## Sibling project
+## Fleet integration
 
-`../ssh-idlefarmer` is a finished game on the same stack. Its SSH server,
-identity, persistence, and session-management code is the reference
-implementation this project mirrors — the docs cite specific files from it.
+Behind `ssh-arcadelobby`, set `MOONMINER_PROXY_KEYS_PATH` to the router's bridge
+public key file (same pattern as ssh-farm's `FARM_PROXY_KEYS_PATH`). The fleet
+compose block in `ssh-arcadelobby/deploy/docker-compose.yml` is ready once a
+container image is published.
+
+## Sibling references
+
+- `../ssh-farm` — fleet SSH server, identity, store, actor model (primary reference)
+- `../ssh-arcadelobby` — router bridge protocol and games registry

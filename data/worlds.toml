@@ -1,0 +1,47 @@
+[[worlds]]
+name = "CERES"
+sub = "INNER BELT"
+ring = "DENSE"
+pirate_label = "HIGH"
+pirate_mul = 1.55
+rarity_bias = 0.18
+travel_fuel = 8
+rarity_label = "RICH"
+desc = "Crowded, lucrative, lawless. Raiders everywhere."
+art = "sphere"
+
+[[worlds]]
+name = "VESTA"
+sub = "MID BELT"
+ring = "MODERATE"
+pirate_label = "MED"
+pirate_mul = 1.05
+rarity_bias = 0.10
+travel_fuel = 6
+rarity_label = "BALANCED"
+desc = "Close to port. Steady, honest pickings."
+art = "sphere"
+
+[[worlds]]
+name = "TITAN"
+sub = "SATURN RINGS"
+ring = "RINGED"
+pirate_label = "MED"
+pirate_mul = 0.95
+rarity_bias = 0.30
+travel_fuel = 20
+rarity_label = "RARE-HEAVY"
+desc = "Rare ices in the rings. A long, cold haul."
+art = "ringed"
+
+[[worlds]]
+name = "IO"
+sub = "JOVIAN ORBIT"
+ring = "SPARSE"
+pirate_label = "LOW"
+pirate_mul = 0.70
+rarity_bias = 0.05
+travel_fuel = 14
+rarity_label = "THIN"
+desc = "Quiet and safe. Slim takings for the patient."
+art = "sphere"

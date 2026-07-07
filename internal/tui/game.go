@@ -1,0 +1,298 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/game"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/identity"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
+)
+
+// Model is the Bubble Tea model type.
+type Model = tea.Model
+
+// ProgramOption is a Bubble Tea program option.
+type ProgramOption = tea.ProgramOption
+
+const minWidth, minHeight = 80, 24
+
+type screen int
+
+const (
+	scrChart screen = iota
+	scrBelt
+	scrMining
+	scrSummary
+	scrLog
+	scrShipyard
+)
+
+type overlay int
+
+const (
+	ovNone overlay = iota
+	ovHelp
+	ovTweaks
+	ovKicked
+	ovOnboard
+)
+
+type (
+	tickMsg   time.Time
+	snapMsg   sim.Snapshot
+	kickedMsg string
+)
+
+type flash struct {
+	text    string
+	expires int64
+}
+
+// Game is the root TUI model.
+type Game struct {
+	sess    *game.Session
+	content *content.Content
+	id      identity.SessionIdentity
+	attach  game.AttachResult
+
+	snap      sim.Snapshot
+	width     int
+	height    int
+	scr       screen
+	overlay   overlay
+	created   bool
+	onboardPg int
+
+	worldSel   int
+	rockSel    int
+	upgradeSel int
+	logScroll  int
+	tickCount  int
+	now        int64
+	idleSecs   int64
+	lastInput  int64
+
+	overdriveOn    bool
+	overdriveUntil int64
+	lastClickID    string
+	lastClickAt    int64
+
+	lastOutcome *sim.RunOutcome
+	flash       flash
+	hits        *hitbox.Registry
+	kickReason  string
+}
+
+// NewGame constructs the session UI.
+func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.Content, w, h int, now, idleSecs int64) Model {
+	g := &Game{
+		sess: attach.Session, content: c, id: id, attach: attach,
+		width: w, height: h, now: now, idleSecs: idleSecs, lastInput: now,
+		scr: scrChart, created: attach.Created, hits: hitbox.New(),
+	}
+	if attach.Created {
+		g.overlay = ovOnboard
+	}
+	snap, _ := g.sess.SnapshotNow()
+	g.snap = snap
+	return g
+}
+
+func (g *Game) Init() tea.Cmd {
+	return tea.Batch(
+		tickCmd(),
+		listenKick(g.sess),
+		listenSnaps(g.sess),
+	)
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+func listenKick(s *game.Session) tea.Cmd {
+	return func() tea.Msg {
+		reason, ok := <-s.Kicked()
+		if !ok {
+			return nil
+		}
+		return kickedMsg(reason)
+	}
+}
+
+func listenSnaps(s *game.Session) tea.Cmd {
+	return func() tea.Msg {
+		snap, ok := <-s.Snapshots()
+		if !ok {
+			return nil
+		}
+		return snapMsg(snap)
+	}
+}
+
+func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch m := msg.(type) {
+	case tea.WindowSizeMsg:
+		g.width, g.height = m.Width, m.Height
+	case tickMsg:
+		g.tickCount++
+		g.now = time.Now().Unix()
+		if g.now-g.lastInput >= g.idleSecs {
+			return g, tea.Quit
+		}
+		if g.flash.expires > 0 && g.now >= g.flash.expires {
+			g.flash = flash{}
+		}
+		if g.overdriveUntil > 0 && g.now*1000 > g.overdriveUntil {
+			g.overdriveOn = false
+			g.overdriveUntil = 0
+			_, _ = g.sess.SetOverdrive(false)
+		}
+		if out := g.sess.LastOutcome(); out != nil && g.scr == scrMining {
+			g.lastOutcome = out
+			g.scr = scrSummary
+			g.sess.ClearOutcome()
+		}
+		cmds = append(cmds, tickCmd())
+	case snapMsg:
+		g.snap = sim.Snapshot(m)
+		if g.snap.State.Run != nil && g.scr != scrMining {
+			g.scr = scrMining
+		}
+		cmds = append(cmds, listenSnaps(g.sess))
+	case kickedMsg:
+		if m != "" {
+			g.kickReason = string(m)
+			g.overlay = ovKicked
+		}
+	case tea.KeyPressMsg:
+		g.lastInput = g.now
+		if g.overlay != ovNone {
+			cmds = append(cmds, g.updateOverlay(m)...)
+			break
+		}
+		if g.width < minWidth || g.height < minHeight {
+			break
+		}
+		cmds = append(cmds, g.updateKey(m)...)
+	case tea.MouseClickMsg:
+		g.lastInput = g.now
+		if g.overlay != ovNone || g.width < minWidth {
+			break
+		}
+		cmds = append(cmds, g.updateClick(m)...)
+	case tea.MouseWheelMsg:
+		g.lastInput = g.now
+		cmds = append(cmds, g.updateWheel(m)...)
+	}
+
+	return g, tea.Batch(cmds...)
+}
+
+func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
+	switch g.overlay {
+	case ovKicked, ovOnboard:
+		if m.String() != "" {
+			return []tea.Cmd{tea.Quit}
+		}
+	case ovHelp, ovTweaks:
+		if m.String() == "esc" || m.String() == "?" {
+			g.overlay = ovNone
+		}
+	}
+	return nil
+}
+
+func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
+	k := m.String()
+	if k == "?" {
+		if g.overlay == ovHelp {
+			g.overlay = ovNone
+		} else {
+			g.overlay = ovHelp
+		}
+		return nil
+	}
+	if k == "ctrl+c" {
+		return []tea.Cmd{tea.Quit}
+	}
+	switch g.scr {
+	case scrChart, scrShipyard:
+		return g.keyChart(k)
+	case scrBelt:
+		return g.keyBelt(k)
+	case scrMining:
+		return g.keyMining(m)
+	case scrSummary:
+		return g.keySummary(k)
+	case scrLog:
+		return g.keyLog(k)
+	}
+	return nil
+}
+
+func (g *Game) setFlash(text string) {
+	g.flash = flash{text: text, expires: g.now + 2}
+}
+
+func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
+	if err != nil {
+		g.setFlash(err.Error())
+		return nil
+	}
+	g.snap = snap
+	if g.snap.State.Run != nil {
+		g.scr = scrMining
+	}
+	return nil
+}
+
+func (g *Game) View() tea.View {
+	g.hits.Clear()
+	var body string
+	if g.width < minWidth || g.height < minHeight {
+		body = lipgloss.Place(g.width, g.height, lipgloss.Center, lipgloss.Center,
+			fmt.Sprintf("RESIZE TERMINAL — need %dx%d, have %dx%d", minWidth, minHeight, g.width, g.height))
+	} else {
+		body = g.renderChrome() + "\n" + g.renderScreen()
+		if g.overlay != ovNone {
+			body += "\n" + g.renderOverlay()
+		}
+	}
+	v := tea.NewView(body)
+	v.AltScreen = true
+	v.WindowTitle = fmt.Sprintf("MOON MINER — %s", strings.ToUpper(g.id.Slot))
+	return v
+}
+
+func (g *Game) renderChrome() string {
+	st := g.snap.State
+	hud := fmt.Sprintf(" MOON MINER — PILOT: %s — %s %d  FUEL %.0f%%  HULL %d%% ",
+		strings.ToUpper(g.id.Slot), theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits,
+		st.Fuel/sim.TankSize(&st, g.content)*100, st.Hull)
+	hudLine := theme.Bright.Render(strings.Repeat("─", g.width))
+	return hudLine + "\n" + theme.TxtStyle.Render(hud) + "\n" + hudLine
+}
+
+func (g *Game) renderKeybar(hint string) string {
+	cursor := theme.Cursor(g.tickCount)
+	pad := g.width - lipgloss.Width(hint) - 2
+	if pad < 0 {
+		pad = 0
+	}
+	bar := hint + strings.Repeat(" ", pad) + cursor
+	if g.flash.text != "" {
+		bar = theme.Red.Render(g.flash.text)
+	}
+	return theme.DimStyle.Render(strings.Repeat("─", g.width)) + "\n" + bar
+}

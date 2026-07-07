@@ -1,0 +1,64 @@
+[pilot]
+start_credits = 1000
+start_fuel = 100
+start_hull = 100
+
+[belt]
+asteroids_per_belt = 7
+volume_min = 240
+volume_max = 4600
+volume_step = 20
+drill_sec_min = 2.2
+drill_sec_max = 16.0
+drill_sec_per_volume = 300
+value_per_volume = 1.15
+value_step = 25
+fuel_cost_min = 5
+fuel_cost_max = 36
+fuel_cost_tier_bonus = 3
+risk_min = 8
+risk_max = 96
+risk_base = 18
+risk_per_tier = 16
+name_prefixes = ["AX", "KR", "VL", "ND", "TH", "ZE", "QU", "RX", "OB", "MX"]
+
+[tiers]
+labels = ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"]
+glyphs = ["◇", "◆", "✦", "★"]
+mults = [1.0, 2.3, 4.6, 9.5]
+
+[mining]
+tick_hz = 8
+pirate_rate_base = 7.0
+pirate_rate_per_tier = 3.0
+fuel_drain_base = 1.3
+fuel_drain_per_tier = 0.35
+overdrive_drill_mul = 2.1
+overdrive_fuel_mul = 1.9
+raided_yield_keep = 0.55
+raided_hull_damage = 25
+stranded_yield_keep = 0.60
+
+[port]
+refuel_per_point = 9
+repair_per_point = 14
+drydock_surcharge_mul = 1.5
+insurance_credits = 300
+insurance_fuel_threshold = 6
+insurance_credit_threshold = 50
+
+[upgrades]
+# Endgame horizon: maxing all tracks costs ~3.2M credits.
+max_level = 4
+drill_base = 600
+tank_base = 500
+plating_base = 550
+damper_base = 700
+surveyor_base = 800
+drill_rate_mul = 1.15
+tank_bonus = 25
+plating_reduction = 4
+plating_floor = 5
+damper_mul = 0.88
+surveyor_bonus = 1
+base_tank = 100
