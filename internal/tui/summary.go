@@ -29,16 +29,22 @@ func (g *Game) renderSummary() string {
 		return g.renderBelt()
 	}
 	st := g.snap.State
+	accent := theme.OutcomeAccent(string(out.Kind))
 	body := []string{
 		theme.OutcomeStyle(string(out.Kind)).Render(out.Label),
 		theme.DimStyle.Render(out.Description),
 		"",
-		fmt.Sprintf("ORE: %s", out.Record.Asteroid),
-		fmt.Sprintf("CARGO BANKED: +%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.Banked),
-		fmt.Sprintf("DRILL: %d%%", out.Record.DrillPct),
-		fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
+		theme.Gold.Render("ORE: ") + theme.TxtStyle.Render(out.Record.Asteroid),
+		theme.Green.Render("CARGO BANKED: ") + theme.Gold.Render(fmt.Sprintf("+%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.Banked)),
+		theme.Cyan.Render(fmt.Sprintf("DRILL: %d%%", out.Record.DrillPct)),
+		theme.Gold.Render(fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
 	}
-	content := theme.Panel("RUN SUMMARY", g.width-4, 14, strings.Join(body, "\n"))
+	continueBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
+	dockBtn := theme.Button("Q", "DOCK AT PORT", "", true, theme.HueGold)
+	body = append(body, "", continueBtn, dockBtn)
+	content := theme.Panel("RUN SUMMARY", g.width-4, 16, strings.Join(body, "\n"), accent)
+	g.hitPanelLine(8, 1, continueBtn, "btn:summary:continue", nil)
+	g.hitPanelLine(9, 1, dockBtn, "btn:summary:dock", nil)
 	hint := "[ENTER] RETURN TO BELT · [Q] DOCK AT PORT"
 	return content + "\n" + g.renderKeybar(hint)
 }

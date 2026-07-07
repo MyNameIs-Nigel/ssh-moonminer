@@ -187,12 +187,15 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, g.updateKey(m)...)
 	case tea.MouseClickMsg:
 		g.lastInput = g.now
-		if g.overlay != ovNone || g.width < minWidth {
+		if g.overlay != ovNone || g.width < minWidth || g.height < minHeight {
 			break
 		}
 		cmds = append(cmds, g.updateClick(m)...)
 	case tea.MouseWheelMsg:
 		g.lastInput = g.now
+		if g.overlay != ovNone {
+			break
+		}
 		cmds = append(cmds, g.updateWheel(m)...)
 	}
 
@@ -275,24 +278,57 @@ func (g *Game) View() tea.View {
 	return v
 }
 
+func (g *Game) screenAccent() string {
+	switch g.scr {
+	case scrShipyard:
+		return theme.Accent(theme.HueViolet)
+	case scrBelt:
+		return theme.Accent(theme.HueGold)
+	case scrMining:
+		return theme.Accent(theme.HueAmber)
+	case scrSummary:
+		if g.lastOutcome != nil {
+			return theme.OutcomeAccent(string(g.lastOutcome.Kind))
+		}
+		return theme.Accent(theme.HueGold)
+	case scrLog:
+		return theme.Accent(theme.HueCyan)
+	default:
+		return theme.Accent(theme.HueCyan)
+	}
+}
+
 func (g *Game) renderChrome() string {
 	st := g.snap.State
-	hud := fmt.Sprintf(" MOON MINER — PILOT: %s — %s %d  FUEL %.0f%%  HULL %d%% ",
-		strings.ToUpper(g.id.Slot), theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits,
-		st.Fuel/sim.TankSize(&st, g.content)*100, st.Hull)
-	hudLine := theme.Bright.Render(strings.Repeat("─", g.width))
-	return hudLine + "\n" + theme.TxtStyle.Render(hud) + "\n" + hudLine
+	fuelPct := st.Fuel / sim.TankSize(&st, g.content) * 100
+	accent := g.screenAccent()
+	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
+
+	title := theme.Cyan.Render("MOON MINER")
+	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
+	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
+	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
+	hull := theme.HullStyle(float64(st.Hull)).Render(fmt.Sprintf("HULL %d%%", st.Hull))
+
+	hud := fmt.Sprintf(" %s — %s — %s  %s  %s ", title, pilot, credits, fuel, hull)
+	hudLine := accentStyle.Render(strings.Repeat("─", g.width))
+	return hudLine + "\n" + hud + "\n" + hudLine
 }
 
 func (g *Game) renderKeybar(hint string) string {
 	cursor := theme.Cursor(g.tickCount)
-	pad := g.width - lipgloss.Width(hint) - 2
+	bar := hint
+	if g.flash.text == "" {
+		bar = theme.KeybarHint(hint)
+	} else {
+		bar = theme.Red.Render(g.flash.text)
+	}
+	pad := g.width - lipgloss.Width(bar) - lipgloss.Width(cursor)
 	if pad < 0 {
 		pad = 0
 	}
-	bar := hint + strings.Repeat(" ", pad) + cursor
-	if g.flash.text != "" {
-		bar = theme.Red.Render(g.flash.text)
-	}
-	return theme.DimStyle.Render(strings.Repeat("─", g.width)) + "\n" + bar
+	bar = bar + strings.Repeat(" ", pad) + cursor
+	accent := g.screenAccent()
+	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accent)).Faint(true)
+	return ruleStyle.Render(strings.Repeat("─", g.width)) + "\n" + bar
 }

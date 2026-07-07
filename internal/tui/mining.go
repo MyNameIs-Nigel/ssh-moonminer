@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
-	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
@@ -45,32 +44,52 @@ func (g *Game) renderMining() string {
 	if ast != nil {
 		name, tier, value = ast.Name, ast.Tier, ast.Value
 	}
-	title := fmt.Sprintf("◇ DRILLING — %s (%s %s)", name, g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier])
+	title := fmt.Sprintf("%s DRILLING — %s (%s %s)", theme.Glyph("diamond", st.Settings.ASCIISafe),
+		name, g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier])
 	if run.Pirate >= 75 {
-		title = theme.Red.Render("☠ CONTACT IMMINENT — ") + title
+		title = theme.Red.Render(theme.Glyph("skull", st.Settings.ASCIISafe)+" CONTACT IMMINENT — ") + theme.Amber.Render(title)
+	} else {
+		title = theme.Amber.Render(title)
 	}
 	fuelPct := st.Fuel / sim.TankSize(&st, g.content) * 100
 	lines := []string{
-		theme.Bright.Render(title),
+		title,
 		"",
-		fmt.Sprintf("⛏ DRILL  %s %3.0f%%", theme.RampBar(run.Drill, 30, false), run.Drill),
-		fmt.Sprintf("⛽ FUEL   %s %3.0f%%", theme.RampBar(fuelPct, 30, true), fuelPct),
-		fmt.Sprintf("☠ PIRATE %s %3.0f%%", theme.RampBar(run.Pirate, 30, true), run.Pirate),
+		fmt.Sprintf("%s DRILL  %s %s",
+			theme.Glyph("drill", st.Settings.ASCIISafe),
+			theme.DrillBar(run.Drill, 30),
+			theme.DrillStyle(run.Drill).Render(fmt.Sprintf("%3.0f%%", run.Drill))),
+		fmt.Sprintf("%s FUEL   %s %s",
+			theme.Glyph("fuel", st.Settings.ASCIISafe),
+			theme.FuelBar(fuelPct, 30),
+			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
+		fmt.Sprintf("%s PIRATE %s %s",
+			theme.Glyph("skull", st.Settings.ASCIISafe),
+			theme.RampBar(run.Pirate, 30, true),
+			theme.GaugeStyle(run.Pirate, true).Render(fmt.Sprintf("%3.0f%%", run.Pirate))),
 		"",
-		fmt.Sprintf("CARGO VALUE  %s %d of %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), run.Yield,
-			theme.Glyph("credit", st.Settings.ASCIISafe), value),
+		fmt.Sprintf("CARGO VALUE  %s %s of %s %s",
+			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.Yield)),
+			theme.Glyph("credit", st.Settings.ASCIISafe), theme.TxtStyle.Render(fmt.Sprintf("%d", value))),
 		"",
 	}
 	od := ""
 	if g.overdriveOn || run.Overdrive {
-		od = theme.Amber.Render(" ▮▮ OVERDRIVE")
+		if g.tickCount%2 == 0 {
+			od = theme.Amber.Render(" ▮▮ OVERDRIVE")
+		} else {
+			od = theme.Gold.Render(" ▮▮ OVERDRIVE")
+		}
 	}
-	lines = append(lines,
-		"[SPACE] OVERDRIVE"+od,
-		"[B] BAIL & BANK CARGO",
-	)
-	g.hits.Add(hitbox.Box{Y: 8, X: 1, W: 20, H: 1, ID: "btn:overdrive"})
-	g.hits.Add(hitbox.Box{Y: 9, X: 1, W: 22, H: 1, ID: "btn:bail"})
+	overdriveLabel := "OVERDRIVE" + od
+	overdriveLine := theme.Button("SPACE", overdriveLabel, "", true, theme.HueAmber)
+	lines = append(lines, overdriveLine)
+	g.hitBodyLine(len(lines)-1, 1, overdriveLine, "btn:overdrive", nil)
+
+	bailLine := theme.Button("B", "BAIL & BANK CARGO", "", true, theme.HueRed)
+	lines = append(lines, bailLine)
+	g.hitBodyLine(len(lines)-1, 1, bailLine, "btn:bail", nil)
+
 	hint := "SPACE OVERDRIVE · B BAIL"
 	if fuelPct < 15 {
 		hint = theme.Red.Render("▼ FUEL CRITICAL — BAIL NOW?")

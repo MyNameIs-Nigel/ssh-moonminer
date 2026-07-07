@@ -31,6 +31,21 @@ func RampBar(pct float64, width int, invert bool) string {
 	return RenderBar(pct, width, GaugeStyle(pct, invert))
 }
 
+// FuelBar draws a fuel gauge — white when healthy, amber warning, red danger.
+func FuelBar(pct float64, width int) string {
+	return RenderBar(pct, width, FuelStyle(pct))
+}
+
+// HullBar draws a hull gauge — green when healthy, amber/red when damaged.
+func HullBar(pct float64, width int) string {
+	return RenderBar(pct, width, HullStyle(pct))
+}
+
+// DrillBar draws a drill progress gauge — cyan to green as it fills.
+func DrillBar(pct float64, width int) string {
+	return RenderBar(pct, width, DrillStyle(pct))
+}
+
 // Dots renders threat pips.
 func Dots(n, of int) string {
 	s := ""
@@ -50,12 +65,19 @@ func Dots(n, of int) string {
 	return s
 }
 
-// Button renders an interactive button label.
-func Button(key, label, price string, enabled bool) string {
+// Button renders an interactive button label with hue-based styling.
+func Button(key, label, price string, enabled bool, h Hue) string {
 	if !enabled {
 		return DimStyle.Render("[" + key + "] " + label + "  " + price)
 	}
-	return Bright.Render("["+key+"]") + " " + TxtStyle.Render(label) + "  " + Amber.Render(price)
+	dim, bright, _ := hueColors(h)
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(bright)).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dim))
+	pricePart := ""
+	if price != "" {
+		pricePart = "  " + Gold.Render(price)
+	}
+	return keyStyle.Render("["+key+"]") + " " + labelStyle.Render(label) + pricePart
 }
 
 // Cursor renders blinking footer cursor.
@@ -64,4 +86,38 @@ func Cursor(tick int) string {
 		return Bright.Render("█")
 	}
 	return " "
+}
+
+// KeybarHint renders a keybar hint with bright key letters and dim separators.
+func KeybarHint(hint string) string {
+	runes := []rune(hint)
+	var out strings.Builder
+	for i, ch := range runes {
+		var prev rune
+		if i > 0 {
+			prev = runes[i-1]
+		}
+		if isHintSep(ch) {
+			out.WriteString(DimStyle.Render(string(ch)))
+			continue
+		}
+		if ch == '↑' || ch == '↓' || ch == '←' || ch == '→' || ch == '▼' {
+			out.WriteString(Bright.Render(string(ch)))
+			continue
+		}
+		if ch == '?' && (i == 0 || isHintSep(prev)) {
+			out.WriteString(Bright.Render("?"))
+			continue
+		}
+		if ch >= 'A' && ch <= 'Z' && (i == 0 || isHintSep(prev) || prev == '[') {
+			out.WriteString(Bright.Render(string(ch)))
+			continue
+		}
+		out.WriteString(TxtStyle.Render(string(ch)))
+	}
+	return out.String()
+}
+
+func isHintSep(r rune) bool {
+	return r == '·' || r == '|' || r == '/' || r == ' '
 }

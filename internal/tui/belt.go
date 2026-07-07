@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
-	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
@@ -59,13 +59,14 @@ func (g *Game) renderBelt() string {
 	if w != nil {
 		worldName = w.Name
 	}
-	lines := []string{theme.Bright.Render("◇ ASTEROID BELT — " + worldName)}
+	lines := []string{theme.Gold.Render("◇ ASTEROID BELT — " + worldName)}
 	if len(st.Belt) == 0 {
 		lines = append(lines, theme.Amber.Render("Belt depleted — press R to rescan"))
 	} else {
 		for i, rock := range st.Belt {
 			marker := "  "
-			if i == g.rockSel {
+			sel := i == g.rockSel
+			if sel {
 				marker = "▸ "
 			}
 			tierGlyph := g.content.Tiers.Glyphs[rock.Tier]
@@ -73,18 +74,43 @@ func (g *Game) renderBelt() string {
 				marker, rock.Name, tierGlyph, g.content.Tiers.Labels[rock.Tier],
 				rock.Volume, rock.DrillSec, theme.Glyph("credit", st.Settings.ASCIISafe),
 				rock.Value, rock.FuelCost, theme.Dots(rock.Dots, 5))
-			lines = append(lines, theme.TierStyle(rock.Tier, st.Settings.ASCIISafe).Render(line))
-			g.hits.Add(hitbox.Box{Y: 3 + i, X: 1, W: g.width - 2, H: 1, ID: fmt.Sprintf("belt:%d", i), Data: i})
+			style := theme.TierStyleDim(rock.Tier)
+			if sel {
+				style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe).Bold(true).Background(lipgloss.Color(lipglossColorForTier(rock.Tier)))
+			}
+			rendered := style.Render(line)
+			lines = append(lines, rendered)
+			g.hitBodyLine(1+i, 1, rendered, fmt.Sprintf("belt:%d", i), i)
 		}
 	}
 	if g.rockSel < len(st.Belt) {
 		rock := st.Belt[g.rockSel]
+		fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
+		if float64(rock.FuelCost) > st.Fuel {
+			fuelStr = theme.Red.Render(fuelStr)
+		} else {
+			fuelStr = theme.White.Render(fuelStr)
+		}
 		lines = append(lines, "",
-			fmt.Sprintf("TARGET LOCK: %s  FLIGHT %d fuel  VALUE %d",
-				rock.Name, rock.FuelCost, rock.Value),
-			"[ENTER] LOCK & FLY  [V] VIEW  [R] RESCAN  [Q] DOCK")
+			fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
+				theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
+			theme.Button("ENTER", "LOCK & FLY", "", true, theme.HueGold),
+			theme.DimStyle.Render("[V] VIEW  [R] RESCAN  [Q] DOCK"))
 	}
 	body := strings.Join(lines, "\n")
-	hint := "↑↓ SELECT · ENTER LOCK · V VIEW · R RESCAN · Q DOCK"
+	hint := "↑/↓ SELECT · ENTER LOCK · V VIEW · R RESCAN · Q DOCK"
 	return body + "\n" + g.renderKeybar(hint)
+}
+
+func lipglossColorForTier(tier int) string {
+	switch tier {
+	case 0:
+		return "#1a2a3a"
+	case 1:
+		return "#0a2a3a"
+	case 2:
+		return "#2a1a4a"
+	default:
+		return "#3a2a10"
+	}
 }

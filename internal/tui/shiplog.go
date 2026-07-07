@@ -25,48 +25,57 @@ func (g *Game) keyLog(k string) []tea.Cmd {
 
 func (g *Game) renderLog() string {
 	st := g.snap.State
+	accent := theme.Accent(theme.HueCyan)
 	stats := []string{
-		fmt.Sprintf("RUNS: %d (clean %d / bail %d / raid %d / strand %d)",
-			st.Stats.RunsTotal, st.Stats.RunsClean, st.Stats.RunsBailed,
-			st.Stats.RunsRaided, st.Stats.RunsStranded),
-		fmt.Sprintf("EARNED: %d  SPENT: %d  LEGENDARIES: %d",
-			st.Stats.CreditsEarned, st.Stats.CreditsSpent, st.Stats.LegendariesMined),
+		fmt.Sprintf("RUNS: %s (clean %s / bail %s / raid %s / strand %s)",
+			theme.Bright.Render(fmt.Sprintf("%d", st.Stats.RunsTotal)),
+			theme.Gold.Render(fmt.Sprintf("%d", st.Stats.RunsClean)),
+			theme.Cyan.Render(fmt.Sprintf("%d", st.Stats.RunsBailed)),
+			theme.Red.Render(fmt.Sprintf("%d", st.Stats.RunsRaided)),
+			theme.Amber.Render(fmt.Sprintf("%d", st.Stats.RunsStranded))),
+		fmt.Sprintf("EARNED: %s  SPENT: %s  LEGENDARIES: %s",
+			theme.Gold.Render(fmt.Sprintf("%d", st.Stats.CreditsEarned)),
+			theme.Red.Render(fmt.Sprintf("%d", st.Stats.CreditsSpent)),
+			theme.Violet.Render(fmt.Sprintf("%d", st.Stats.LegendariesMined))),
 	}
 	var runs []string
 	for i, r := range st.RunLog {
 		if i < g.logScroll {
 			continue
 		}
-		runs = append(runs, fmt.Sprintf("%s %s %s +%d (%s)",
-			r.World, r.Asteroid, theme.OutcomeStyle(r.Outcome).Render(strings.ToUpper(r.Outcome)), r.Banked, r.Outcome))
+		outcome := theme.OutcomeStyle(r.Outcome).Render(strings.ToUpper(r.Outcome))
+		line := fmt.Sprintf("%s %s %s +%s (%s)",
+			theme.DimStyle.Render(r.World), theme.TxtStyle.Render(r.Asteroid),
+			outcome, theme.Gold.Render(fmt.Sprintf("%d", r.Banked)), r.Outcome)
+		runs = append(runs, line)
 		if len(runs) > 8 {
 			break
 		}
 	}
-	body := strings.Join(append([]string{theme.Bright.Render("SERVICE RECORD"), strings.Join(stats, "\n"), "", "RECENT RUNS"}, runs...), "\n")
+	body := strings.Join(append([]string{theme.Cyan.Render("SERVICE RECORD"), strings.Join(stats, "\n"), "", theme.Bright.Render("RECENT RUNS")}, runs...), "\n")
 	hint := "ESC BACK TO CHART"
-	return theme.Panel("SHIP'S LOG", g.width-4, g.height-6, body) + "\n" + g.renderKeybar(hint)
+	return theme.Panel("SHIP'S LOG", g.width-4, g.height-6, body, accent) + "\n" + g.renderKeybar(hint)
 }
 
 func (g *Game) renderOverlay() string {
 	switch g.overlay {
 	case ovHelp:
-		return theme.Panel("HELP", 50, 10, "↑↓ navigate · ENTER confirm · MOUSE supported\n? close help")
+		return theme.Panel("HELP", 50, 10, theme.TxtStyle.Render("↑/↓ navigate · ENTER confirm · MOUSE supported\n? close help"), theme.Accent(theme.HueCyan))
 	case ovTweaks:
-		return theme.Panel("TWEAKS", 40, 8, "T toggles — aggression/view in save settings")
+		return theme.Panel("TWEAKS", 40, 8, theme.DimStyle.Render("T toggles — aggression/view in save settings"), theme.Accent(theme.HueViolet))
 	case ovKicked:
-		return theme.Panel("NOTICE", 50, 5, g.kickReason+"\nPress any key.")
+		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
 	case ovOnboard:
 		pages := []string{
-			"Welcome, pilot. Mine the belts, bank credits, upgrade your ship.",
-			"Chart → Belt → Mine → Summary. Bail early or drill to 100%.",
-			"Keys: arrows, Enter, F/H at port, Space overdrive, B bail.",
+			theme.TxtStyle.Render("Welcome, pilot. Mine the belts, bank credits, upgrade your ship."),
+			theme.TxtStyle.Render("Chart → Belt → Mine → Summary. Bail early or drill to 100%."),
+			theme.TxtStyle.Render("Keys: arrows, Enter, F/H at port, Space overdrive, B bail."),
 		}
 		pg := g.onboardPg
 		if pg >= len(pages) {
 			pg = len(pages) - 1
 		}
-		return theme.Panel("ONBOARDING", 55, 6, pages[pg]+"\n\nPress any key.")
+		return theme.Panel("ONBOARDING", 55, 6, pages[pg]+"\n\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueGold))
 	}
 	return ""
 }
