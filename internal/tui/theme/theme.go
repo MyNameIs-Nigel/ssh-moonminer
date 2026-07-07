@@ -214,11 +214,11 @@ func Option(h Hue, selected bool) lipgloss.Style {
 func OptionHC(h Hue, selected, highContrast bool) lipgloss.Style {
 	dim, bright, bg := hueColors(h)
 	if selected {
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(bright)).Bold(true).Background(lipgloss.Color(bg))
+		fg := bright
 		if highContrast {
-			style = style.Underline(true)
+			fg = whiteC
 		}
-		return style
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Bold(true).Background(lipgloss.Color(bg))
 	}
 	if highContrast {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(txtC))
