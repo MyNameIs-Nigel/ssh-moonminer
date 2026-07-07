@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/version"
 )
 
 func (g *Game) keyLog(k string) []tea.Cmd {
@@ -66,7 +67,10 @@ var onboardPages = []string{
 func (g *Game) renderOverlay() string {
 	switch g.overlay {
 	case ovHelp:
-		return theme.Panel("HELP", 50, 10, theme.TxtStyle.Render("↑/↓ navigate · ENTER confirm · MOUSE supported\n? close help"), theme.Accent(theme.HueCyan))
+		return theme.Panel("HELP", 50, 10,
+			theme.TxtStyle.Render("↑/↓ navigate · ENTER confirm · MOUSE supported\n? close help")+
+				"\n\n"+theme.DimStyle.Render("MOON MINER v"+version.Version+" ("+version.Channel+")"),
+			theme.Accent(theme.HueCyan))
 	case ovTweaks:
 		return theme.Panel("TWEAKS", 40, 8, theme.DimStyle.Render("T toggles — aggression/view in save settings"), theme.Accent(theme.HueViolet))
 	case ovKicked:

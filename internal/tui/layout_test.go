@@ -1,13 +1,24 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/identity"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/version"
 )
+
+func TestHelpOverlayShowsVersion(t *testing.T) {
+	g := &Game{overlay: ovHelp}
+	out := g.renderOverlay()
+	want := "MOON MINER v" + version.Version + " (" + version.Channel + ")"
+	if !strings.Contains(out, want) {
+		t.Fatalf("help overlay: expected %q, got:\n%s", want, out)
+	}
+}
 
 func TestPanelBodyY(t *testing.T) {
 	if got := panelBodyY(0); got != 4 {
