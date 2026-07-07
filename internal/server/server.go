@@ -22,6 +22,7 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/game"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/identity"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/version"
 )
 
 type sessionKey struct{}
@@ -59,6 +60,7 @@ func New(cfg config.Config, logger *slog.Logger, games SaveManager, resolver *id
 		wish.WithAddress(cfg.ListenAddr()),
 		wish.WithHostKeyPath(cfg.HostKeyPath),
 		wish.WithIdleTimeout(cfg.IdleTimeout),
+		withVersion(version.Version),
 		wish.WithPublicKeyAuth(func(_ ssh.Context, key ssh.PublicKey) bool { return key != nil }),
 		wish.WithMiddleware(
 			bubbletea.MiddlewareWithProgramHandler(srv.newTeaProgram),
@@ -74,6 +76,18 @@ func New(cfg config.Config, logger *slog.Logger, games SaveManager, resolver *id
 	}
 	srv.ssh = s
 	return srv, nil
+}
+
+// withVersion embeds the fleet version in the SSH version-exchange banner
+// (renders on the wire as e.g. "SSH-2.0-1.0.0"), so the arcade router's
+// health-check prober can read it live on every probe cycle instead of a
+// hand-maintained games.toml field — see
+// ../../ssh-arcadelobby/docs/03-games-registry-and-health.md.
+func withVersion(v string) ssh.Option {
+	return func(srv *ssh.Server) error {
+		srv.Version = v
+		return nil
+	}
 }
 
 func (srv *Server) attachSave() func(ssh.Handler) ssh.Handler {
