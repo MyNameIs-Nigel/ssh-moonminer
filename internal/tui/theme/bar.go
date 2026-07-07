@@ -2,6 +2,7 @@ package theme
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 )
@@ -88,36 +89,58 @@ func Cursor(tick int) string {
 	return " "
 }
 
-// KeybarHint renders a keybar hint with bright key letters and dim separators.
+// KeybarHint renders a keybar hint with bright control keys and lighter labels.
 func KeybarHint(hint string) string {
-	runes := []rune(hint)
+	segments := strings.Split(hint, "·")
 	var out strings.Builder
-	for i, ch := range runes {
-		var prev rune
+	for i, seg := range segments {
 		if i > 0 {
-			prev = runes[i-1]
+			out.WriteString(DimStyle.Render(" ·"))
 		}
-		if isHintSep(ch) {
-			out.WriteString(DimStyle.Render(string(ch)))
-			continue
+		seg = strings.TrimLeft(seg, " ")
+		key, label := splitHintSegment(seg)
+		if key != "" {
+			out.WriteString(Bright.Render(key))
 		}
-		if ch == '↑' || ch == '↓' || ch == '←' || ch == '→' || ch == '▼' {
-			out.WriteString(Bright.Render(string(ch)))
-			continue
+		if label != "" {
+			out.WriteString(TxtStyle.Render(label))
 		}
-		if ch == '?' && (i == 0 || isHintSep(prev)) {
-			out.WriteString(Bright.Render("?"))
-			continue
-		}
-		if ch >= 'A' && ch <= 'Z' && (i == 0 || isHintSep(prev) || prev == '[') {
-			out.WriteString(Bright.Render(string(ch)))
-			continue
-		}
-		out.WriteString(TxtStyle.Render(string(ch)))
 	}
 	return out.String()
 }
 
-func isHintSep(r rune) bool {
-	return r == '·' || r == '|' || r == '/' || r == ' '
+func splitHintSegment(seg string) (key, label string) {
+	if seg == "" {
+		return "", ""
+	}
+	if seg[0] == '[' {
+		if idx := strings.Index(seg, "]"); idx >= 0 {
+			return seg[:idx+1], seg[idx+1:]
+		}
+	}
+	if r, _ := utf8.DecodeRuneInString(seg); r == '↑' || r == '↓' || r == '←' || r == '→' {
+		i := 0
+		for i < len(seg) {
+			r, size := utf8.DecodeRuneInString(seg[i:])
+			if r == '↑' || r == '↓' || r == '←' || r == '→' || r == '/' {
+				i += size
+				continue
+			}
+			break
+		}
+		return seg[:i], seg[i:]
+	}
+	for _, mk := range []string{"ENTER", "SPACE", "ESC"} {
+		if strings.HasPrefix(seg, mk) {
+			rest := seg[len(mk):]
+			if rest == "" || rest[0] == ' ' {
+				return mk, rest
+			}
+		}
+	}
+	r, size := utf8.DecodeRuneInString(seg)
+	if r == '?' || (r >= 'A' && r <= 'Z') {
+		return seg[:size], seg[size:]
+	}
+	return "", seg
 }

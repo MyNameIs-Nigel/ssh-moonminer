@@ -244,10 +244,11 @@ func Panel(title string, w, h int, body string, accent string) string {
 	}
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
 	titleStr := lipgloss.NewStyle().Foreground(lipgloss.Color(accent)).Bold(true).Render(Glyph("diamond", false) + " " + title)
-	top := "┌" + titleStr + strings.Repeat("─", max(0, w-lipgloss.Width(titleStr)-2)) + "┐"
+	dashCount := max(0, w-lipgloss.Width(titleStr)-2)
+	top := border.Render("┌") + titleStr + border.Render(strings.Repeat("─", dashCount)) + border.Render("┐")
 	lines := strings.Split(body, "\n")
 	var out []string
-	out = append(out, border.Render(top))
+	out = append(out, top)
 	for i := 0; i < h-2; i++ {
 		lineBody := ""
 		if i < len(lines) {
