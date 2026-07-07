@@ -82,7 +82,10 @@ func Button(key, label, price string, enabled bool, h Hue) string {
 }
 
 // Cursor renders blinking footer cursor.
-func Cursor(tick int) string {
+func Cursor(tick int, reducedMotion bool) string {
+	if reducedMotion {
+		return Bright.Render("█")
+	}
 	if tick%2 == 0 {
 		return Bright.Render("█")
 	}

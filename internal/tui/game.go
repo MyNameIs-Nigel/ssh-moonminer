@@ -70,6 +70,8 @@ type Game struct {
 	overlay   overlay
 	created   bool
 	onboardPg int
+	helpScroll int
+	tweaksSel  int
 
 	worldSel   int
 	rockSel    int
@@ -187,12 +189,20 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, g.updateKey(m)...)
 	case tea.MouseClickMsg:
 		g.lastInput = g.now
-		if g.overlay != ovNone || g.width < minWidth || g.height < minHeight {
+		if g.width < minWidth || g.height < minHeight {
+			break
+		}
+		if g.overlay != ovNone {
+			cmds = append(cmds, g.updateOverlayClick(m)...)
 			break
 		}
 		cmds = append(cmds, g.updateClick(m)...)
 	case tea.MouseWheelMsg:
 		g.lastInput = g.now
+		if g.overlay == ovHelp || g.overlay == ovTweaks {
+			cmds = append(cmds, g.updateOverlayWheel(m)...)
+			break
+		}
 		if g.overlay != ovNone {
 			break
 		}
@@ -218,10 +228,10 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		} else {
 			g.onboardPg++
 		}
-	case ovHelp, ovTweaks:
-		if m.String() == "esc" || m.String() == "?" {
-			g.overlay = ovNone
-		}
+	case ovHelp:
+		return g.updateHelpOverlay(m.String())
+	case ovTweaks:
+		return g.updateTweaksOverlay(m.String())
 	}
 	return nil
 }
@@ -232,6 +242,7 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 		if g.overlay == ovHelp {
 			g.overlay = ovNone
 		} else {
+			g.helpScroll = 0
 			g.overlay = ovHelp
 		}
 		return nil
@@ -277,10 +288,8 @@ func (g *Game) View() tea.View {
 		body = lipgloss.Place(g.width, g.height, lipgloss.Center, lipgloss.Center,
 			fmt.Sprintf("RESIZE TERMINAL — need %dx%d, have %dx%d", minWidth, minHeight, g.width, g.height))
 	} else {
-		body = g.renderChrome() + "\n" + g.renderScreen()
-		if g.overlay != ovNone {
-			body += "\n" + g.renderOverlay()
-		}
+		base := g.renderChrome() + "\n" + g.renderScreen()
+		body = g.compositeView(base)
 	}
 	v := tea.NewView(body)
 	v.AltScreen = true
@@ -326,7 +335,7 @@ func (g *Game) renderChrome() string {
 }
 
 func (g *Game) renderKeybar(hint string) string {
-	cursor := theme.Cursor(g.tickCount)
+	cursor := theme.Cursor(g.tickCount, g.snap.State.Settings.ReducedMotion)
 	bar := hint
 	if g.flash.text == "" {
 		bar = theme.KeybarHint(hint)

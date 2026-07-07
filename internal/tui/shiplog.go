@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
-	"github.com/mynameis-nigel/ssh-moonminer/internal/version"
 )
 
 func (g *Game) keyLog(k string) []tea.Cmd {
@@ -62,29 +61,4 @@ var onboardPages = []string{
 	theme.TxtStyle.Render("Welcome, pilot. Mine the belts, bank credits, upgrade your ship."),
 	theme.TxtStyle.Render("Chart → Belt → Mine → Summary. Bail early or drill to 100%."),
 	theme.TxtStyle.Render("Keys: arrows, Enter, F/H at port, Space overdrive, B bail."),
-}
-
-func (g *Game) renderOverlay() string {
-	switch g.overlay {
-	case ovHelp:
-		return theme.Panel("HELP", 50, 10,
-			theme.TxtStyle.Render("↑/↓ navigate · ENTER confirm · MOUSE supported\n? close help")+
-				"\n\n"+theme.DimStyle.Render("MOON MINER v"+version.Version+" ("+version.Channel+")"),
-			theme.Accent(theme.HueCyan))
-	case ovTweaks:
-		return theme.Panel("TWEAKS", 40, 8, theme.DimStyle.Render("T toggles — aggression/view in save settings"), theme.Accent(theme.HueViolet))
-	case ovKicked:
-		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
-	case ovOnboard:
-		pg := g.onboardPg
-		if pg >= len(onboardPages) {
-			pg = len(onboardPages) - 1
-		}
-		hint := "Press any key for more."
-		if pg == len(onboardPages)-1 {
-			hint = "Press any key to start."
-		}
-		return theme.Panel("ONBOARDING", 55, 6, onboardPages[pg]+"\n\n"+theme.DimStyle.Render(hint), theme.Accent(theme.HueGold))
-	}
-	return ""
 }

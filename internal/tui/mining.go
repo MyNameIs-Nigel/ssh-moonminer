@@ -75,7 +75,9 @@ func (g *Game) renderMining() string {
 	}
 	od := ""
 	if g.overdriveOn || run.Overdrive {
-		if g.tickCount%2 == 0 {
+		if st.Settings.ReducedMotion {
+			od = theme.Amber.Render(" ▮▮ OVERDRIVE")
+		} else if g.tickCount%2 == 0 {
 			od = theme.Amber.Render(" ▮▮ OVERDRIVE")
 		} else {
 			od = theme.Gold.Render(" ▮▮ OVERDRIVE")
