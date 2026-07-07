@@ -11,10 +11,10 @@ import (
 type OutcomeKind string
 
 const (
-	OutcomeClean     OutcomeKind = "clean"
-	OutcomeBail      OutcomeKind = "bail"
-	OutcomeRaided    OutcomeKind = "raided"
-	OutcomeStranded  OutcomeKind = "stranded"
+	OutcomeClean    OutcomeKind = "clean"
+	OutcomeBail     OutcomeKind = "bail"
+	OutcomeRaided   OutcomeKind = "raided"
+	OutcomeStranded OutcomeKind = "stranded"
 )
 
 // RunOutcome is returned when a run ends.
@@ -47,6 +47,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if ast == nil {
 		return ErrInvalidAsteroid
 	}
+	if !ast.Scanned {
+		return ErrNotScanned
+	}
 	if s.Fuel < float64(ast.FuelCost) {
 		return ErrInsufficientFuel
 	}
@@ -56,6 +59,56 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartedAt:  now,
 	}
 	return nil
+}
+
+// Scan begins a sensor scan on the given asteroid. Distance determines both
+// the scan's duration (content.Belt.ScanSecPerKm per km) and, indirectly via
+// GenerateBelt, its flight fuel cost — but the scan itself only costs the
+// flat content.Belt.ScanFuelCost. Completion is driven by TickScan.
+func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
+	if s.WorldIdx < 0 {
+		return ErrNotDocked
+	}
+	if s.Run != nil {
+		return ErrActiveRun
+	}
+	if s.Scan != nil {
+		return ErrScanInProgress
+	}
+	ast, _ := FindAsteroid(s, asteroidID)
+	if ast == nil {
+		return ErrInvalidAsteroid
+	}
+	if ast.Scanned {
+		return ErrAlreadyScanned
+	}
+	cost := c.Belt.ScanFuelCost
+	if s.Fuel < cost {
+		return ErrInsufficientFuel
+	}
+	s.Fuel -= cost
+	s.Scan = &ActiveScan{
+		AsteroidID: asteroidID,
+		Duration:   ast.Distance * c.Belt.ScanSecPerKm,
+	}
+	return nil
+}
+
+// TickScan advances an in-progress scan by dt seconds, revealing the
+// asteroid's details once the scan completes.
+func TickScan(s *State, dt float64) {
+	sc := s.Scan
+	if sc == nil {
+		return
+	}
+	sc.Elapsed += dt
+	if sc.Elapsed < sc.Duration {
+		return
+	}
+	if ast, _ := FindAsteroid(s, sc.AsteroidID); ast != nil {
+		ast.Scanned = true
+	}
+	s.Scan = nil
 }
 
 // SetOverdrive toggles overdrive on the active run.

@@ -189,6 +189,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyChart("u")
 		case "btn:log":
 			return g.keyChart("l")
+		case "btn:scan":
+			return g.keyBelt("s")
 		case "btn:overdrive":
 			g.overdriveOn = true
 			g.overdriveUntil = g.now*1000 + 250

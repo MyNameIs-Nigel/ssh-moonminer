@@ -15,4 +15,7 @@ var (
 	ErrAlreadyFull       = errors.New("already at maximum")
 	ErrMaxUpgrade        = errors.New("upgrade at max level")
 	ErrNotEligible       = errors.New("not eligible")
+	ErrNotScanned        = errors.New("asteroid not scanned yet")
+	ErrAlreadyScanned    = errors.New("asteroid already scanned")
+	ErrScanInProgress    = errors.New("scan already in progress")
 )

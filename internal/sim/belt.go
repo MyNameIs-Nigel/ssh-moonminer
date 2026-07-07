@@ -54,11 +54,12 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 	rocks := make([]Asteroid, n)
 	for i := 0; i < n; i++ {
 		tier := rollTier(rng, weights)
-		vol := int(math.Round(clamp(rng.Float64()*float64(bc.VolumeMax-bc.VolumeMin)+float64(bc.VolumeMin), float64(bc.VolumeMin), float64(bc.VolumeMax)) / float64(bc.VolumeStep))) * bc.VolumeStep
+		vol := int(math.Round(clamp(rng.Float64()*float64(bc.VolumeMax-bc.VolumeMin)+float64(bc.VolumeMin), float64(bc.VolumeMin), float64(bc.VolumeMax))/float64(bc.VolumeStep))) * bc.VolumeStep
 		drill := round1(clamp(float64(vol)/bc.DrillSecPerVol, bc.DrillSecMin, bc.DrillSecMax))
 		tierMult := c.Tiers.Mults[tier]
 		value := int(math.Round(float64(vol)*bc.ValuePerVolume*tierMult/float64(bc.ValueStep))) * bc.ValueStep
-		fuelCost := int(math.Round(clamp(float64(bc.FuelCostMin)+rng.Float64()*14+float64(tier*bc.FuelCostTierBon), float64(bc.FuelCostMin), float64(bc.FuelCostMax))))
+		distance := round1(clamp(rng.Float64()*(bc.DistanceMax-bc.DistanceMin)+bc.DistanceMin, bc.DistanceMin, bc.DistanceMax))
+		fuelCost := int(math.Round(clamp(distance*bc.FuelPerKm+float64(tier*bc.FuelCostTierBon), float64(bc.FuelCostMin), float64(bc.FuelCostMax))))
 		risk := int(math.Round(clamp(w.PirateMul*float64(bc.RiskBase+tier*bc.RiskPerTier)+rng.Float64()*16, float64(bc.RiskMin), float64(bc.RiskMax))))
 		dots := clampInt(int(math.Ceil(float64(risk)/20)), 1, 5)
 		size := "sm"
@@ -76,9 +77,10 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 			ID: i + 1, Name: name, Tier: tier, Volume: vol,
 			DrillSec: drill, Value: value, FuelCost: fuelCost,
 			Risk: risk, Dots: dots, Size: size, X: x, Y: y,
+			Distance: distance,
 		}
 	}
-	sort.Slice(rocks, func(i, j int) bool { return rocks[i].FuelCost < rocks[j].FuelCost })
+	sort.Slice(rocks, func(i, j int) bool { return rocks[i].Distance < rocks[j].Distance })
 	s.BeltCount++
 	return rocks
 }
@@ -121,14 +123,6 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	return nil
 }
 
-// Rescan regenerates the current belt.
-func Rescan(s *State, c *content.Content) {
-	if s.WorldIdx < 0 {
-		return
-	}
-	s.Belt = GenerateBelt(s, c, s.WorldIdx)
-}
-
 // Dock returns to the star chart.
 func Dock(s *State) {
 	if s.Run != nil {
@@ -136,6 +130,7 @@ func Dock(s *State) {
 	}
 	s.WorldIdx = -1
 	s.Belt = nil
+	s.Scan = nil
 }
 
 // FindAsteroid returns asteroid by ID.

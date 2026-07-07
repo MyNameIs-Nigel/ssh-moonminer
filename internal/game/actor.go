@@ -57,7 +57,7 @@ func (a *actor) run() {
 	defer mineTick.Stop()
 
 	for {
-		if a.state.Run != nil {
+		if a.state.Run != nil || a.state.Scan != nil {
 			mineTick.Reset(tickDur)
 		} else {
 			mineTick.Stop()
@@ -68,7 +68,7 @@ func (a *actor) run() {
 		case <-autosave.C:
 			a.persist("autosave")
 		case <-mineTick.C:
-			a.tickMining()
+			a.tick()
 		case <-a.stop:
 			if a.state.Run != nil {
 				sim.Bail(a.state, a.mgr.content, time.Now().Unix())
@@ -80,13 +80,20 @@ func (a *actor) run() {
 	}
 }
 
-func (a *actor) tickMining() {
-	if a.state.Run == nil {
+func (a *actor) tick() {
+	if a.state.Run == nil && a.state.Scan == nil {
 		return
 	}
 	now := time.Now().Unix()
 	dt := 1.0 / float64(a.mgr.content.Mining.TickHz)
-	out, ended := sim.TickRun(a.state, a.mgr.content, dt, now)
+	var out *sim.RunOutcome
+	var ended bool
+	if a.state.Run != nil {
+		out, ended = sim.TickRun(a.state, a.mgr.content, dt, now)
+	}
+	if a.state.Scan != nil {
+		sim.TickScan(a.state, dt)
+	}
 	a.dirty = true
 	snap := sim.Snapshot{State: *a.state.Clone()}
 	if a.session != nil {

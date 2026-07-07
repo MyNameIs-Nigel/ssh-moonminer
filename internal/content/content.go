@@ -43,9 +43,14 @@ type BeltConfig struct {
 	DrillSecPerVol   float64  `toml:"drill_sec_per_volume"`
 	ValuePerVolume   float64  `toml:"value_per_volume"`
 	ValueStep        int      `toml:"value_step"`
+	DistanceMin      float64  `toml:"distance_min"`
+	DistanceMax      float64  `toml:"distance_max"`
+	FuelPerKm        float64  `toml:"fuel_per_km"`
 	FuelCostMin      int      `toml:"fuel_cost_min"`
 	FuelCostMax      int      `toml:"fuel_cost_max"`
 	FuelCostTierBon  int      `toml:"fuel_cost_tier_bonus"`
+	ScanFuelCost     float64  `toml:"scan_fuel_cost"`
+	ScanSecPerKm     float64  `toml:"scan_sec_per_km"`
 	RiskMin          int      `toml:"risk_min"`
 	RiskMax          int      `toml:"risk_max"`
 	RiskBase         int      `toml:"risk_base"`
@@ -62,26 +67,26 @@ type TierConfig struct {
 
 // MiningConfig holds real-time mining constants.
 type MiningConfig struct {
-	TickHz             int     `toml:"tick_hz"`
-	PirateRateBase     float64 `toml:"pirate_rate_base"`
-	PirateRatePerTier  float64 `toml:"pirate_rate_per_tier"`
-	FuelDrainBase      float64 `toml:"fuel_drain_base"`
-	FuelDrainPerTier   float64 `toml:"fuel_drain_per_tier"`
-	OverdriveDrillMul  float64 `toml:"overdrive_drill_mul"`
-	OverdriveFuelMul   float64 `toml:"overdrive_fuel_mul"`
-	RaidedYieldKeep    float64 `toml:"raided_yield_keep"`
-	RaidedHullDamage   int     `toml:"raided_hull_damage"`
-	StrandedYieldKeep  float64 `toml:"stranded_yield_keep"`
+	TickHz            int     `toml:"tick_hz"`
+	PirateRateBase    float64 `toml:"pirate_rate_base"`
+	PirateRatePerTier float64 `toml:"pirate_rate_per_tier"`
+	FuelDrainBase     float64 `toml:"fuel_drain_base"`
+	FuelDrainPerTier  float64 `toml:"fuel_drain_per_tier"`
+	OverdriveDrillMul float64 `toml:"overdrive_drill_mul"`
+	OverdriveFuelMul  float64 `toml:"overdrive_fuel_mul"`
+	RaidedYieldKeep   float64 `toml:"raided_yield_keep"`
+	RaidedHullDamage  int     `toml:"raided_hull_damage"`
+	StrandedYieldKeep float64 `toml:"stranded_yield_keep"`
 }
 
 // PortConfig holds port service pricing.
 type PortConfig struct {
-	RefuelPerPoint          int     `toml:"refuel_per_point"`
-	RepairPerPoint          int     `toml:"repair_per_point"`
-	DrydockSurchargeMul     float64 `toml:"drydock_surcharge_mul"`
-	InsuranceCredits        int     `toml:"insurance_credits"`
-	InsuranceFuelThreshold  int     `toml:"insurance_fuel_threshold"`
-	InsuranceCreditThreshold int    `toml:"insurance_credit_threshold"`
+	RefuelPerPoint           int     `toml:"refuel_per_point"`
+	RepairPerPoint           int     `toml:"repair_per_point"`
+	DrydockSurchargeMul      float64 `toml:"drydock_surcharge_mul"`
+	InsuranceCredits         int     `toml:"insurance_credits"`
+	InsuranceFuelThreshold   int     `toml:"insurance_fuel_threshold"`
+	InsuranceCreditThreshold int     `toml:"insurance_credit_threshold"`
 }
 
 // UpgradeConfig holds ship upgrade pricing and effects.
@@ -190,6 +195,12 @@ func (c *Content) validate() error {
 	}
 	if c.Belt.AsteroidsPerBelt < 1 {
 		return fmt.Errorf("content: asteroids_per_belt must be positive")
+	}
+	if c.Belt.DistanceMin <= 0 || c.Belt.DistanceMax <= c.Belt.DistanceMin {
+		return fmt.Errorf("content: belt distance_min/distance_max must be positive and ascending")
+	}
+	if c.Belt.ScanSecPerKm <= 0 {
+		return fmt.Errorf("content: belt scan_sec_per_km must be positive")
 	}
 	if c.Mining.TickHz < 1 {
 		return fmt.Errorf("content: mining tick_hz must be positive")

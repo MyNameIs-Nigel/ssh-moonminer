@@ -40,18 +40,18 @@ type Upgrades struct {
 
 // Stats tracks lifetime pilot statistics.
 type Stats struct {
-	RunsTotal       int     `json:"runs_total"`
-	RunsClean       int     `json:"runs_clean"`
-	RunsBailed      int     `json:"runs_bailed"`
-	RunsRaided      int     `json:"runs_raided"`
-	RunsStranded    int     `json:"runs_stranded"`
-	CreditsEarned   int     `json:"credits_earned"`
-	CreditsSpent    int     `json:"credits_spent"`
-	LegendariesMined int    `json:"legendaries_mined"`
-	FuelBurned      float64 `json:"fuel_burned"`
-	InsuranceClaims int     `json:"insurance_claims"`
-	FirstSeen       int64   `json:"first_seen"`
-	LastSeen        int64   `json:"last_seen"`
+	RunsTotal        int     `json:"runs_total"`
+	RunsClean        int     `json:"runs_clean"`
+	RunsBailed       int     `json:"runs_bailed"`
+	RunsRaided       int     `json:"runs_raided"`
+	RunsStranded     int     `json:"runs_stranded"`
+	CreditsEarned    int     `json:"credits_earned"`
+	CreditsSpent     int     `json:"credits_spent"`
+	LegendariesMined int     `json:"legendaries_mined"`
+	FuelBurned       float64 `json:"fuel_burned"`
+	InsuranceClaims  int     `json:"insurance_claims"`
+	FirstSeen        int64   `json:"first_seen"`
+	LastSeen         int64   `json:"last_seen"`
 }
 
 // RunRecord is one ship's-log entry.
@@ -80,6 +80,8 @@ type Asteroid struct {
 	Size     string  `json:"size"`
 	X        int     `json:"x"`
 	Y        int     `json:"y"`
+	Distance float64 `json:"distance"`
+	Scanned  bool    `json:"scanned"`
 }
 
 // ActiveRun is in-progress mining state (never persisted non-nil).
@@ -91,6 +93,13 @@ type ActiveRun struct {
 	Overdrive  bool    `json:"overdrive"`
 	StartedAt  int64   `json:"started_at"`
 	Overdrove  bool    `json:"overdrove"`
+}
+
+// ActiveScan is an in-progress sensor scan (never persisted non-nil).
+type ActiveScan struct {
+	AsteroidID int     `json:"asteroid_id"`
+	Elapsed    float64 `json:"elapsed"`
+	Duration   float64 `json:"duration"`
 }
 
 // State is the full authoritative save.
@@ -108,6 +117,7 @@ type State struct {
 	Stats     Stats       `json:"stats"`
 	RunLog    []RunRecord `json:"run_log,omitempty"`
 	Run       *ActiveRun  `json:"run,omitempty"`
+	Scan      *ActiveScan `json:"scan,omitempty"`
 }
 
 // Snapshot is a value copy for rendering.
@@ -137,6 +147,7 @@ func New(c *content.Content, seed uint64, now int64) *State {
 func (s *State) Encode() ([]byte, error) {
 	copy := s.Clone()
 	copy.Run = nil
+	copy.Scan = nil
 	return json.Marshal(copy)
 }
 
@@ -171,7 +182,8 @@ func DecodeState(b []byte) (*State, error) {
 	if s.Settings.PirateAggression == 0 {
 		s.Settings.PirateAggression = 1.0
 	}
-	s.Run = nil // never restore mid-run
+	s.Run = nil  // never restore mid-run
+	s.Scan = nil // never restore mid-scan
 	return &s, nil
 }
 

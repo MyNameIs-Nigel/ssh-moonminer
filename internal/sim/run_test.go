@@ -16,6 +16,7 @@ func TestOutcomes(t *testing.T) {
 	}
 	ast := belt[0]
 	s.Fuel = 200
+	s.Belt[0].Scanned = true
 	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,10 @@ func TestRaidedPriority(t *testing.T) {
 	_ = sim.Depart(s, c, 0)
 	ast := s.Belt[0]
 	s.Fuel = 500
-	_ = sim.Lock(s, c, ast.ID, 1000)
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
 	s.Run.Pirate = 99.9
 	s.Run.Drill = 99.9
 	out, ended := sim.TickRun(s, c, 1.0, 2000)
@@ -61,9 +65,12 @@ func TestOverdriveFaster(t *testing.T) {
 		_ = sim.Depart(s, c, 1)
 		ast := s.Belt[0]
 		ast.DrillSec = 10
+		ast.Scanned = true
 		s.Belt[0] = ast
 		s.Fuel = 500
-		_ = sim.Lock(s, c, ast.ID, 0)
+		if err := sim.Lock(s, c, ast.ID, 0); err != nil {
+			t.Fatal(err)
+		}
 		if over {
 			sim.SetOverdrive(s, true)
 		}

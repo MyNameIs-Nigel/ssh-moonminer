@@ -8,10 +8,10 @@ import (
 
 // Session is one terminal's handle onto a save actor.
 type Session struct {
-	id     uint64
-	actor  *actor
-	kicked chan string
-	kickFn func(reason string)
+	id       uint64
+	actor    *actor
+	kicked   chan string
+	kickFn   func(reason string)
 	kickOnce sync.Once
 
 	snapCh      chan sim.Snapshot
@@ -85,10 +85,9 @@ func (s *Session) Depart(now int64, worldIdx int) (Snapshot, error) {
 	})
 }
 
-func (s *Session) Rescan(now int64) (Snapshot, error) {
+func (s *Session) Scan(now int64, asteroidID int) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		sim.Rescan(st, s.actor.content())
-		return nil
+		return sim.Scan(st, s.actor.content(), asteroidID, now)
 	})
 }
 

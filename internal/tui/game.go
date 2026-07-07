@@ -204,9 +204,19 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 	switch g.overlay {
-	case ovKicked, ovOnboard:
+	case ovKicked:
 		if m.String() != "" {
 			return []tea.Cmd{tea.Quit}
+		}
+	case ovOnboard:
+		if m.String() == "" {
+			break
+		}
+		if g.onboardPg >= len(onboardPages)-1 {
+			g.overlay = ovNone
+			g.onboardPg = 0
+		} else {
+			g.onboardPg++
 		}
 	case ovHelp, ovTweaks:
 		if m.String() == "esc" || m.String() == "?" {

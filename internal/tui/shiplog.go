@@ -57,6 +57,12 @@ func (g *Game) renderLog() string {
 	return theme.Panel("SHIP'S LOG", g.width-4, g.height-6, body, accent) + "\n" + g.renderKeybar(hint)
 }
 
+var onboardPages = []string{
+	theme.TxtStyle.Render("Welcome, pilot. Mine the belts, bank credits, upgrade your ship."),
+	theme.TxtStyle.Render("Chart → Belt → Mine → Summary. Bail early or drill to 100%."),
+	theme.TxtStyle.Render("Keys: arrows, Enter, F/H at port, Space overdrive, B bail."),
+}
+
 func (g *Game) renderOverlay() string {
 	switch g.overlay {
 	case ovHelp:
@@ -66,16 +72,15 @@ func (g *Game) renderOverlay() string {
 	case ovKicked:
 		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
 	case ovOnboard:
-		pages := []string{
-			theme.TxtStyle.Render("Welcome, pilot. Mine the belts, bank credits, upgrade your ship."),
-			theme.TxtStyle.Render("Chart → Belt → Mine → Summary. Bail early or drill to 100%."),
-			theme.TxtStyle.Render("Keys: arrows, Enter, F/H at port, Space overdrive, B bail."),
-		}
 		pg := g.onboardPg
-		if pg >= len(pages) {
-			pg = len(pages) - 1
+		if pg >= len(onboardPages) {
+			pg = len(onboardPages) - 1
 		}
-		return theme.Panel("ONBOARDING", 55, 6, pages[pg]+"\n\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueGold))
+		hint := "Press any key for more."
+		if pg == len(onboardPages)-1 {
+			hint = "Press any key to start."
+		}
+		return theme.Panel("ONBOARDING", 55, 6, onboardPages[pg]+"\n\n"+theme.DimStyle.Render(hint), theme.Accent(theme.HueGold))
 	}
 	return ""
 }
