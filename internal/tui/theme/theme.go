@@ -207,11 +207,31 @@ func hueColors(h Hue) (dim, bright, bg string) {
 
 // Option returns a style for selectable items — dim when unselected, bright + bg when selected.
 func Option(h Hue, selected bool) lipgloss.Style {
+	return OptionHC(h, selected, false)
+}
+
+// OptionHC is Option with high-contrast selection markers.
+func OptionHC(h Hue, selected, highContrast bool) lipgloss.Style {
 	dim, bright, bg := hueColors(h)
 	if selected {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(bright)).Bold(true).Background(lipgloss.Color(bg))
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(bright)).Bold(true).Background(lipgloss.Color(bg))
+		if highContrast {
+			style = style.Underline(true)
+		}
+		return style
+	}
+	if highContrast {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(txtC))
 	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(dim))
+}
+
+// LabelStyle returns secondary label styling respecting high contrast.
+func LabelStyle(highContrast bool) lipgloss.Style {
+	if highContrast {
+		return TxtStyle
+	}
+	return DimStyle
 }
 
 // Accent returns the bright hex for a hue (panel borders, HUD rules).

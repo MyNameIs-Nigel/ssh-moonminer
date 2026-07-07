@@ -12,8 +12,8 @@ import (
 )
 
 func TestHelpOverlayShowsVersion(t *testing.T) {
-	g := &Game{overlay: ovHelp}
-	out := g.renderOverlay()
+	g := &Game{overlay: ovHelp, scr: scrChart}
+	out := g.renderHelpOverlay()
 	want := "MOON MINER v" + version.Version + " (" + version.Channel + ")"
 	if !strings.Contains(out, want) {
 		t.Fatalf("help overlay: expected %q, got:\n%s", want, out)

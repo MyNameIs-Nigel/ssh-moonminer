@@ -47,7 +47,12 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 			return g.refreshSnap(snap, err)
 		}
 	case "t":
-		g.overlay = ovTweaks
+		if g.overlay == ovTweaks {
+			g.overlay = ovNone
+		} else {
+			g.tweaksSel = 0
+			g.overlay = ovTweaks
+		}
 	case "q":
 		return []tea.Cmd{tea.Quit}
 	case "esc":
@@ -101,7 +106,7 @@ func (g *Game) renderChart() string {
 			fuel = theme.Amber.Render(fuel)
 		}
 		line := fmt.Sprintf("%s%s  %s  %s", marker, w.Name, w.Sub, fuel)
-		line = theme.Option(theme.HueCyan, sel).Render(line)
+		line = theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast).Render(line)
 		leftLines = append(leftLines, line)
 		g.hitPanelLine(len(leftLines)-1, 1, line, fmt.Sprintf("world:%d", i), i)
 	}
@@ -158,7 +163,7 @@ func (g *Game) renderChart() string {
 				prefix = "▸ "
 			}
 			line := fmt.Sprintf("%s%s %s%s %s", prefix, sim.TrackName(sim.UpgradeTrack(t)), filled, empty, theme.Gold.Render(priceStr))
-			line = theme.Option(theme.HueViolet, sel).Render(line)
+			line = theme.OptionHC(theme.HueViolet, sel, st.Settings.HighContrast).Render(line)
 			rightLines = append(rightLines, line)
 			g.hitPanelLine(len(rightLines)-1, rightX, line, fmt.Sprintf("upg:%d", t), t)
 		}
