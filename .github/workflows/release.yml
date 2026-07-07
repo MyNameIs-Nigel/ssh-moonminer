@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race ./...
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        run: echo "sha_short=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/mynameis-nigel/ssh-moonminer:latest
+            ghcr.io/mynameis-nigel/ssh-moonminer:${{ steps.meta.outputs.sha_short }}
+
+  deploy:
+    needs: publish
+    # Runs directly on the play.ssharcade.dev EC2 host (self-hosted runner
+    # installed there, see ssh-arcadelobby/deploy/README.md) instead of
+    # dialing out over SSH: the host's real sshd (port 9922) is locked to
+    # one dev IP, and GitHub-hosted runners use ephemeral IPs from a huge,
+    # ever-changing range that will never match that allowlist. Running the
+    # job on the box itself means no inbound port has to be opened for CI,
+    # and no GHCR login is needed either — the host is already logged in
+    # from the ssh-farm rollout, and a classic PAT's read:packages scope
+    # covers every private package this account owns, not just one repo's.
+    runs-on: [self-hosted, production]
+    environment: production
+    steps:
+      - name: Deploy moonminer
+        run: |
+          cd /srv/ssharcade
+          docker compose pull moonminer
+          docker compose up -d moonminer

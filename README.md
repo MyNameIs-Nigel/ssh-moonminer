@@ -9,8 +9,11 @@ ssh moonminer.example.com
 
 ## Status
 
-**Playable prototype.** Full chart → belt → mine → summary loop with persistent pilots,
-arcade-router proxied identity (ssh-farm pattern), and SQLite saves.
+**Playable prototype, live behind the router.** Full chart → belt → mine → summary loop
+with persistent pilots, arcade-router proxied identity (ssh-farm pattern), and SQLite saves.
+Ships as `v1.0.0 (alpha)` — hardly polished, but stable. Docker image, Litestream/S3
+durability, and CI/CD (`ci.yml`/`release.yml`, same shape as ssh-farm's) all deploy for
+real to `play.ssharcade.dev` on every push to `main`.
 
 ## Stack
 
@@ -39,8 +42,18 @@ go vet ./...
 
 Behind `ssh-arcadelobby`, set `MOONMINER_PROXY_KEYS_PATH` to the router's bridge
 public key file (same pattern as ssh-farm's `FARM_PROXY_KEYS_PATH`). The fleet
-compose block in `ssh-arcadelobby/deploy/docker-compose.yml` is ready once a
-container image is published.
+compose block in `ssh-arcadelobby/deploy/docker-compose.yml` is wired and live;
+`games.toml` lists this game with `version = "1.0.0"`.
+
+## Deploy
+
+Dockerfile + `entrypoint.sh` + `etc/litestream.yml` implement the fleet's canonical
+Litestream/S3 durability pattern (`../ssh-arcadelobby/docs/06-fleet-data-durability.md`) —
+no AWS credentials required in dev (`LITESTREAM_REPLICA_URL` unset skips replication).
+`.github/workflows/ci.yml` runs `vet`/`build`/`test -race` on PRs and non-main pushes;
+`release.yml` builds/publishes `ghcr.io/mynameis-nigel/ssh-moonminer` on merge to `main`
+and redeploys on the same self-hosted `play.ssharcade.dev` runner ssh-arcadelobby and
+ssh-farm use.
 
 ## Sibling references
 
