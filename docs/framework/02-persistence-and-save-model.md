@@ -17,6 +17,7 @@ on shutdown flush — a redeploy must never lose progress.
 | `../ssh-idlefarmer/internal/store/store.go` | store type, WAL single-connection setup, `TouchAccount`, `LoadOrCreateSave`, `SaveState` |
 | `../ssh-idlefarmer/internal/store/migrations.go` | append-only migration runner + schema shape |
 | `../ssh-idlefarmer/internal/store/store_test.go` | test patterns (temp-file DB, create/load/update round-trips) |
+| `../ssh-farm/internal/store/` | this schema/mechanism proven a second time on the fleet stack (WAL + single-connection, append-only migrations); its extra tables (leaderboard/moderation columns) don't apply here, but its migration numbering discipline does |
 
 ## Deliverables
 

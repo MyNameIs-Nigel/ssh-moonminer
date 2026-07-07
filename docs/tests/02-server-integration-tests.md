@@ -18,6 +18,8 @@ model without fear.
 | `../ssh-idlefarmer/internal/server/server_test.go` | the whole harness: ephemeral port, test client keys, PTY request, session assertions |
 | `../ssh-idlefarmer/internal/server/hostkey_test.go` | host-key persistence checks |
 | `../ssh-idlefarmer/internal/game/game_test.go` | manager-level attach/detach patterns |
+| `../ssh-arcadelobby/internal/server/server_matrix_test.go` | the forged-proxied-username / registry-offline test patterns to mirror for the proxied-identity rows below |
+| `../ssh-farm/internal/identity/resolver_test.go` (or equivalent) | table-driven direct-vs-proxied resolution + rejection tests to mirror for `internal/identity` |
 
 ## Deliverables
 
@@ -49,6 +51,24 @@ model without fear.
 - Password auth: client configured with password-only fails before session.
 - Usernames `Scout`, `sc out!!`, `""` resolve slots `scout`, `scout`,
   `default` (store rows prove it).
+
+**Arcade proxied identity** (framework/01's `identity.Resolver`; mirror
+`../ssh-arcadelobby`'s bridge-integration-test spirit at this game's server
+layer)
+- A session authenticating with a key in the test harness's configured
+  `MOONMINER_PROXY_KEYS_PATH` set, using a router-encoded username
+  (`identity.EncodeProxiedUsername`), resolves to *that* fingerprint's save —
+  not the proxy key's — and two different encoded usernames over the same
+  proxy key land on two different, independent saves.
+- A malformed proxied username (bad hex, missing dot, oversized slot) on a
+  trusted proxy-key connection is refused with the protocol-error message;
+  the session never silently resolves to the proxy key's own account.
+- A non-trusted key presenting an `fp.slot`-shaped username is treated as an
+  ordinary direct connection (harmless slot under the attacker's own key) —
+  confirms proxied identity cannot be forged without the private proxy key.
+- Session caps (per-key and global) key on the *resolved* fingerprint: two
+  proxied sessions for two different encoded fingerprints don't share one
+  cap bucket, even though both dial in on the same wire key.
 
 **Transport policies**
 - No-PTY session receives the hint text and a clean exit.
@@ -103,4 +123,8 @@ model without fear.
 - TUI rendering correctness → tests/03 (here we only assert reachable text
   fragments).
 - Docker/compose smoke tests → framework/04's acceptance list (manual).
+- Litestream/S3 durability drills → framework/04's acceptance list; these
+  reuse `../ssh-farm/scripts/restore-drill/` fleet-wide rather than a new
+  moonminer-specific script (`../ssh-arcadelobby/docs/06-fleet-data-durability.md`
+  rule 3).
 - Load/soak testing — post-MVP.

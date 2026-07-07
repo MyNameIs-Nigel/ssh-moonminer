@@ -30,7 +30,10 @@ sessions because the actor serializes all access.
 
 - In-memory registry `map[saveKey]*actor`, `saveKey{fingerprint, slot}`.
   Process-local by design — restart clears stale locks.
-- `Attach(ctx, id, publicKey, now, kick)`:
+- `Attach(ctx, id, publicKey, now, kick)` — `id` is the `identity.SessionIdentity`
+  (fingerprint + slot) `identity.Resolver.Resolve` produced (framework/01),
+  already the same shape whether the connection was direct or proxied through
+  the arcade router; the manager never re-derives identity itself:
   1. refuse if shutting down (`ErrShuttingDown`),
   2. `store.TouchAccount`,
   3. load-or-create the save via `store.LoadOrCreateSave`, decoding with

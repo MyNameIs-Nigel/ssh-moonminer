@@ -8,17 +8,23 @@ independently of the others. This README is the contract that keeps parallel
 work compatible: read it first, then your task file, then the referenced
 source in the sibling reference project.
 
-## The reference project
+## The reference projects
 
-`C:\Users\user\Documents\Repositories\mynameis-nigel\ssh-idlefarmer` (also at
-`../ssh-idlefarmer` relative to this repo) is a **finished, working game on
-the exact same stack**. Its SSH/session/persistence layer is battle-tested,
-including Windows-host PTY workarounds that took real debugging to get right.
+Three sibling repos in this same fleet (all at `../<repo>` relative to this
+one) are reference implementations. Each solves a different layer:
 
-**Rule: when a task doc cites an idlefarmer file, mirror its approach.** Do
-not invent a new pattern for a problem idlefarmer already solved. Rename
-farm-specific things (`IDLEFARM_*` → `MOONMINER_*`, farm copy → ship copy),
-keep the structure.
+| Repo | What to mirror |
+| --- | --- |
+| `../ssh-idlefarmer` | The original **standalone** game on the exact same stack: SSH/session/persistence layer, Windows-host PTY workarounds. Still the right reference for anything that doesn't touch the arcade fleet (store internals, actor model, TUI mechanics). |
+| `../ssh-arcadelobby` | **Canonical fleet contracts**, cited by path from task docs below: `docs/02-bridge-and-identity-protocol.md` (trusted-proxy identity — moonminer sits behind this router, unlike idlefarmer when it was built), `docs/03-games-registry-and-health.md` (the `games.toml` schema this game registers under), `docs/06-fleet-data-durability.md` (canonical Litestream+S3 pattern — **supersedes idlefarmer's plain-SQLite-volume story and this doc's own older "distroless" convention below**, see framework/04). |
+| `../ssh-farm` | **The proven second fleet member** — a second game that already did the "port a standalone SSH game onto the fleet" work moonminer is about to do. Its `docs/framework/01-03` + actual code (`internal/identity/`, `Dockerfile`, `entrypoint.sh`, `.github/workflows/`) are worked examples of applying arcadelobby's contracts for real, including bugs found and fixed along the way. Prefer farm's code over idlefarmer's wherever the two diverge on fleet-specific concerns. |
+
+**Rule: when a task doc cites a reference file, mirror its approach.** Do
+not invent a new pattern a reference repo already solved. Rename
+farm-specific things (`FARM_*` → `MOONMINER_*`, farm copy → ship copy),
+keep the structure. Where idlefarmer and farm/arcadelobby disagree (identity,
+Docker base image, deployment), **farm/arcadelobby win** — they reflect
+decisions made after idlefarmer shipped standalone.
 
 ## What the game is
 
@@ -63,7 +69,7 @@ its "Handoffs" section allows.
 | `cmd/ssh-moonminer/` | Framework | Entry point: config → store → game manager → SSH server → graceful shutdown |
 | `internal/config/` | Framework | All settings from `MOONMINER_*` env vars |
 | `internal/server/` | Framework | Wish server, middleware chain, PTY requirement, limits, shutdown hooks, Windows PTY fixes |
-| `internal/identity/` | Framework | Public-key fingerprint + SSH username → save-slot |
+| `internal/identity/` | Framework | Public-key fingerprint + SSH username → save-slot, **plus** resolving the arcade router's proxied identity per `../ssh-arcadelobby/docs/02-bridge-and-identity-protocol.md` (mirror `../ssh-farm/internal/identity/`) |
 | `internal/game/` | Framework | Save lifecycle: `Manager` (attach/detach), per-save actor goroutines, autosave |
 | `internal/store/` | Framework | SQLite persistence + append-only migrations |
 | `internal/content/` | Framework | Loads/validates worlds + balance from TOML |
@@ -84,6 +90,12 @@ against them):
    a session handle exactly like `../ssh-idlefarmer/internal/game/session.go`.
 3. **`content.Content`** — immutable game data loaded once at boot, passed to
    both sim and TUI.
+4. **`identity.Resolver`** — Framework owns it; resolves both a direct SSH
+   connection (own key = own account, dev/local use) and a connection
+   proxied through the arcade router (trusted proxy key + router-encoded
+   username = the *player's* account, not the router's). Everything
+   downstream (session caps, store rows, logging) keys on the *resolved*
+   fingerprint, never the wire key. See framework/01.
 
 ## Build order and parallelism
 
@@ -111,7 +123,8 @@ context:
 
 - **Goal** — one paragraph of intent.
 - **References** — exact files in `../ssh-idlefarmer` (or the prototype) to
-  mirror.
+  mirror for standalone game mechanics; `../ssh-arcadelobby` and `../ssh-farm`
+  for anything touching the arcade fleet (identity, durability, deployment).
 - **Deliverables** — packages/files to create.
 - **Spec** — requirements, including exact formulas/values where they exist.
 - **Acceptance criteria** — checklist the work must pass.
@@ -119,8 +132,9 @@ context:
 
 ## Project-wide conventions (apply to every task)
 
-These are inherited from idlefarmer's hard-won lessons
-(`../ssh-idlefarmer/CLAUDE.md`):
+Most of these are inherited from idlefarmer's hard-won lessons
+(`../ssh-idlefarmer/CLAUDE.md`); items 8–10 are fleet-wide conventions that
+postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 
 1. **Never commit runtime data.** `var/`, `*.db`, and host-key files are
    gitignored and must stay out of git.
@@ -141,10 +155,21 @@ These are inherited from idlefarmer's hard-won lessons
    `../ssh-idlefarmer/internal/server/teaprogram.go` (color-profile forcing +
    `cursorDownWriter` newline rewriting) verbatim — sessions render garbage
    on Windows hosts without it.
-8. **Docker runtime is hardened**: distroless, non-root, read-only root FS;
-   only the data volume and `/tmp` are writable.
+8. **Docker runtime is hardened, but not distroless.** `alpine:3`, non-root
+   uid 65532, read-only root FS, only the data volume and `/tmp` writable —
+   the image needs a real shell and `litestream`/`mc` binaries for the
+   durability entrypoint (item 10), which distroless can't run. This
+   supersedes any older "distroless" guidance; see framework/04.
 9. Run `go build ./...`, `go vet ./...`, and `go test ./...` before declaring
    any task done. Table-driven tests live alongside code as `*_test.go`.
+10. **This game lives behind the arcade router.** Identity must resolve both
+    direct connections (dev/local) and proxied connections from
+    `ssh-arcadelobby` per its canonical protocol
+    (`../ssh-arcadelobby/docs/02-bridge-and-identity-protocol.md`) — see
+    framework/01. Persistence must follow the fleet's Litestream+S3 pattern
+    (`../ssh-arcadelobby/docs/06-fleet-data-durability.md`) so an EC2 instance
+    loss doesn't lose pilot saves — see framework/04. `../ssh-farm` is the
+    worked example of both; copy its shape rather than re-deriving it.
 
 ## Document map
 
