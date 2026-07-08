@@ -79,7 +79,7 @@ just renders the latest.
 │                                                 ·  ●  ·  ·  │
 │ CARGO VALUE IN HOLD  ◈ 2,975  (not sold)        ·  ·  ·  ·  │
 │                                                 ·  ·  ·  ·  │
-│ ⚙ ░░▓▓▓░░░░░░░░░░░░░░░░░  [SPACE] DRILL CALIBRATION ·  ▲  · │
+│ ⚙ █████████░░░░░░░░░░░░░  2.1s  [SPACE] STABILIZE DRILL     │
 │        [B] BAIL                                            │
 │  flashing yellow until depletion; green DEPART afterward   │
 ```
@@ -97,12 +97,13 @@ just renders the latest.
   active. The true distance/arrival time is never rendered as an exact
   number anywhere on this screen.
 - Periodically during mining (gated by a per-run cooldown, gameplay/02's
-  `NextSkillCheckIn`/`SkillCheck`), a "drill calibration" gauge appears: a
-  marker sweeps a highlighted target zone on a triangle wave. `Space` or a
-  click on the gauge attempts it; a hit grants a small mining-progress bonus,
-  a miss costs nothing and the check simply expires. Under reduced motion,
-  the gauge renders as a static highlighted zone with no moving marker
-  (any attempt during the window hits).
+  `NextSkillCheckIn`/`SkillCheck`), a "stabilize drill" countdown appears: a
+  draining bar plus a seconds-remaining readout, ramped blue→amber→red as it
+  runs out. `Space` or a click on the gauge at any point before it expires is
+  a hit and grants a small mining-progress bonus, speeding up the drill.
+  There is no marker to line up — a press at any point during the window
+  succeeds — and no penalty for missing; letting it expire simply forfeits
+  the bonus.
 - The main action button:
   - while `RemainingUnits > 0`: `[B] BAIL` in flashing yellow/amber;
   - when depleted: `[ENTER] DEPART` in green;

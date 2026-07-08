@@ -111,8 +111,10 @@ Also `bar.Mini(n, of, width)` for stat-grid bars in the ship's log.
 - **Event treatment helpers**: renderable overlays/badges for
   power_outage/radar_blackout/life_support_failure/cargo_shift/reactor_surge
   so tui/03 does not hand-roll each effect.
-- **Death screen**: `death.Render(w,h, tick, reducedMotion)` returns the dark
-  red `CONNECTION LOST` frame and intentionally no summary content.
+- **Death screen**: `death.Render(w,h, tick, reducedMotion)` returns a brief
+  monochrome/inverted flicker of the last HUD frame (skipped under reduced
+  motion), settling on a full-screen dark red `CONNECTION LOST` frame with a
+  blinking end-of-line cursor and intentionally no summary content.
 
 ### Tweaks overlay (player settings, persisted in the save)
 
