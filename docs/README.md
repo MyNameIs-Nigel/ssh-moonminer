@@ -28,20 +28,25 @@ decisions made after idlefarmer shipped standalone.
 
 ## What the game is
 
-See [01-concept-and-story.md](01-concept-and-story.md) for the full concept.
-One paragraph: the player pilots a mining ship, picks a world from a star
-chart, drops into its asteroid belt, locks onto a rock, and drills it in real
-time while fuel drains and pirate proximity climbs. They can hold overdrive
-(faster drill, faster burn) or bail early to bank partial cargo. Four
-outcomes per run — clean, bailed, raided, stranded — then back to the belt.
-Credits buy fuel, hull repair, and ship upgrades.
+See [01-concept-and-story.md](01-concept-and-story.md) for the full concept
+and [02-danger-economy-and-progression.md](02-danger-economy-and-progression.md)
+for the expanded roguelite progression narrative. One paragraph: the player is
+a fringe-system miner in a disposable ship, starting with only one safe planet
+and a tiny cargo hold. They scan asteroid belts, commit to long manual mining
+operations, watch a rough pirate ETA/radar close in, and must choose when to
+leave. Leaving before depletion is a yellow **BAIL**; after depletion it becomes
+a green **DEPART**. Pirates may demand tribute or attack outright; fleeing under
+fire is slower with a full hold, and hull loss can cascade into power outages,
+life-support failures, death, and ship loss. Credits buy fuel, repairs, ships,
+fuel-tank/cargo upgrades, system-transfer permits, cosmetics, and eventually
+space stations that generate local passive income.
 
 The game was prototyped in HTML/React at
 `C:\Users\user\Documents\Repositories\mynameis-nigel\moon-miner-materials\Web-Prototype\`
-(`Moon Miner.dc.html` + `Moon Miner - Design Notes.md`). The prototype's
-formulas and balance numbers are transcribed into the gameplay docs — you
-should not need to read the prototype, but it is the tie-breaker if a spec
-here is ambiguous.
+(`Moon Miner.dc.html` + `Moon Miner - Design Notes.md`). That prototype is now
+**historical reference only** for terminal feel, palette, and some layout
+ideas. The docs in this repository are authoritative for gameplay and balance;
+where the prototype and these docs disagree, these docs win.
 
 ## Stack (locked)
 
@@ -146,8 +151,9 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 4. **Raw-session messages use `\r\n`** line endings (no tty cooking before
    the TUI starts) — see `../ssh-idlefarmer/internal/server/pty.go`.
 5. **Graceful shutdown is load-bearing.** SIGTERM must flush every active
-   save before exit. An in-progress mining run auto-bails (banks accrued
-   yield) rather than being lost.
+   save before exit. An in-progress mining run resolves the same emergency
+   bail/escape path used for disconnects, so cargo is kept only if the ship
+   escapes and ship death remains possible.
 6. **Game balance lives in TOML, not code.** Formulas in Go, tunable
    constants in `data/*.toml`, embedded at build time, overridable at runtime
    via `MOONMINER_DATA_DIR`.
@@ -175,13 +181,14 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 
 | Doc | Task |
 | --- | --- |
-| [01-concept-and-story.md](01-concept-and-story.md) | Story, world, loop, screens, visual direction (read-only context) |
+| [01-concept-and-story.md](01-concept-and-story.md) | Story, loop, screens, visual direction (read-only context) |
+| [02-danger-economy-and-progression.md](02-danger-economy-and-progression.md) | Roguelite death/ship-loss, locked planets/systems, stations, events, open design questions |
 | [framework/01-ssh-server-and-identity.md](framework/01-ssh-server-and-identity.md) | Wish SSH server, middleware chain, key identity |
 | [framework/02-persistence-and-save-model.md](framework/02-persistence-and-save-model.md) | SQLite store, schema, save serialization |
 | [framework/03-session-lifecycle-and-actors.md](framework/03-session-lifecycle-and-actors.md) | Save manager, actor goroutines, takeover policy, shutdown flush |
 | [framework/04-config-content-and-deployment.md](framework/04-config-content-and-deployment.md) | `MOONMINER_*` config, TOML content loader, Docker deploy |
 | [gameplay/01-simulation-engine-and-belt-generation.md](gameplay/01-simulation-engine-and-belt-generation.md) | Sim state, RNG, world data, belt generation |
-| [gameplay/02-mining-run-loop.md](gameplay/02-mining-run-loop.md) | Real-time drill tick, overdrive, four outcomes |
+| [gameplay/02-mining-run-loop.md](gameplay/02-mining-run-loop.md) | Manual mining tick, pirate actions, escape, random events, ship death |
 | [gameplay/03-economy-worlds-and-balance.md](gameplay/03-economy-worlds-and-balance.md) | Credits, port services, travel, balance TOML |
 | [gameplay/04-progression-and-ship-log.md](gameplay/04-progression-and-ship-log.md) | Lifetime stats, ship upgrades, run history |
 | [tui/01-app-shell-input-and-mouse.md](tui/01-app-shell-input-and-mouse.md) | Root model, screen router, keyboard + mouse input, resize/idle |

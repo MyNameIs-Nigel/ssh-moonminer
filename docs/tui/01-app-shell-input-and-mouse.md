@@ -123,9 +123,9 @@ idlefarmer's `teaHandler`).
   - Click on a button-styled element (`[F] REFUEL…`) → trigger immediately.
   - Wheel up/down over a list → move selection; over scrollable text
     (help) → scroll.
-  - Mining screen: press-and-hold left button on the OVERDRIVE control =
-    overdrive on while held (release msg turns it off) — the mouse gets
-    true hold semantics keyboards can't give; clicking `[B] BAIL` bails.
+  - Mining Site screen: clicking `[B] BAIL` or green `[ENTER] DEPART` activates
+    the same escape action as the keyboard; tribute buttons and station/port
+    buttons are ordinary button-styled elements.
 - Mouse must never be the *only* path: every action keeps a key binding
   (accessibility + terminals without mouse reporting).
 

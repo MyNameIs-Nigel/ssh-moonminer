@@ -5,11 +5,12 @@
 
 ## Goal
 
-Prove the engine is deterministic, prototype-faithful, and balance-sound.
-The per-task acceptance tests already cover basics; this task builds the
-deeper suite: determinism harness, statistical distribution checks,
-property/fuzz tests, and the balance invariants from gameplay/03 — the
-suite a balance-tuning agent will rely on to not break the game.
+Prove the engine is deterministic, revamp-faithful, and balance-sound. The
+per-task acceptance tests already cover basics; this task builds the deeper
+suite: determinism harness, statistical distribution checks, property/fuzz
+tests, death/cargo/station invariants, and the balance invariants from
+gameplay/03 — the suite a balance-tuning agent will rely on to not break the
+game.
 
 ## References
 
@@ -38,10 +39,13 @@ only.
 ### Determinism harness
 
 - `Script` helper: `(seed, []Action)` → final state hash, where Action is a
-  tagged union (Depart/Lock/Tick(dt)/Overdrive/Bail/Refuel/Buy…).
-- Golden test: three pinned scripts (a clean-run session, a raided session,
-  a broke-pilot-insurance session) with committed final-state JSON goldens.
-  Any formula change shows up as a readable golden diff.
+  tagged union (Depart/Lock/Tick(dt)/BailOrDepart/AcceptTribute/RefuseTribute/
+  SellCargo/Refuel/BuyShip/BuyUpgrade/BuyPermit/FundStation/ClaimStationIncome/
+  BuyCosmetic/SetCosmetic…).
+- Golden test: pinned scripts for a starter cargo sale, a manual depleted
+  depart, a tribute-paid escape, an escaped-under-fire run, a ship-loss respawn,
+  and a station-income claim with committed final-state JSON goldens. Any
+  formula change shows up as a readable golden diff.
 - Cross-check: same script executed twice in one process and via
   encode→decode mid-script produces identical hashes (persistence can't
   fork reality).
@@ -50,46 +54,54 @@ only.
 
 10,000 belts per world with fixed seeds:
 
-- Field ranges: every generated value within gameplay/01 bounds (vol
-  240–4600 step 20, drill 2.2–16, fuel 5–36, risk 8–96, dots 1–5, coords in
-  range).
+- Field ranges: every generated value within gameplay/01 bounds (units step,
+  mine seconds, in-belt fuel cost, risk 8–96, dots 1–5, coords in range).
 - Tier mix: observed tier frequencies within ±2% absolute of the analytic
   weights per world (e.g. Io legendary ≈ 0.08+0.05·0.4 = 10%; Titan ≈ 20%).
 - Ordering: belts sorted by fuel cost; IDs unique; names match
   `^[A-Z]{2}-\d{4}$`.
-- Monotonicity spot checks: value strictly increases with tier at fixed
-  volume; drill time monotone in volume.
+- Monotonicity spot checks: value strictly increases with tier at fixed units;
+  mine time monotone in units.
 
 ### Property/fuzz tests
 
-- `FuzzTickRun`: random (valid) states + random dt sequences — assert
-  invariants: gauges clamped to [0,100], fuel never negative, credits never
-  decrease during a run, yield ≤ value, exactly one outcome fires, state
-  stays encodable.
+- `FuzzTickRun`: random (valid) states + random dt/action sequences — assert
+  invariants: resource/cargo/radar gauges clamped, fuel/hull/cargo never
+  negative, credits do not change during mining until explicit sale/station
+  claim, cargo value ≤ asteroid value, exactly one outcome fires, death reset
+  preserves credits/permits/stations/cosmetics, state stays encodable.
 - `FuzzDecodeState`: garbage and truncated blobs never panic — error or
   valid state only.
 - Action-sequence property: any legal action sequence keeps
-  `Credits ≥ 0 && Hull ∈ [0,100] && Fuel ∈ [0, tank]`.
+  `Credits ≥ 0 && Hull ∈ [0,maxHull] && Fuel ∈ [0,tank] && Cargo.Used ∈ [0,capacity]`.
 
 ### Balance invariants (from gameplay/03, exact bounds here)
 
-1. **Baseline profit**: median Vesta common rock (analytic: vol 2420, value
-   ≈ round(2420·1.15/25)·25) nets ≥ 3× (travelFuel+flightFuel)·9 credits.
-2. **Risk pays**: Monte-Carlo 5,000 runs, naive strategy (no overdrive,
-   never bail): mean banked credits/run on Ceres > Io by ≥ 25%.
-3. **Tank recovery**: mean of 2 median Vesta clean runs ≥ 900 cr.
-4. **No stranded belts**: 10k belts, assert min fuel cost per belt ≤ 36 <
-   base tank (trivially true — keep as a regression tripwire for balance
-   edits).
-5. **Upgrade horizon**: total max-out cost within 2.8M–3.6M credits.
+1. **Baseline starter loop**: median Vesta Local common rock, sold at public
+   dock after successful escape, funds another run plus progress toward fuel
+   tank I.
+2. **Risk pays**: Monte-Carlo 5,000 scripted strategies shows locked Sol rare
+   destinations beat Vesta Local expected sale value by ≥ 2x after accounting
+   for tribute/attack/death losses.
+3. **Death preservation**: scripted ship loss clears ship/upgrades/cargo and
+   preserves credits, permits, cosmetics, stations.
+4. **No unreachable starter belts**: 10k starter belts, assert at least one
+   asteroid per belt is reachable by starter skiff reserve.
+5. **Station locality**: station refuel/sale modifiers apply in owning system
+   only.
+6. **Upgrade horizon**: total cost to buy top ship, max one top ship, unlock
+   every system, and complete a late-game station is within the documented
+   endgame-horizon range.
+7. **Low hull danger**: event/bad-event frequency at 25 hull is meaningfully
+   higher than at 90 hull under the same seed batch.
 
 Document each with a comment linking back to gameplay/03.
 
 ### Performance guardrail
 
 `BenchmarkTickRun` and `BenchmarkGenerateBelt`; assert (in a test, loosely)
-that a tick is < 50 µs on the CI box — 100 concurrent miners at 8 Hz must
-be negligible load.
+that a tick is < 50 µs on the CI box — 100 concurrent miners at 4 Hz must be
+negligible load.
 
 ## Acceptance criteria
 

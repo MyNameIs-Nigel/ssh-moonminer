@@ -43,9 +43,11 @@ sessions because the actor serializes all access.
        attach the new one.
      - **refuse**: return `ErrSaveBusy`; framework/01's middleware turns that
        into a polite `\r\n` message.
-- `AttachResult{Session, Created}` — Moon Miner has **no offline catch-up**
-  (nothing progresses while docked), so idlefarmer's `Away sim.Events` field
-  is dropped. `Created` still drives onboarding.
+- `AttachResult{Session, Created}` — Moon Miner has no offline mining or pirate
+  catch-up, but completed stations may accrue capped passive income while the
+  pilot is offline. On attach, the actor calls the gameplay/03 station-income
+  helper with `now` before returning the first snapshot. `Created` still drives
+  onboarding.
 - `Detach` persists ("disconnect" reason) and stops the actor when no session
   remains.
 
@@ -57,20 +59,21 @@ sessions because the actor serializes all access.
 - **Autosave ticker**: every `cfg.AutosaveInterval`, persist if dirty
   (encode state → `store.SaveState`), clear dirty.
 - **Dirty tracking**: any action or tick that mutates state marks dirty.
-- **Mining ticks run here.** The TUI sends a tick request (or the actor runs
-  its own ticker while a run is active — choose idlefarmer's pattern of
-  UI-driven ticks unless it fights the real-time requirement; see
-  gameplay/02 "Tick driving" for the decision) and receives a state
-  snapshot back. The TUI only ever holds **snapshots** (value copies), never
-  the live state pointer.
+- **Mining ticks run here.** The actor runs its own 4 Hz ticker while a run is
+  active (gameplay/02's decision) and pushes state snapshots. The TUI must not
+  drive ticks; suspended output must not pause pirates, event timers, tribute
+  decisions, or escape damage. The TUI only ever holds **snapshots** (value
+  copies), never the live state pointer.
 
-### Disconnect auto-bail (Moon Miner-specific)
+### Disconnect emergency bail (Moon Miner-specific)
 
 If a session detaches (or is kicked/taken over/shut down) while a mining run
-is active, the actor **bails the run first** — banking accrued yield exactly
-as if the player pressed B — then persists. A pilot must never reconnect
-into a phantom run or lose accrued cargo. This rule lives in the actor's
-detach path and calls a `sim.Bail(...)` action (gameplay/02).
+is active, the actor starts the same emergency bail/escape resolution as if the
+player pressed B. It then advances the run synchronously with a bounded
+disconnect-resolution budget until the ship either escapes or dies, then
+persists. A disconnect must not become a free pause or guaranteed safe cargo
+bank. This rule lives in the actor's detach path and calls gameplay/02's
+`sim.BailOrDepart(...)` plus tick resolution helpers.
 
 ### Kick delivery
 
@@ -82,8 +85,9 @@ closes. Mirror idlefarmer's `deliverKick`.
 
 `Manager.Shutdown(ctx)`:
 1. set `closing` (new attaches refused while the listener drains),
-2. for every actor: kick its session with a maintenance message, auto-bail
-   any active run, persist, stop the actor,
+2. for every actor: kick its session with a maintenance message, emergency
+   bail/escape any active run with the same bounded resolution rule, persist,
+   stop the actor,
 3. respect `ctx` cancellation with a wrapped error.
 
 Registered as a shutdown hook from `main.go` (framework/01). Compose file
@@ -95,8 +99,9 @@ sets `stop_grace_period: 45s` (framework/04).
 - [ ] Concurrent attach under `takeover`: first session receives kick
   message, second gets the save, no data race (`go test -race`).
 - [ ] Concurrent attach under `refuse`: second gets `ErrSaveBusy`.
-- [ ] Detach mid-mining-run banks the bail yield (assert credits increased
-  by accrued amount) and persists.
+- [ ] Detach mid-mining-run resolves an emergency bail/escape deterministically:
+  cargo is kept only if escape succeeds, ship death is possible, and the result
+  persists.
 - [ ] `Shutdown` with N active saves persists all N and returns before a
   generous ctx deadline; attaches during shutdown get `ErrShuttingDown`.
 - [ ] Autosave writes only when dirty (spy store or updated_at checks).

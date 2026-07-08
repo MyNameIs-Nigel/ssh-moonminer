@@ -6,8 +6,9 @@
 ## Goal
 
 Every runtime setting comes from a `MOONMINER_*` environment variable with a
-sane default; all game data (worlds, tiers, balance constants) loads from
-TOML that is embedded in the binary but overridable on disk; and the whole
+sane default; all game data (systems, destinations, ships, tiers, events,
+cosmetics, station costs, balance constants) loads from TOML that is embedded
+in the binary but overridable on disk; and the whole
 server ships as a hardened Docker image with one named volume, implementing
 the fleet's canonical durability pattern (`../ssh-arcadelobby/docs/06-fleet-data-durability.md`)
 so an EC2 instance/volume loss doesn't lose pilot saves. **Not distroless** —
@@ -72,10 +73,12 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
 
 - `content.Load(dataDir)` reads `worlds.toml` and `balance.toml` — from
   `dataDir` if set, else from the embedded FS. **Validate hard at boot**:
-  exactly the fields gameplay/03 specifies, 4+ worlds, 4 rarity tiers with
-  ascending multipliers, all multipliers/costs positive, glyphs non-empty.
-  A server that boots with bad balance data is worse than one that refuses
-  to start.
+  exactly the fields gameplay/03 specifies; at least one unlocked starting
+  system/destination; every locked destination has a renderable lock reason;
+  every system/destination references valid ship classes; 4 rarity tiers with
+  ascending multipliers; station stages/costs positive; event weights valid;
+  cosmetic defaults unlocked; glyphs non-empty. A server that boots with bad
+  balance data is worse than one that refuses to start.
 - `content.Content` is immutable after load; passed by pointer to sim, TUI,
   and manager.
 

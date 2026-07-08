@@ -83,11 +83,14 @@ load must surface as errors (never silently reset a pilot). Versioned decode
 lives in `internal/sim` (`sim.DecodeState` handles old versions
 forward-compatibly), mirroring idlefarmer.
 
-What the blob will contain (informative, owned by gameplay/01): credits,
-fuel, hull, ship upgrade levels, settings/tweaks, lifetime stats, recent run
-log, RNG seed/state, and the current belt (world + remaining asteroids) so a
-reconnecting pilot finds the belt they left. **No active-run state is
-persisted** — disconnecting mid-drill auto-bails first (framework/03).
+What the blob will contain (informative, owned by gameplay/01): credits, fuel,
+hull, active ship class, ship-installed upgrade levels, cargo manifest, system
+and destination permits, station build/ownership/passive-income state,
+cosmetic unlocks/selections, settings/tweaks, lifetime stats, recent run log,
+RNG seed/state, and the current belt (system/destination + remaining asteroids)
+so a reconnecting pilot finds the belt they left. **No active-run state is
+persisted** — disconnecting mid-mining/escape resolves an emergency bail/escape
+first (framework/03).
 
 ### Write points
 
