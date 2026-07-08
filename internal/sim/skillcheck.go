@@ -99,12 +99,11 @@ func AttemptSkillCheck(s *State, c *content.Content, now int64) error {
 	}
 
 	ast, _ := FindAsteroid(s, run.AsteroidID)
-	if ast == nil || ast.Volume <= 0 || ast.DrillSec <= 0 {
+	if ast == nil || ast.Volume <= 0 {
 		return nil
 	}
-	mineRate := float64(ast.Volume) / ast.DrillSec * effectiveDrillRate(s, c)
 	remaining := float64(ast.Volume) - run.MinedUnits
-	bonus := math.Min(remaining, mineRate*c.Mining.SkillCheckBonusSeconds)
+	bonus := remaining * c.Mining.SkillCheckBonusPct
 	if bonus > 0 {
 		run.MinedUnits += bonus
 		if ast.Volume > 0 {

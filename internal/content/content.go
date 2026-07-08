@@ -103,7 +103,11 @@ type MiningConfig struct {
 	SkillCheckZoneWidthPct       float64 `toml:"skill_check_zone_width_pct"`
 	SkillCheckSweepPeriodSeconds float64 `toml:"skill_check_sweep_period_seconds"`
 	SkillCheckWindowSeconds      float64 `toml:"skill_check_window_seconds"`
-	SkillCheckBonusSeconds       float64 `toml:"skill_check_bonus_seconds"`
+	// SkillCheckBonusPct is a fraction of the asteroid's *remaining* volume,
+	// not a flat time amount — a flat "seconds of mining" bonus scales
+	// inversely with drill speed and would gut small/fast asteroids almost
+	// instantly while barely denting slow/large ones.
+	SkillCheckBonusPct float64 `toml:"skill_check_bonus_pct"`
 
 	// Fuzzed pirate ETA range shown on the mining-screen radar.
 	EtaBaseUncertaintyPct   float64 `toml:"eta_base_uncertainty_pct"`
@@ -284,6 +288,9 @@ func (c *Content) validate() error {
 	}
 	if c.Mining.SkillCheckSweepPeriodSeconds <= 0 || c.Mining.SkillCheckWindowSeconds <= 0 {
 		return fmt.Errorf("content: mining skill_check_sweep_period_seconds/window_seconds must be positive")
+	}
+	if c.Mining.SkillCheckBonusPct <= 0 || c.Mining.SkillCheckBonusPct > 1 {
+		return fmt.Errorf("content: mining skill_check_bonus_pct must be within (0..1]")
 	}
 	if c.Mining.EtaBaseUncertaintyPct < c.Mining.EtaMinUncertaintyPct || c.Mining.EtaMinUncertaintyPct < 0 {
 		return fmt.Errorf("content: mining eta_base_uncertainty_pct must be >= eta_min_uncertainty_pct >= 0")

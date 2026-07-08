@@ -60,7 +60,7 @@ skill_check_max_interval_seconds = 9.0
 skill_check_zone_width_pct = 0.22
 skill_check_sweep_period_seconds = 2.4
 skill_check_window_seconds = 6.0
-skill_check_bonus_seconds = 4.0
+skill_check_bonus_pct = 0.12
 
 # Fuzzed pirate ETA range shown on the mining-screen radar.
 eta_base_uncertainty_pct = 0.5
