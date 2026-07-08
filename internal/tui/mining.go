@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
@@ -19,8 +20,14 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 	switch run.Phase {
 	case sim.PhaseMining:
 		switch k {
-		case "b", "esc", "enter", " ":
+		case "b", "esc", "enter":
 			snap, err := g.sess.BailOrDepart(g.now)
+			return g.refreshSnap(snap, err)
+		case " ":
+			if run.SkillCheck == nil {
+				return nil
+			}
+			snap, err := g.sess.AttemptSkillCheck(g.now)
 			return g.refreshSnap(snap, err)
 		}
 	case sim.PhaseTribute:
@@ -97,7 +104,6 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	title = theme.Amber.Render(title)
 
 	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
-	pirateLabel := fmt.Sprintf("%3.0f%%", 100-run.PirateDistance)
 
 	lines := []string{title}
 	if badge := g.renderEventBadge(st, run); badge != "" {
@@ -117,16 +123,23 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
 			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
-		fmt.Sprintf("%s RADAR        %s %s",
-			theme.Glyph("skull", st.Settings.ASCIISafe),
-			theme.RampBar(100-run.PirateDistance, 26, true),
-			theme.GaugeStyle(100-run.PirateDistance, true).Render(pirateLabel)),
 		"",
 		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s of %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue)),
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.TxtStyle.Render(fmt.Sprintf("%d", value))),
 		"",
 	)
+
+	if run.SkillCheck != nil {
+		showMarker := !st.Settings.ReducedMotion
+		pos := sim.SkillCheckPosition(run.SkillCheck)
+		gauge := theme.SweepBar(pos, run.SkillCheck.ZoneStart, run.SkillCheck.ZoneWidth, 26, showMarker)
+		label := "[SPACE] DRILL CALIBRATION"
+		gaugeLine := fmt.Sprintf("%s %s %s", theme.Glyph("gear", st.Settings.ASCIISafe), gauge, theme.Gold.Render(label))
+		lines = append(lines, gaugeLine)
+		g.hitBodyLine(len(lines)-1, 1, gaugeLine, "btn:skillcheck", nil)
+		lines = append(lines, "")
+	}
 
 	var actionLine string
 	if depleted {
@@ -145,10 +158,57 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	if depleted {
 		hint = "ENTER DEPART"
 	}
+	if run.SkillCheck != nil {
+		hint = "SPACE CALIBRATE · " + hint
+	}
 	if fuelPct <= 0 {
 		hint = theme.Red.Render("▼ TANKS DRY — DRILL PAUSED, DECIDE NOW")
 	}
-	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
+
+	leftBody := strings.Join(lines, "\n")
+	rightBody := g.renderPirateRadar(run)
+	body := lipgloss.JoinHorizontal(lipgloss.Bottom, leftBody, "  "+strings.ReplaceAll(rightBody, "\n", "\n  "))
+	return body + "\n" + g.renderKeybar(hint)
+}
+
+const pirateRadarW = 16
+const pirateRadarH = 6
+
+// renderPirateRadar draws the bottom-right mining-screen radar scope: a
+// fixed player anchor and a red pirate blip that approaches from a
+// cosmetic, per-run fixed bearing as PirateDistance closes. The fuzzed ETA
+// range above it is the only arrival-time information ever shown — the
+// true PirateDistance/rate never appear as an exact number.
+func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
+	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == sim.EventRadarBlackout
+	etaText := fmt.Sprintf("PIRATE ETA ~%.0f-%.0fs", run.PirateETAMin, run.PirateETAMax)
+	if blackout {
+		etaText = "CONTACT LOST — NO ETA"
+	}
+	etaLine := theme.GaugeStyle(100-run.PirateDistance, true).Render(etaText)
+
+	w, h := pirateRadarW, pirateRadarH
+	anchorCol, anchorRow := w/2, h-1
+	pirateCol := clampInt(int(run.PirateBearing*float64(w-1)), 0, w-1)
+	distPct := clampF(run.PirateDistance, 0, 100) / 100
+	pirateRow := clampInt(int((1-distPct)*float64(h-2)), 0, h-2)
+
+	lines := make([]string, 0, h+1)
+	lines = append(lines, etaLine)
+	for r := 0; r < h; r++ {
+		cells := make([]string, w)
+		for c := 0; c < w; c++ {
+			cells[c] = theme.DimStyle.Render("·")
+		}
+		if r == pirateRow {
+			cells[pirateCol] = theme.Red.Render("●")
+		}
+		if r == anchorRow {
+			cells[anchorCol] = theme.Cyan.Render("▲")
+		}
+		lines = append(lines, strings.Join(cells, ""))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tier, value int) string {

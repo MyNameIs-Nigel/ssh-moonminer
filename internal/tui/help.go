@@ -63,9 +63,10 @@ func (g *Game) helpLines() []string {
 			theme.Bright.Render("MINING"),
 			"B or Esc BAIL while resources remain",
 			"Enter DEPART once the asteroid is depleted",
+			"Space or click the gauge to hit a drill calibration check",
 			"D drop cargo / R refuse if pirates demand tribute",
 			"No input once escaping — the ship flees or dies",
-			"Watch resource, hull, fuel, and radar gauges",
+			"Watch resource, hull, fuel, and the pirate radar/ETA widget",
 		}
 	case scrDeath:
 		screen = []string{

@@ -6,6 +6,16 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
+// SkillCheckPosition returns the current 0..1 marker position for an active
+// skill check, for the TUI to render. It uses the same formula as the sim's
+// own hit test, so the rendered marker and the hit test never disagree.
+func SkillCheckPosition(sc *SkillCheck) float64 {
+	if sc == nil {
+		return 0
+	}
+	return sweepPosition(sc.Elapsed, sc.Period)
+}
+
 // sweepPosition is the pure triangle-wave function driving the skill-check
 // marker. It is shared by the tick (for rendering) and AttemptSkillCheck
 // (for the hit test) so the two can never disagree about where the marker

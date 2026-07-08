@@ -47,6 +47,51 @@ func DrillBar(pct float64, width int) string {
 	return RenderBar(pct, width, DrillStyle(pct))
 }
 
+// SweepBar draws the mining skill-check "drill calibration" gauge: a
+// highlighted target zone and a moving marker glyph. pos, zoneStart, and
+// zoneWidth are all 0..1 along the gauge. Pass showMarker=false (reduced
+// motion) to draw only the static zone, with no moving marker.
+func SweepBar(pos, zoneStart, zoneWidth float64, width int, showMarker bool) string {
+	if width < 1 {
+		return ""
+	}
+	clamp01 := func(v float64) float64 {
+		if v < 0 {
+			return 0
+		}
+		if v > 1 {
+			return 1
+		}
+		return v
+	}
+	zoneLo := int(clamp01(zoneStart) * float64(width))
+	zoneHi := int(clamp01(zoneStart+zoneWidth) * float64(width))
+	marker := -1
+	if showMarker {
+		marker = int(clamp01(pos) * float64(width))
+		if marker >= width {
+			marker = width - 1
+		}
+	}
+
+	zoneStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(greenC))
+	trackStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(emptyC))
+	markerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(goldC)).Bold(true)
+
+	var b strings.Builder
+	for i := 0; i < width; i++ {
+		switch {
+		case i == marker:
+			b.WriteString(markerStyle.Render("▲"))
+		case i >= zoneLo && i < zoneHi:
+			b.WriteString(zoneStyle.Render("▓"))
+		default:
+			b.WriteString(trackStyle.Render("░"))
+		}
+	}
+	return b.String()
+}
+
 // Dots renders threat pips.
 func Dots(n, of int) string {
 	s := ""

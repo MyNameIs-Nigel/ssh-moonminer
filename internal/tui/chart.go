@@ -200,6 +200,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyBelt("s")
 		case "btn:bail":
 			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
+		case "btn:skillcheck":
+			return g.keyMining(tea.KeyPressMsg{Code: ' ', Text: " "})
 		case "btn:tribute:accept":
 			return g.keyMining(tea.KeyPressMsg{Code: 'd', Text: "d"})
 		case "btn:tribute:refuse":

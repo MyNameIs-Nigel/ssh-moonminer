@@ -56,6 +56,8 @@ func Glyph(name string, asciiSafe bool) string {
 			return "☠"
 		case "drill":
 			return "⛏"
+		case "gear":
+			return "⚙"
 		case "common":
 			return "◇"
 		case "uncommon":
@@ -78,6 +80,8 @@ func Glyph(name string, asciiSafe bool) string {
 		return "!"
 	case "drill":
 		return "D"
+	case "gear":
+		return "C"
 	case "uncommon":
 		return "+"
 	case "rare":
