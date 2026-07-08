@@ -34,19 +34,25 @@ RNG inputs, the TUI renders snapshots.
 ```go
 type ActiveRun struct {
     AsteroidID int
-    Phase      RunPhase // mining | tribute | escaping | resolved
+    Phase      RunPhase // mining | tribute | escaping
 
-    MinedUnits     float64 // units moved from asteroid into cargo
-    RemainingUnits float64 // asteroid units still available
-    CargoValue     int     // base value currently added from this asteroid
+    MinedUnits float64 // units moved from asteroid into cargo
+    CargoValue int     // base value currently added from this asteroid
 
     PirateDistance float64 // 0..100; 100 = far, 0 = arrived
-    PirateETA      ETAEstimate
+    PirateBearing  float64 // 0..1, cosmetic, rolled once at Lock
+    PirateETAMin   float64 // fuzzed arrival estimate (seconds)
+    PirateETAMax   float64
     PirateAction   PirateAction // none | tribute | attack
 
-    EscapeSecondsRequired float64
-    EscapeSecondsElapsed  float64
-    UnderAttack           bool
+    EscapeSecondsRequired     float64
+    BaseEscapeSecondsRequired float64 // pre-fuel-penalty requirement
+    FuelOutSeconds            float64 // time spent at 0 fuel during escape
+    EscapeSecondsElapsed      float64
+    UnderAttack               bool
+
+    SkillCheck       *SkillCheck // active "drill calibration" prompt, if any
+    NextSkillCheckIn float64
 
     ActiveEvent *RunEvent
     EventLog    []RunEventRecord
@@ -61,12 +67,24 @@ type ActiveRun struct {
 | `mining` | Drill is transferring asteroid units into cargo. |
 | `tribute` | Pirates arrived and are waiting for the player to accept/drop cargo or refuse. |
 | `escaping` | Ship is trying to leave; may be under attack. |
-| `resolved` | Internal transient used while producing the RunRecord. |
 
-`ETAEstimate` stores a deliberately rough range (`MinSeconds`, `MaxSeconds`,
-`Confidence`) plus the true arrival time/distance used by the sim. The TUI must
-render only the rough range and radar distance. Surveyor upgrades narrow the
-range; damaged sensors and events widen or freeze it.
+`PirateETAMin`/`PirateETAMax` are a deliberately fuzzed arrival range in
+seconds, recomputed every mining tick from the true `PirateDistance`/approach
+rate plus an uncertainty percentage that narrows with Surveyor upgrades
+(floored so it's never exact even fully upgraded) and freezes while a
+`radar_blackout` event is active. The TUI renders only this range plus the
+radar-scope widget's blip position — never the true, exact arrival time.
+
+### Mining skill-check ("drill calibration")
+
+During `PhaseMining`, a periodic prompt (`ActiveRun.SkillCheck`, gated by
+`NextSkillCheckIn`) sweeps a marker across `[0,1]` on a triangle wave;
+`AttemptSkillCheck` grants a flat mining-progress bonus if the marker sits
+within `[ZoneStart, ZoneStart+ZoneWidth]` at the moment of the attempt (or
+always, under the `ReducedMotion` accessibility setting, since there's no
+moving target to track). Missing costs nothing — the check simply expires
+and a new one is rolled. This does not pause or replace the pirate
+timer/event rolls; it is a purely additive mining accelerant.
 
 ### Locking a target — `Lock(state, content, asteroidID) error`
 
@@ -101,6 +119,12 @@ attackHullDamagePerSecond =
     * pirateDamageMultiplier(system, destination, asteroid)
     * eventDamageMultiplier(state.Run.ActiveEvent)
 ```
+
+Plating mitigation and the plating floor apply to the *per-second rate*, not
+the per-tick amount — apply mitigation/floor first, then multiply by `dt`.
+Applying the floor to an already-`dt`-scaled amount makes it dominate at any
+tick rate above 1 Hz, since a continuous per-tick amount is smaller than a
+floor sized for a lump hit.
 
 Per tick with `dt` seconds (the actor calls this at **4 Hz — dt = 0.25**; long
 operations do not need 8 Hz precision):
@@ -144,7 +168,10 @@ operations do not need 8 Hz precision):
 - If `Hull <= 0`, resolve as `ship_lost`.
 - Fuel reaching zero during escape does not call an emergency tow. Instead it
   increases escape time and event chance; if the ship cannot flee before hull
-  reaches zero, it dies.
+  reaches zero, it dies. The added time is capped (a fixed maximum number of
+  seconds on top of the base requirement) rather than growing forever — an
+  uncapped per-tick addition would let a connected player watch the
+  requirement inflate indefinitely instead of resolving.
 
 ### Random events
 

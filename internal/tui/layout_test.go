@@ -68,11 +68,14 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := sim.New(c, 42, 1000)
-	st.Run = &sim.ActiveRun{
-		Drill:  50,
-		Pirate: 10,
-		Yield:  100,
+	_ = sim.Depart(st, c, 1)
+	st.Belt[0].Scanned = true
+	st.Fuel = 500
+	if err := sim.Lock(st, c, st.Belt[0].ID, 1000); err != nil {
+		t.Fatal(err)
 	}
+	st.Run.MinedUnits = 50
+	st.Run.CargoValue = 100
 	g := &Game{
 		content:   c,
 		width:     80,
@@ -85,12 +88,55 @@ func TestMiningHitboxAlignment(t *testing.T) {
 	}
 	g.View()
 
-	// Overdrive and bail buttons are the last two content lines before keybar.
-	overdriveY := bodyLineY(8)
-	bailY := bodyLineY(9)
-	if b, ok := g.hits.At(1, overdriveY); !ok || b.ID != "btn:overdrive" {
-		t.Fatalf("btn:overdrive hitbox missing at (1,%d), got %#v", overdriveY, b)
+	// BAIL is the last content line before the keybar during mining
+	// (no skill check active in this snapshot).
+	bailY := bodyLineY(8)
+	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
+		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}
+
+	// Radar-widget columns (right of the stat bars) must not steal any of
+	// the left column's hitboxes — re-check at a column comfortably inside
+	// the radar box and confirm it isn't btn:bail.
+	if b, ok := g.hits.At(60, bailY); ok && b.ID == "btn:bail" {
+		t.Fatalf("btn:bail hitbox unexpectedly wide, found at (60,%d)", bailY)
+	}
+}
+
+func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
+	c, err := content.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := sim.New(c, 42, 1000)
+	_ = sim.Depart(st, c, 1)
+	st.Belt[0].Scanned = true
+	st.Fuel = 500
+	if err := sim.Lock(st, c, st.Belt[0].ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	st.Run.MinedUnits = 50
+	st.Run.CargoValue = 100
+	st.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.3, ZoneWidth: 0.2, Period: 2.4, Window: 6.0}
+	g := &Game{
+		content:   c,
+		width:     80,
+		height:    24,
+		scr:       scrMining,
+		hits:      hitbox.New(),
+		snap:      sim.Snapshot{State: *st},
+		id:        identity.SessionIdentity{Slot: "test"},
+		tickCount: 1,
+	}
+	g.View()
+
+	// Skill-check gauge sits where the RADAR row used to be; BAIL moves
+	// down two more lines (gauge line + its trailing blank) beneath it.
+	gaugeY := bodyLineY(8)
+	if b, ok := g.hits.At(1, gaugeY); !ok || b.ID != "btn:skillcheck" {
+		t.Fatalf("btn:skillcheck hitbox missing at (1,%d), got %#v", gaugeY, b)
+	}
+	bailY := bodyLineY(10)
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}

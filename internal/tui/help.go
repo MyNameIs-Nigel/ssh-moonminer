@@ -19,6 +19,8 @@ func (g *Game) helpScreenName() string {
 		return "ASTEROID BELT"
 	case scrMining:
 		return "MINING"
+	case scrDeath:
+		return "CONNECTION LOST"
 	case scrSummary:
 		return "RUN SUMMARY"
 	case scrLog:
@@ -59,10 +61,17 @@ func (g *Game) helpLines() []string {
 	case scrMining:
 		screen = []string{
 			theme.Bright.Render("MINING"),
-			"Space tap overdrive burst",
-			"Click OVERDRIVE for burst",
-			"B or Esc bail and bank cargo",
-			"Watch drill, fuel, and pirate gauges",
+			"B or Esc BAIL while resources remain",
+			"Enter DEPART once the asteroid is depleted",
+			"Space or click the gauge to hit a drill calibration check",
+			"D drop cargo / R refuse if pirates demand tribute",
+			"No input once escaping — the ship flees or dies",
+			"Watch resource, hull, fuel, and the pirate radar/ETA widget",
+		}
+	case scrDeath:
+		screen = []string{
+			theme.Bright.Render("CONNECTION LOST"),
+			"Any key returns to the dock respawn summary",
 		}
 	case scrSummary:
 		screen = []string{

@@ -104,34 +104,36 @@ func (s *Session) Lock(now int64, asteroidID int) (Snapshot, error) {
 	})
 }
 
-func (s *Session) SetOverdrive(on bool) (Snapshot, error) {
-	var snap Snapshot
-	ok := s.actor.do(func() {
-		sim.SetOverdrive(s.actor.state, on)
-		s.actor.dirty = true
-		snap = Snapshot{State: *s.actor.state.Clone()}
+// BailOrDepart starts the escape sequence: yellow BAIL while resources
+// remain, green DEPART once the asteroid is depleted. The outcome (if any)
+// arrives asynchronously via Snapshots()/LastOutcome() once the escape
+// sequence resolves.
+func (s *Session) BailOrDepart(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.BailOrDepart(st, s.actor.content(), now)
 	})
-	if !ok {
-		return Snapshot{}, ErrSessionClosed
-	}
-	return snap, nil
 }
 
-func (s *Session) Bail(now int64) (Snapshot, *sim.RunOutcome, error) {
-	var snap Snapshot
-	var out *sim.RunOutcome
-	ok := s.actor.do(func() {
-		out = sim.Bail(s.actor.state, s.actor.content(), now)
-		if out != nil {
-			s.actor.dirty = true
-			s.lastOutcome = out
-		}
-		snap = Snapshot{State: *s.actor.state.Clone()}
+// AcceptTribute jettisons the demanded cargo and starts escaping unarmed.
+func (s *Session) AcceptTribute(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.AcceptTribute(st, s.actor.content(), now)
 	})
-	if !ok {
-		return Snapshot{}, nil, ErrSessionClosed
-	}
-	return snap, out, nil
+}
+
+// RefuseTribute rejects the pirates' demand and starts fleeing under fire.
+func (s *Session) RefuseTribute(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.RefuseTribute(st, s.actor.content(), now)
+	})
+}
+
+// AttemptSkillCheck resolves a press/click against the active mining
+// "drill calibration" prompt, if any. Misses cost nothing.
+func (s *Session) AttemptSkillCheck(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.AttemptSkillCheck(st, s.actor.content(), now)
+	})
 }
 
 func (s *Session) Refuel(now int64) (Snapshot, error) {

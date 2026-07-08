@@ -8,9 +8,9 @@ asteroids_per_belt = 7
 volume_min = 240
 volume_max = 4600
 volume_step = 20
-drill_sec_min = 2.2
-drill_sec_max = 16.0
-drill_sec_per_volume = 300
+drill_sec_min = 10.0
+drill_sec_max = 45.0
+drill_sec_per_volume = 100
 value_per_volume = 1.15
 value_step = 25
 distance_min = 0.2
@@ -33,16 +33,57 @@ glyphs = ["◇", "◆", "✦", "★"]
 mults = [1.0, 2.3, 4.6, 9.5]
 
 [mining]
-tick_hz = 8
-pirate_rate_base = 7.0
-pirate_rate_per_tier = 3.0
+# There is no overdrive in this design. Mining tension comes from time,
+# radar, cargo load, events, and escape risk (docs/gameplay/02).
+tick_hz = 4
+pirate_approach_base = 7.0
+pirate_approach_per_tier = 3.0
 fuel_drain_base = 1.3
 fuel_drain_per_tier = 0.35
-overdrive_drill_mul = 2.1
-overdrive_fuel_mul = 1.9
-raided_yield_keep = 0.55
-raided_hull_damage = 25
-stranded_yield_keep = 0.60
+
+tribute_chance = 0.55
+tribute_demand_pct = 0.45
+tribute_decision_seconds = 12.0
+
+base_escape_seconds = 8.0
+escape_cargo_exponent = 1.6
+cargo_escape_penalty_seconds = 22.0
+fuel_out_escape_penalty_per_sec = 0.6
+fuel_out_escape_penalty_cap_seconds = 12.0
+attack_hull_damage_per_second = 6.0
+
+remnant_keep_threshold = 0.2
+
+# Skill-check "drill calibration" minigame during mining.
+skill_check_min_interval_seconds = 5.0
+skill_check_max_interval_seconds = 9.0
+skill_check_zone_width_pct = 0.22
+skill_check_sweep_period_seconds = 2.4
+skill_check_window_seconds = 6.0
+skill_check_bonus_pct = 0.12
+
+# Fuzzed pirate ETA range shown on the mining-screen radar.
+eta_base_uncertainty_pct = 0.5
+eta_surveyor_reduction_pct = 0.08
+eta_min_uncertainty_pct = 0.15
+
+[events]
+base_chance_per_minute = 6.0
+low_hull_chance_bonus = 18.0
+base_bad_weight = 0.6
+low_hull_bad_weight = 1.6
+cooldown_seconds = 12.0
+
+power_outage_seconds = 4.0
+radar_blackout_seconds = 6.0
+life_support_countdown_seconds = 10.0
+life_support_bleed_per_second = 3
+cargo_shift_effect_seconds = 4.0
+cargo_shift_escape_pct = 0.25
+reactor_surge_seconds = 5.0
+reactor_surge_fuel_mul = 2.2
+reactor_surge_hull_hit_chance = 0.2
+reactor_surge_hull_hit_amount = 8
 
 [port]
 refuel_per_point = 9

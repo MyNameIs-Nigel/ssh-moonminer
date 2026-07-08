@@ -71,30 +71,38 @@ The actor pushes snapshots at 4 Hz during a run (gameplay/02); this screen
 just renders the latest.
 
 ```
-│ ◇ MINING SITE — KR-4711 (◆ UNCOMMON)       ETA 01:20-02:05│
-│ Asteroid:        ▟▓▓▙                                      │
-│                  ▜▓▓▛        RADAR  pirates: 68% distant   │
-│ RESOURCE LEFT    ███████████░░░░░░░░░░░  58%               │
-│ CARGO HOLD       ███████░░░░░░░░░░░░░░░  31/85u  HEAVY     │
-│ HULL             █████████████████░░░░░  82%               │
-│ FUEL             ████████████░░░░░░░░░░  54/95             │
-│                                                          │
-│ CARGO VALUE IN HOLD  ◈ 2,975  (not sold)                  │
-│                                                          │
-│        [B] BAIL                                           │
-│  flashing yellow until depletion; green DEPART afterward  │
+│ ◇ MINING SITE — KR-4711 (◆ UNCOMMON)                       │
+│                                                             │
+│ RESOURCE LEFT    ███████████░░░░░░░░░░░  58%   PIRATE ETA  │
+│ HULL             █████████████████░░░░░  82%   ~34-58s     │
+│ FUEL             ████████████░░░░░░░░░░  54%   ·  ·  ·  ·  │
+│                                                 ·  ●  ·  ·  │
+│ CARGO VALUE IN HOLD  ◈ 2,975  (not sold)        ·  ·  ·  ·  │
+│                                                 ·  ·  ·  ·  │
+│ ⚙ ░░▓▓▓░░░░░░░░░░░░░░░░░  [SPACE] DRILL CALIBRATION ·  ▲  · │
+│        [B] BAIL                                            │
+│  flashing yellow until depletion; green DEPART afterward   │
 ```
 
 - Gauges via tui/04 `Bar`, ramped:
   - resource left: blue until depleted;
-  - cargo hold: blue→amber as load gets heavy; heavy cargo warns that flee time
-    is increasing;
   - hull: blue→amber(<55)→red(<30);
-  - fuel: blue→amber(<40)→red(<20);
-  - pirate radar/distance: blue→amber(≤50)→red(≤25).
-- Pirate ETA renders as a rough range, not an exact timer. Surveyor upgrades
-  narrow the range; radar blackout widens/freezes it. If confidence is poor,
-  show `ETA ??`.
+  - fuel: blue→amber(<40)→red(<20).
+- Bottom-right radar-scope widget (not part of the left-column stat block —
+  joined alongside it so it doesn't shift any hitbox row math): a fixed
+  player anchor (`▲`) and a red pirate blip (`●`) that approaches from a
+  per-run cosmetic bearing as `PirateDistance` closes. Above the scope, a
+  fuzzed `PIRATE ETA ~min-maxs` range — narrowed by Surveyor upgrades,
+  replaced with `CONTACT LOST — NO ETA` while a `radar_blackout` event is
+  active. The true distance/arrival time is never rendered as an exact
+  number anywhere on this screen.
+- Periodically during mining (gated by a per-run cooldown, gameplay/02's
+  `NextSkillCheckIn`/`SkillCheck`), a "drill calibration" gauge appears: a
+  marker sweeps a highlighted target zone on a triangle wave. `Space` or a
+  click on the gauge attempts it; a hit grants a small mining-progress bonus,
+  a miss costs nothing and the check simply expires. Under reduced motion,
+  the gauge renders as a static highlighted zone with no moving marker
+  (any attempt during the window hits).
 - The main action button:
   - while `RemainingUnits > 0`: `[B] BAIL` in flashing yellow/amber;
   - when depleted: `[ENTER] DEPART` in green;

@@ -131,7 +131,7 @@ buttons triggers them, and the scroll wheel moves selection in lists.
 | --- | --- |
 | Star Chart | ↑/↓ select route/destination · Enter depart · F refuel · H repair hull · S shipyard · C cosmetics · B build station · L log · T tweaks · Q quit |
 | Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · V cycle view · R rescan · Q dock |
-| Mining | B/Esc bail while resources remain · Enter depart after depletion · D accept tribute/drop cargo · R refuse tribute |
+| Mining | B/Esc bail while resources remain · Enter depart after depletion · Space/click hit a drill-calibration skill check · D accept tribute/drop cargo · R refuse tribute |
 | Escape | no menu actions; ship is fleeing under current conditions |
 | Summary/Death recap | Enter continue · Q dock |
 | Anywhere | ? help overlay · Ctrl+C disconnect |

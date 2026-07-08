@@ -18,4 +18,5 @@ var (
 	ErrNotScanned        = errors.New("asteroid not scanned yet")
 	ErrAlreadyScanned    = errors.New("asteroid already scanned")
 	ErrScanInProgress    = errors.New("scan already in progress")
+	ErrInvalidRunPhase   = errors.New("action not valid in current run phase")
 )
