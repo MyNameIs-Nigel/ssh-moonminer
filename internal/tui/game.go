@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/game"
@@ -47,9 +48,10 @@ const (
 )
 
 type (
-	tickMsg   time.Time
-	snapMsg   sim.Snapshot
-	kickedMsg string
+	tickMsg      time.Time
+	snapMsg      sim.Snapshot
+	kickedMsg    string
+	deathTickMsg time.Time
 )
 
 type flash struct {
@@ -90,6 +92,14 @@ type Game struct {
 	flash       flash
 	hits        *hitbox.Registry
 	kickReason  string
+
+	// Death-sequence flicker: deathFrame counts fast ticks since the ship
+	// was lost; deathFlickerFrames is how many of those play the CRT-dying
+	// glitch before it settles on the plain CONNECTION LOST screen (zero
+	// under reduced motion — cut straight to the final frame).
+	deathFrame         int
+	deathFlickerFrames int
+	deathFrameText     string
 }
 
 // NewGame constructs the session UI.
@@ -117,6 +127,12 @@ func (g *Game) Init() tea.Cmd {
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+const deathFlickerInterval = 80 * time.Millisecond
+
+func deathTickCmd() tea.Cmd {
+	return tea.Tick(deathFlickerInterval, func(t time.Time) tea.Msg { return deathTickMsg(t) })
 }
 
 func listenKick(s *game.Session) tea.Cmd {
@@ -157,13 +173,29 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if out := g.sess.LastOutcome(); out != nil && g.scr == scrMining {
 			g.lastOutcome = out
 			if out.Kind == sim.OutcomeShipLost {
+				g.deathFrameText = ansi.Strip(g.renderChrome() + "\n" + g.renderScreen())
+				g.deathFrame = 0
+				g.deathFlickerFrames = 12
+				if g.snap.State.Settings.ReducedMotion {
+					g.deathFlickerFrames = 0
+				}
 				g.scr = scrDeath
+				if g.deathFlickerFrames > 0 {
+					cmds = append(cmds, deathTickCmd())
+				}
 			} else {
 				g.scr = scrSummary
 			}
 			g.sess.ClearOutcome()
 		}
 		cmds = append(cmds, tickCmd())
+	case deathTickMsg:
+		if g.scr == scrDeath && g.deathFrame < g.deathFlickerFrames {
+			g.deathFrame++
+			if g.deathFrame < g.deathFlickerFrames {
+				cmds = append(cmds, deathTickCmd())
+			}
+		}
 	case snapMsg:
 		g.snap = sim.Snapshot(m)
 		if g.snap.State.Run != nil && g.scr != scrMining {
