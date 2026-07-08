@@ -130,12 +130,22 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		"",
 	)
 
-	if run.SkillCheck != nil {
-		showMarker := !st.Settings.ReducedMotion
-		pos := sim.SkillCheckPosition(run.SkillCheck)
-		gauge := theme.SweepBar(pos, run.SkillCheck.ZoneStart, run.SkillCheck.ZoneWidth, 26, showMarker)
-		label := "[SPACE] DRILL CALIBRATION"
-		gaugeLine := fmt.Sprintf("%s %s %s", theme.Glyph("gear", st.Settings.ASCIISafe), gauge, theme.Gold.Render(label))
+	if sc := run.SkillCheck; sc != nil {
+		remainingPct := clampF(100*(1-sc.Elapsed/sc.Window), 0, 100)
+		remainingSecs := sc.Window - sc.Elapsed
+		if remainingSecs < 0 {
+			remainingSecs = 0
+		}
+		gauge := theme.RampBar(remainingPct, 26, false)
+		label := "[SPACE] STABILIZE DRILL"
+		if !st.Settings.ReducedMotion && g.tickCount%2 == 0 {
+			label = theme.Gold.Bold(true).Render(label)
+		} else {
+			label = theme.Gold.Render(label)
+		}
+		gaugeLine := fmt.Sprintf("%s %s %s %s",
+			theme.Glyph("gear", st.Settings.ASCIISafe), gauge,
+			theme.GaugeStyle(remainingPct, false).Render(fmt.Sprintf("%.1fs", remainingSecs)), label)
 		lines = append(lines, gaugeLine)
 		g.hitBodyLine(len(lines)-1, 1, gaugeLine, "btn:skillcheck", nil)
 		lines = append(lines, "")
@@ -159,7 +169,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		hint = "ENTER DEPART"
 	}
 	if run.SkillCheck != nil {
-		hint = "SPACE CALIBRATE · " + hint
+		hint = "SPACE STABILIZE · " + hint
 	}
 	if fuelPct <= 0 {
 		hint = theme.Red.Render("▼ TANKS DRY — DRILL PAUSED, DECIDE NOW")
