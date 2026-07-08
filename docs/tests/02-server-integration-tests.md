@@ -83,11 +83,12 @@ layer)
 - Takeover: session A connected, session B same key+slot connects → A's
   stream ends (with kick text), B lives, no race (`-race`).
 - Refuse policy (config mutator): B is refused, A lives.
-- **Mid-run disconnect auto-bail**: drive session A into a mining run
+- **Mid-run disconnect emergency escape**: drive session A into a mining run
   (either by scripted key writes to the PTY, or — more robustly — by
   reaching into the manager to start a run on A's save), hard-close the TCP
-  connection, then reload the save: run is nil, credits include the bailed
-  yield.
+  connection, then reload the save: run is nil and the persisted result matches
+  gameplay/02's deterministic emergency escape outcome (cargo kept only on
+  escape; ship loss possible).
 
 **Shutdown**
 - With 3 live sessions (one mid-run), call the shutdown hooks with a 30s

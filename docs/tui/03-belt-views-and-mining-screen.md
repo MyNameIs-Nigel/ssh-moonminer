@@ -5,19 +5,21 @@ gameplay/02 · **Parallel-safe with:** tui/02, framework/03
 
 ## Goal
 
-The game's centerpiece: the **Asteroid Belt** screen with its three
-switchable renderings (data tiles / ore-scan blobs / radar scope) and target
-lock panel, and the real-time **Mining** screen with its three live gauges
-and the overdrive/bail controls. If the game is remembered for one screen,
-it's these.
+The game's centerpiece: the **Asteroid Belt** screen with its three switchable
+renderings (data tiles / ore-scan blobs / radar scope) and target lock panel,
+and the real-time **Mining Site** screen with the asteroid being mined, rough
+pirate ETA, radar distance, cargo load, event-distorted HUD, yellow BAIL /
+green DEPART control, tribute prompts, and escape-under-fire state. If the game
+is remembered for one screen, it's this failing cockpit.
 
 ## References
 
 | Source | What to take |
 | --- | --- |
-| `../moon-miner-materials/Web-Prototype/Moon Miner.dc.html` (belt + mining markup, lines ~130–295; blob art in `genBelt`) | three view designs, blob glyphs, gauge layout |
+| `../moon-miner-materials/Web-Prototype/Moon Miner.dc.html` (belt + mining markup, lines ~130–295; blob art in `genBelt`) | three view designs, blob glyphs, gauge layout only |
 | `../moon-miner-materials/Web-Prototype/Moon Miner - Design Notes.md` (Screens 2–3) | design intent per view |
 | gameplay/01 `Asteroid` fields (incl. `X,Y`, `Size`) · gameplay/02 run state | everything rendered here |
+| [../02-danger-economy-and-progression.md](../02-danger-economy-and-progression.md) | event HUD treatments and death tone |
 
 ## Deliverables
 
@@ -34,10 +36,11 @@ it's these.
 - **Right column:** the contact field, one of **three views**, cycled with
   `V` (persisted default comes from Settings, tui/04):
 
-  1. **DATA TILES** — scannable rows: `▸ KR-4711  ◆ UNCOMMON  VOL 2,340
-     ⏱ 7.8s  ◈ 6,325  -12%  ●●●○○`. Columns: designation, tier glyph+label
-     (tier-colored), volume, drill time, value, fuel cost (amber, negative),
-     threat dots (blue→amber→red by count). Selected row highlighted.
+  1. **DATA TILES** — scannable rows: `▸ KR-4711  ◆ UNCOMMON  80u
+     ≈74s  ◈ 6,325  ⛽12  ETA ?  ●●●○○`. Columns: designation, tier
+     glyph+label (tier-colored), cargo units, rough mine time, dock value
+     estimate, approach fuel, rough pirate ETA/risk confidence, threat dots
+     (blue→amber→red by count). Selected row highlighted.
   2. **ORE SCAN** — each rock drawn as its `Size` blob (sm/md/lg
      block-character shapes from the prototype: `▟▓▙ / ▜▓▛` etc.) placed at
      its `X,Y` percent coords scaled into the panel, tier-colored, selected
@@ -53,73 +56,124 @@ it's these.
   select; click again or Enter/Space to lock. Wheel cycles selection in any
   view.
 - **Target Lock panel (bottom strip, always visible):** full detail of the
-  selected rock — designation, tier, volume, drill time, value, flight fuel
-  cost vs current fuel (red if insufficient), risk with dots — plus
+  selected rock — designation, tier, units, estimated mine time, public dock
+  value, cargo hold impact, flight fuel cost vs current fuel (red if
+  insufficient), rough pirate ETA/risk with dots — plus
   `[ENTER] LOCK & FLY  [V] VIEW  [R] RESCAN  [Q] DOCK`.
 - `R` rescan regenerates the belt (confirm nothing — it's free, per
   gameplay/01); empty belt (all rocks mined) auto-prompts rescan in the
   field area.
 - Lock failure (fuel) → red flash, stay on belt.
 
-### Mining screen (real time)
+### Mining Site screen (real time)
 
-The actor pushes snapshots at 8 Hz during a run (gameplay/02); this screen
+The actor pushes snapshots at 4 Hz during a run (gameplay/02); this screen
 just renders the latest.
 
 ```
-│ ◇ DRILLING — KR-4711 (◆ UNCOMMON)                        │
+│ ◇ MINING SITE — KR-4711 (◆ UNCOMMON)       ETA 01:20-02:05│
+│ Asteroid:        ▟▓▓▙                                      │
+│                  ▜▓▓▛        RADAR  pirates: 68% distant   │
+│ RESOURCE LEFT    ███████████░░░░░░░░░░░  58%               │
+│ CARGO HOLD       ███████░░░░░░░░░░░░░░░  31/85u  HEAVY     │
+│ HULL             █████████████████░░░░░  82%               │
+│ FUEL             ████████████░░░░░░░░░░  54/95             │
 │                                                          │
-│  ⛏ DRILL PROGRESS   ██████████████░░░░░░░░░░░  47%       │
-│  ⛽ FUEL RESERVE     ████████████████░░░░░░░░  61% -1.7%/s│
-│  ☠ PIRATE PROXIMITY ████████░░░░░░░░░░░░░░░░  33%        │
+│ CARGO VALUE IN HOLD  ◈ 2,975  (not sold)                  │
 │                                                          │
-│  CARGO VALUE ACCRUED   ◈ 2,975  of ◈ 6,325               │
-│                                                          │
-│  [SPACE] OVERDRIVE (hold)      [B] BAIL & BANK CARGO     │
-│  Overdrive drills faster but burns fuel. Reach 100%      │
-│  for full value — or bail before raiders arrive.         │
+│        [B] BAIL                                           │
+│  flashing yellow until depletion; green DEPART afterward  │
 ```
 
-- Three gauges via tui/04 `Bar`, ramped: drill always bright blue; fuel
-  bright→amber(<40)→red(<20); pirate blue→amber(≥50)→red(≥75). Show current
-  drain/climb rates beside fuel and pirate bars (e.g. `-1.7%/s`), doubled
-  display under overdrive.
-- **Overdrive**: terminals don't send key-up, so "hold Space" is emulated —
-  each Space press (auto-repeat included) sets overdrive on and arms a
-  ~250 ms expiry; no repeat within the window ⇒ off. Send
-  `SetOverdrive(true/false)` to the actor only on transitions. The **mouse
-  button held on the OVERDRIVE control** is a true hold (press msg on,
-  release msg off) — mention this in the help overlay as the pro move.
-  While overdrive is on, the drill bar pulses (alternate bright/white on
-  ticks) and an `▮▮ OVERDRIVE` badge shows in amber.
-- `B` / `Esc` / click `[B] BAIL` → `Bail`; outcome switches to the Summary
-  screen (tui/02). All four outcomes arrive the same way: the actor
-  resolves, the screen transitions on the resolved-run message.
-- No other input works during mining — it's the one screen where you can't
-  leave except through an outcome (that's the point). `Ctrl+C` still
-  disconnects (auto-bail protects the cargo, framework/03).
+- Gauges via tui/04 `Bar`, ramped:
+  - resource left: blue until depleted;
+  - cargo hold: blue→amber as load gets heavy; heavy cargo warns that flee time
+    is increasing;
+  - hull: blue→amber(<55)→red(<30);
+  - fuel: blue→amber(<40)→red(<20);
+  - pirate radar/distance: blue→amber(≤50)→red(≤25).
+- Pirate ETA renders as a rough range, not an exact timer. Surveyor upgrades
+  narrow the range; radar blackout widens/freezes it. If confidence is poor,
+  show `ETA ??`.
+- The main action button:
+  - while `RemainingUnits > 0`: `[B] BAIL` in flashing yellow/amber;
+  - when depleted: `[ENTER] DEPART` in green;
+  - if reduced motion is on, replace flashing with a steady amber `!`.
+- `B` / `Esc` / click BAIL starts escape before depletion. `Enter` / click
+  DEPART starts escape after depletion. Both call gameplay/02 `BailOrDepart`.
+- No overdrive in the revamped loop. The pressure comes from time, cargo load,
+  bad information, events, and escape risk.
+- `Ctrl+C` still disconnects; framework/03 resolves this as an emergency
+  bail/escape attempt, not a free pause.
 
-### Tension polish (cheap, worth it)
+### Tribute prompt
 
-- Pirate bar ≥ 75%: prefix the panel title with `☠ CONTACT IMMINENT` in
-  red, blink on alternate snapshots.
-- Fuel < 15%: keybar hint swaps to `▼ FUEL CRITICAL — BAIL NOW?` in red.
-- These are render-side only; no sim involvement.
+If pirates arrive and roll a tribute demand, the mining screen is interrupted by
+a modal panel:
+
+```
+◇ PIRATE TRANSMISSION
+"Drop ◈ 4,250 from this rock or we open your hull."
+
+[D] DROP CARGO      [R] REFUSE / RUN
+decision timeout: 12s
+```
+
+- `D`/click DROP calls `AcceptTribute`.
+- `R`/Esc/click REFUSE calls `RefuseTribute`.
+- Timeout refuses automatically.
+- Background HUD remains visible but dimmed; radar is red at contact.
+
+### Escape state
+
+After BAIL/DEPART/tribute/refusal, the view changes in-place:
+
+- Title becomes `◇ ESCAPE BURN` or danger variant `☠ UNDER FIRE`.
+- Main bar is `ESCAPE VECTOR` counting up to required seconds.
+- Cargo hold remains visible because cargo load explains the slow flee.
+- If under attack, hull ticks down every snapshot and the panel border flashes
+  red unless reduced motion is on.
+- No menu actions are accepted; the ship either escapes or dies.
+
+### Event HUD effects
+
+Every random event from gameplay/02 must have a unique HUD treatment:
+
+| Event | Rendering requirement |
+| --- | --- |
+| `power_outage` | Most panels blank to near-black; only a dim reboot countdown and BAIL/DEPART affordance remain. |
+| `radar_blackout` | Radar panel fills with static glyphs; ETA shows `SIGNAL LOST`. |
+| `life_support_failure` | Oxygen strip appears at top; dark red edge pulse; keybar says `LIFE SUPPORT FAILURE — LEAVE NOW`. |
+| `cargo_shift` | Cargo panel jitters between two offsets unless reduced motion; steady amber warning otherwise. |
+| `reactor_surge` | Fuel gauge flashes amber/white for one tick; event badge persists until effect ends. |
+
+These are render-side treatments keyed by the event enum; mechanics stay in sim.
+
+### Death handoff
+
+When gameplay/02 resolves `ship_lost`, tui/03 must immediately route to
+tui/02's Death Screen. Do not render the summary first. Do not show a normal
+flash message. The cockpit is gone.
 
 ## Acceptance criteria
 
-- [ ] All three belt views render the same 7-rock belt inside their panel
+- [ ] All three belt views render the same fixture belt inside their panel
   at 80×24 (goldens); selection stays consistent when cycling views.
 - [ ] Ore-scan collision nudging never drops a rock or paints outside the
   panel (property test with adversarial X/Y).
 - [ ] Radar bearing math maps X,Y percent coords inside the circle.
-- [ ] Mining gauges match snapshot values (unit test with crafted
-  snapshots at thresholds 0/19/39/49/74/100 checks color roles).
-- [ ] Overdrive keyboard emulation: synthetic repeat sequence holds it on;
-  gap turns it off; exactly 2 sim calls (on, off).
-- [ ] Mouse: click-select vs click-activate on rocks, wheel cycling, hold-
-  to-overdrive, bail click — hitbox tests all.
-- [ ] Screen transitions: lock → mining, outcome → summary, dock → chart.
+- [ ] Mining Site gauges match snapshot values (unit test with crafted
+  snapshots at thresholds 0/19/29/39/49/74/100 checks color roles).
+- [ ] BAIL renders flashing yellow/amber while resources remain; DEPART renders
+  green only after depletion.
+- [ ] Tribute modal accepts/refuses/times out and emits the correct sim action.
+- [ ] Escape state rejects normal mining inputs and updates hull/escape bars.
+- [ ] Every random event enum has a golden or focused render test proving its
+  unique HUD treatment.
+- [ ] Mouse: click-select vs click-activate on rocks, wheel cycling, BAIL,
+  DEPART, tribute buttons — hitbox tests all.
+- [ ] Screen transitions: lock → mining site, bail/depart → escape, survived
+  outcome → summary, ship_lost → death screen, dock → chart.
 
 ## Out of scope / handoffs
 

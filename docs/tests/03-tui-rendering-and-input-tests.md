@@ -15,7 +15,7 @@ values, which is the whole reason the Elm architecture was chosen.
 | Source | What to take |
 | --- | --- |
 | `../ssh-idlefarmer/internal/tui/game_test.go`, `layout_test.go`, `overflow_test.go`, `format_test.go` | driving models with messages, layout/overflow assertions |
-| tui/01's hitbox contract, tui/03's overdrive emulation | the trickiest units to pin down |
+| tui/01's hitbox contract, tui/03's tribute/escape/event/death behavior | the trickiest units to pin down |
 
 ## Deliverables
 
@@ -28,23 +28,32 @@ values, which is the whole reason the Elm architecture was chosen.
 ### Test doubles
 
 - `fakeSession` implementing the `game.Session` interface surface the TUI
-  uses: records actions (`Lock(3)`, `SetOverdrive(true)`…), serves scripted
-  snapshots. Lives in `internal/tui` as a `_test.go` helper.
-- Snapshot fixtures: `snapDocked()`, `snapBelt7()`, `snapMining(drill,
-  fuel, pirate)`, `snapBroke()`, `snapMaxed()` — builders with sensible
+  uses: records actions (`Lock(3)`, `BailOrDepart()`, `AcceptTribute()`…),
+  serves scripted snapshots. Lives in `internal/tui` as a `_test.go` helper.
+- Snapshot fixtures: `snapDocked()`, `snapLockedSystems()`, `snapBelt()`,
+  `snapMiningSite(resourceLeft, cargoLoad, pirateDistance)`,
+  `snapTribute()`, `snapEscaping(underAttack)`, `snapDeath()`,
+  `snapBroke()`, `snapStationOwner()`, `snapMaxed()` — builders with sensible
   defaults and override args.
 
 ### Update-loop tests (behavior)
 
 Drive `Update` with message sequences; assert model state + recorded calls:
 
-- Navigation: chart ↑/↓ wraps; Enter on unaffordable world flashes, on
-  affordable world calls `Depart` and routes to belt.
+- Navigation: chart ↑/↓ wraps through systems/destinations; Enter on locked
+  destination flashes the exact lock reason, Enter on affordable destination
+  calls `Depart` and routes to belt.
 - Belt: arrows cycle 7 rocks in every view mode; `V` cycles views and the
   selection index survives; Enter→`Lock`; `R`→`Rescan`; `Q`→`Dock`.
-- Mining: Space-repeat sequence (press, press@+50ms, press@+100ms,
-  silence) yields `SetOverdrive(true)` then `SetOverdrive(false)` after
-  the expiry tick — exactly two calls. `B` → `Bail`.
+- Mining Site: `B` while resources remain calls `BailOrDepart` and routes to
+  escape; Enter before depletion flashes; Enter after depletion calls
+  `BailOrDepart` with green DEPART affordance.
+- Tribute: `D` calls `AcceptTribute`; `R`/Esc calls `RefuseTribute`; synthetic
+  timeout refuses automatically.
+- Escape: normal mining/chart keys are ignored while escape is active; resolved
+  survived outcome routes to summary; ship_lost routes to death screen.
+- Death screen: first key after delay routes to death recap; no summary details
+  render on the death screen itself.
 - Overlays capture input: with help open, arrows scroll help and do NOT
   move world selection; Esc closes.
 - Idle: ticks advancing past `idleSecs` without input produce `tea.Quit`;
@@ -56,12 +65,11 @@ Drive `Update` with message sequences; assert model state + recorded calls:
 
 Synthetic mouse messages against a rendered-then-hit-tested model:
 
-- Render at 80×24, look up a world row's hitbox, click its coords: selection
-  moves. Click again: `Depart`. Same pattern for belt rocks in all three
-  views, service buttons, bail button, tweaks values.
+- Render at 80×24, look up a destination row's hitbox, click its coords:
+  selection moves. Click again: `Depart` or lock-reason flash. Same pattern for
+  belt rocks in all three views, service buttons, shipyard/cosmetic/station
+  buttons, BAIL/DEPART, tribute buttons, tweaks values.
 - Wheel over the world list moves selection; wheel over open help scrolls.
-- Hold-press on OVERDRIVE (press msg without release) keeps overdrive on
-  across ticks; release msg turns it off.
 - Click on empty space: no action, no panic.
 - Click during min-size guard: swallowed.
 
@@ -73,12 +81,14 @@ ANSI or store it — pick one and document; **prefer storing styled output**
 so color regressions are caught, with a `stripansi` helper for readable
 diffs):
 
-- Chart docked (fresh pilot), chart broke (dimmed buttons, insurance row).
+- Chart docked (fresh pilot), chart locked-system detail, chart station owner,
+  chart broke (dimmed buttons, salvage advance row), shipyard, cosmetics.
 - Belt in tiles / orescan / radar with the same fixture belt, rock #3
   selected.
-- Mining at 47/61/33 (the doc sketch), mining with overdrive + pirate ≥ 75
-  (badge + danger panel).
-- All four summary outcomes.
+- Mining site at resource/cargo/pirate fixture, mining depleted with green
+  DEPART, tribute modal, escaping under fire, each event HUD treatment, death
+  screen.
+- All revamped summary outcomes.
 - Ship's log with 0 and 20 records.
 - Sizes: 80×24 (canonical) and 120×40 (stretch) for each. ASCII-safe-mode
   variant for one screen of each family.
