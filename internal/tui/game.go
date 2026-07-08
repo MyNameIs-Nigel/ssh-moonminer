@@ -33,6 +33,7 @@ const (
 	scrSummary
 	scrLog
 	scrShipyard
+	scrDeath
 )
 
 type overlay int
@@ -82,10 +83,8 @@ type Game struct {
 	idleSecs   int64
 	lastInput  int64
 
-	overdriveOn    bool
-	overdriveUntil int64
-	lastClickID    string
-	lastClickAt    int64
+	lastClickID string
+	lastClickAt int64
 
 	lastOutcome *sim.RunOutcome
 	flash       flash
@@ -155,14 +154,13 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if g.flash.expires > 0 && g.now >= g.flash.expires {
 			g.flash = flash{}
 		}
-		if g.overdriveUntil > 0 && g.now*1000 > g.overdriveUntil {
-			g.overdriveOn = false
-			g.overdriveUntil = 0
-			_, _ = g.sess.SetOverdrive(false)
-		}
 		if out := g.sess.LastOutcome(); out != nil && g.scr == scrMining {
 			g.lastOutcome = out
-			g.scr = scrSummary
+			if out.Kind == sim.OutcomeShipLost {
+				g.scr = scrDeath
+			} else {
+				g.scr = scrSummary
+			}
 			g.sess.ClearOutcome()
 		}
 		cmds = append(cmds, tickCmd())
@@ -257,6 +255,8 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 		return g.keyBelt(k)
 	case scrMining:
 		return g.keyMining(m)
+	case scrDeath:
+		return g.keyDeath(k)
 	case scrSummary:
 		return g.keySummary(k)
 	case scrLog:
@@ -287,6 +287,8 @@ func (g *Game) View() tea.View {
 	if g.width < minWidth || g.height < minHeight {
 		body = lipgloss.Place(g.width, g.height, lipgloss.Center, lipgloss.Center,
 			fmt.Sprintf("RESIZE TERMINAL — need %dx%d, have %dx%d", minWidth, minHeight, g.width, g.height))
+	} else if g.scr == scrDeath {
+		body = g.renderDeath()
 	} else {
 		base := g.renderChrome() + "\n" + g.renderScreen()
 		body = g.compositeView(base)
@@ -305,6 +307,8 @@ func (g *Game) screenAccent() string {
 		return theme.Accent(theme.HueGold)
 	case scrMining:
 		return theme.Accent(theme.HueAmber)
+	case scrDeath:
+		return theme.OutcomeAccent(string(sim.OutcomeShipLost))
 	case scrSummary:
 		if g.lastOutcome != nil {
 			return theme.OutcomeAccent(string(g.lastOutcome.Kind))

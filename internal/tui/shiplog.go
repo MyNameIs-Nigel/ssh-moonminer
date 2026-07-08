@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
@@ -27,12 +28,13 @@ func (g *Game) renderLog() string {
 	st := g.snap.State
 	accent := theme.Accent(theme.HueCyan)
 	stats := []string{
-		fmt.Sprintf("RUNS: %s (clean %s / bail %s / raid %s / strand %s)",
+		fmt.Sprintf("RUNS: %s (departed %s / bailed %s / tribute %s / underfire %s / lost %s)",
 			theme.Bright.Render(fmt.Sprintf("%d", st.Stats.RunsTotal)),
-			theme.Gold.Render(fmt.Sprintf("%d", st.Stats.RunsClean)),
-			theme.Cyan.Render(fmt.Sprintf("%d", st.Stats.RunsBailed)),
-			theme.Red.Render(fmt.Sprintf("%d", st.Stats.RunsRaided)),
-			theme.Amber.Render(fmt.Sprintf("%d", st.Stats.RunsStranded))),
+			theme.Green.Render(fmt.Sprintf("%d", st.Stats.RunsDeparted)),
+			theme.Amber.Render(fmt.Sprintf("%d", st.Stats.RunsBailed)),
+			theme.Amber.Render(fmt.Sprintf("%d", st.Stats.RunsTributePaid)),
+			theme.Red.Render(fmt.Sprintf("%d", st.Stats.RunsEscapedUnderFire)),
+			theme.Red.Render(fmt.Sprintf("%d", st.Stats.ShipsLost))),
 		fmt.Sprintf("EARNED: %s  SPENT: %s  LEGENDARIES: %s",
 			theme.Gold.Render(fmt.Sprintf("%d", st.Stats.CreditsEarned)),
 			theme.Red.Render(fmt.Sprintf("%d", st.Stats.CreditsSpent)),
@@ -44,9 +46,15 @@ func (g *Game) renderLog() string {
 			continue
 		}
 		outcome := theme.OutcomeStyle(r.Outcome).Render(strings.ToUpper(r.Outcome))
-		line := fmt.Sprintf("%s %s %s +%s (%s)",
+		amount := r.CargoValueRecovered
+		sign := "+"
+		if r.Outcome == string(sim.OutcomeShipLost) {
+			amount = r.CargoValueLost
+			sign = "-"
+		}
+		line := fmt.Sprintf("%s %s %s %s%d",
 			theme.DimStyle.Render(r.World), theme.TxtStyle.Render(r.Asteroid),
-			outcome, theme.Gold.Render(fmt.Sprintf("%d", r.Banked)), r.Outcome)
+			outcome, sign, amount)
 		runs = append(runs, line)
 		if len(runs) > 8 {
 			break
@@ -59,6 +67,8 @@ func (g *Game) renderLog() string {
 
 var onboardPages = []string{
 	theme.TxtStyle.Render("Welcome, pilot. Mine the belts, bank credits, upgrade your ship."),
-	theme.TxtStyle.Render("Chart → Belt → Mine → Summary. Bail early or drill to 100%."),
-	theme.TxtStyle.Render("Keys: arrows, Enter, F/H at port, Space overdrive, B bail."),
+	theme.TxtStyle.Render("Chart → Belt → Mine → Escape → Summary. You must leave manually."),
+	theme.TxtStyle.Render("B bails early (yellow); Enter departs once depleted (green)."),
+	theme.TxtStyle.Render("Pirates may demand tribute or attack — fleeing takes time, and"),
+	theme.TxtStyle.Render("hull loss can destroy your ship. Ships are lives — mine wisely."),
 }

@@ -198,13 +198,12 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyChart("l")
 		case "btn:scan":
 			return g.keyBelt("s")
-		case "btn:overdrive":
-			g.overdriveOn = true
-			g.overdriveUntil = g.now*1000 + 250
-			_, _ = g.sess.SetOverdrive(true)
-			return nil
 		case "btn:bail":
 			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
+		case "btn:tribute:accept":
+			return g.keyMining(tea.KeyPressMsg{Code: 'd', Text: "d"})
+		case "btn:tribute:refuse":
+			return g.keyMining(tea.KeyPressMsg{Code: 'r', Text: "r"})
 		case "btn:summary:continue":
 			return g.keySummary("enter")
 		case "btn:summary:dock":

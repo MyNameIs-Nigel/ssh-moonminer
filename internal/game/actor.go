@@ -71,7 +71,7 @@ func (a *actor) run() {
 			a.tick()
 		case <-a.stop:
 			if a.state.Run != nil {
-				sim.Bail(a.state, a.mgr.content, time.Now().Unix())
+				sim.EmergencyResolve(a.state, a.mgr.content, time.Now().Unix())
 				a.dirty = true
 			}
 			a.persist("final flush")

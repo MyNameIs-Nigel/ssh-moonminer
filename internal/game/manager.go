@@ -133,7 +133,7 @@ func (m *Manager) detach(s *Session) {
 	a.do(func() {
 		if a.session == s {
 			if a.state.Run != nil {
-				sim.Bail(a.state, m.content, time.Now().Unix())
+				sim.EmergencyResolve(a.state, m.content, time.Now().Unix())
 				a.dirty = true
 			}
 			a.session = nil
@@ -174,7 +174,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			a.do(func() {
 				if a.session != nil {
 					if a.state.Run != nil {
-						sim.Bail(a.state, m.content, time.Now().Unix())
+						sim.EmergencyResolve(a.state, m.content, time.Now().Unix())
 						a.dirty = true
 					}
 					a.session.deliverKick("Maintenance shutdown — progress saved.")

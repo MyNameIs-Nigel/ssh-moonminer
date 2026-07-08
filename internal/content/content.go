@@ -65,18 +65,57 @@ type TierConfig struct {
 	Mults  []float64 `toml:"mults"`
 }
 
-// MiningConfig holds real-time mining constants.
+// MiningConfig holds real-time mining, pirate, and escape constants for the
+// manual mining run loop (docs/gameplay/02-mining-run-loop.md). There is no
+// overdrive in this design — tension comes from time, radar, cargo load,
+// events, and escape risk.
 type MiningConfig struct {
-	TickHz            int     `toml:"tick_hz"`
-	PirateRateBase    float64 `toml:"pirate_rate_base"`
-	PirateRatePerTier float64 `toml:"pirate_rate_per_tier"`
-	FuelDrainBase     float64 `toml:"fuel_drain_base"`
-	FuelDrainPerTier  float64 `toml:"fuel_drain_per_tier"`
-	OverdriveDrillMul float64 `toml:"overdrive_drill_mul"`
-	OverdriveFuelMul  float64 `toml:"overdrive_fuel_mul"`
-	RaidedYieldKeep   float64 `toml:"raided_yield_keep"`
-	RaidedHullDamage  int     `toml:"raided_hull_damage"`
-	StrandedYieldKeep float64 `toml:"stranded_yield_keep"`
+	TickHz int `toml:"tick_hz"`
+
+	// Pirate radar distance closes from 100 (far) to 0 (arrived).
+	PirateApproachBase    float64 `toml:"pirate_approach_base"`
+	PirateApproachPerTier float64 `toml:"pirate_approach_per_tier"`
+
+	FuelDrainBase    float64 `toml:"fuel_drain_base"`
+	FuelDrainPerTier float64 `toml:"fuel_drain_per_tier"`
+
+	// Once pirates arrive, they roll tribute vs. an immediate attack.
+	TributeChance          float64 `toml:"tribute_chance"`
+	TributeDemandPct       float64 `toml:"tribute_demand_pct"`
+	TributeDecisionSeconds float64 `toml:"tribute_decision_seconds"`
+
+	// Escape sequence duration and pressure.
+	BaseEscapeSeconds          float64 `toml:"base_escape_seconds"`
+	EscapeCargoExponent        float64 `toml:"escape_cargo_exponent"`
+	CargoEscapePenaltySeconds  float64 `toml:"cargo_escape_penalty_seconds"`
+	FuelOutEscapePenaltyPerSec float64 `toml:"fuel_out_escape_penalty_per_sec"`
+	AttackHullDamagePerSecond  float64 `toml:"attack_hull_damage_per_second"`
+
+	// Fraction of an asteroid's units that must remain (of the original)
+	// for a bailed/tribute-paid/escaped rock to stay in the belt instead of
+	// being swept away as "too scattered to reacquire."
+	RemnantKeepThreshold float64 `toml:"remnant_keep_threshold"`
+}
+
+// EventsConfig tunes random mining/escape events. The lower the hull
+// percentage, the higher the chance the next event is bad.
+type EventsConfig struct {
+	BaseChancePerMinute float64 `toml:"base_chance_per_minute"`
+	LowHullChanceBonus  float64 `toml:"low_hull_chance_bonus"`
+	BaseBadWeight       float64 `toml:"base_bad_weight"`
+	LowHullBadWeight    float64 `toml:"low_hull_bad_weight"`
+	CooldownSeconds     float64 `toml:"cooldown_seconds"`
+
+	PowerOutageSeconds          float64 `toml:"power_outage_seconds"`
+	RadarBlackoutSeconds        float64 `toml:"radar_blackout_seconds"`
+	LifeSupportCountdownSeconds float64 `toml:"life_support_countdown_seconds"`
+	LifeSupportBleedPerSecond   int     `toml:"life_support_bleed_per_second"`
+	CargoShiftEffectSeconds     float64 `toml:"cargo_shift_effect_seconds"`
+	CargoShiftEscapePct         float64 `toml:"cargo_shift_escape_pct"`
+	ReactorSurgeSeconds         float64 `toml:"reactor_surge_seconds"`
+	ReactorSurgeFuelMul         float64 `toml:"reactor_surge_fuel_mul"`
+	ReactorSurgeHullHitChance   float64 `toml:"reactor_surge_hull_hit_chance"`
+	ReactorSurgeHullHitAmount   int     `toml:"reactor_surge_hull_hit_amount"`
 }
 
 // PortConfig holds port service pricing.
@@ -115,6 +154,7 @@ type balanceFile struct {
 	Belt     BeltConfig    `toml:"belt"`
 	Tiers    TierConfig    `toml:"tiers"`
 	Mining   MiningConfig  `toml:"mining"`
+	Events   EventsConfig  `toml:"events"`
 	Port     PortConfig    `toml:"port"`
 	Upgrades UpgradeConfig `toml:"upgrades"`
 }
@@ -126,6 +166,7 @@ type Content struct {
 	Belt     BeltConfig
 	Tiers    TierConfig
 	Mining   MiningConfig
+	Events   EventsConfig
 	Port     PortConfig
 	Upgrades UpgradeConfig
 }
@@ -150,6 +191,7 @@ func Load(overrideDir string) (*Content, error) {
 		Belt:     bf.Belt,
 		Tiers:    bf.Tiers,
 		Mining:   bf.Mining,
+		Events:   bf.Events,
 		Port:     bf.Port,
 		Upgrades: bf.Upgrades,
 	}
@@ -204,6 +246,18 @@ func (c *Content) validate() error {
 	}
 	if c.Mining.TickHz < 1 {
 		return fmt.Errorf("content: mining tick_hz must be positive")
+	}
+	if c.Mining.TributeChance < 0 || c.Mining.TributeChance > 1 {
+		return fmt.Errorf("content: mining tribute_chance must be within 0..1")
+	}
+	if c.Mining.TributeDemandPct < 0 || c.Mining.TributeDemandPct > 1 {
+		return fmt.Errorf("content: mining tribute_demand_pct must be within 0..1")
+	}
+	if c.Mining.BaseEscapeSeconds <= 0 {
+		return fmt.Errorf("content: mining base_escape_seconds must be positive")
+	}
+	if c.Mining.RemnantKeepThreshold < 0 || c.Mining.RemnantKeepThreshold > 1 {
+		return fmt.Errorf("content: mining remnant_keep_threshold must be within 0..1")
 	}
 	if c.Port.RefuelPerPoint < 1 || c.Port.RepairPerPoint < 1 {
 		return fmt.Errorf("content: port prices must be positive")

@@ -68,11 +68,14 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := sim.New(c, 42, 1000)
-	st.Run = &sim.ActiveRun{
-		Drill:  50,
-		Pirate: 10,
-		Yield:  100,
+	_ = sim.Depart(st, c, 1)
+	st.Belt[0].Scanned = true
+	st.Fuel = 500
+	if err := sim.Lock(st, c, st.Belt[0].ID, 1000); err != nil {
+		t.Fatal(err)
 	}
+	st.Run.MinedUnits = 50
+	st.Run.CargoValue = 100
 	g := &Game{
 		content:   c,
 		width:     80,
@@ -85,12 +88,8 @@ func TestMiningHitboxAlignment(t *testing.T) {
 	}
 	g.View()
 
-	// Overdrive and bail buttons are the last two content lines before keybar.
-	overdriveY := bodyLineY(8)
+	// BAIL is the last content line before the keybar during mining.
 	bailY := bodyLineY(9)
-	if b, ok := g.hits.At(1, overdriveY); !ok || b.ID != "btn:overdrive" {
-		t.Fatalf("btn:overdrive hitbox missing at (1,%d), got %#v", overdriveY, b)
-	}
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}

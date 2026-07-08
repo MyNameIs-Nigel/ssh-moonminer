@@ -22,6 +22,7 @@ var (
 	greenC     = "#5eff8a"
 	greenDimC  = "#2a8a4a"
 	redC       = "#ff5a6a"
+	darkRedC   = "#8a1420"
 	amberC     = "#ffae3f"
 	amberDimC  = "#a66a1a"
 	emptyC     = "#0d3252"
@@ -106,14 +107,16 @@ func TierStyleDim(tier int) lipgloss.Style {
 // OutcomeStyle returns style for outcome kind.
 func OutcomeStyle(kind string) lipgloss.Style {
 	switch kind {
-	case "clean":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(goldC)).Bold(true)
-	case "bail":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(cyanC)).Bold(true)
-	case "raided":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(redC)).Bold(true)
-	case "stranded":
+	case "departed":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(greenC)).Bold(true)
+	case "bailed":
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(amberC)).Bold(true)
+	case "tribute_paid":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(amberC)).Bold(true)
+	case "escaped_under_fire":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(redC)).Bold(true)
+	case "ship_lost":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(darkRedC)).Bold(true)
 	default:
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(txtC))
 	}
@@ -122,14 +125,14 @@ func OutcomeStyle(kind string) lipgloss.Style {
 // OutcomeAccent returns the panel border accent for an outcome kind.
 func OutcomeAccent(kind string) string {
 	switch kind {
-	case "clean":
-		return goldC
-	case "bail":
-		return cyanC
-	case "raided":
-		return redC
-	case "stranded":
+	case "departed":
+		return greenC
+	case "bailed", "tribute_paid":
 		return amberC
+	case "escaped_under_fire":
+		return redC
+	case "ship_lost":
+		return darkRedC
 	default:
 		return brightC
 	}
