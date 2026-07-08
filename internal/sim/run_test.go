@@ -290,6 +290,162 @@ func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 	}
 }
 
+func TestAttackDamagePerSecondRespectsPlatingFloor(t *testing.T) {
+	c := testContent(t)
+	for _, lvl := range []int{0, 1, 2, 3, 4} {
+		s := sim.New(c, 1, 1000)
+		_ = sim.Depart(s, c, 1)
+		ast := s.Belt[0]
+		s.Fuel = 500
+		s.Belt[0].Scanned = true
+		s.Upgrades.Plating = lvl
+		if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+			t.Fatal(err)
+		}
+		if err := sim.BailOrDepart(s, c, 1000); err != nil {
+			t.Fatal(err)
+		}
+		s.Run.UnderAttack = true
+		startHull := s.Hull
+		for i := 0; i < 4; i++ {
+			sim.TickRun(s, c, 0.25, 1000+int64(i))
+		}
+		lost := startHull - s.Hull
+
+		reduced := c.Mining.AttackHullDamagePerSecond - float64(lvl*c.Upgrades.PlatingReduction)
+		if reduced < float64(c.Upgrades.PlatingFloor) {
+			reduced = float64(c.Upgrades.PlatingFloor)
+		}
+		want := int(reduced)
+		if lost != want {
+			t.Fatalf("plating=%d: expected %d hull lost over 1s at %.1f dmg/s, got %d",
+				lvl, want, c.Mining.AttackHullDamagePerSecond, lost)
+		}
+	}
+}
+
+func TestFuelOutEscapePenaltyCaps(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.BailOrDepart(s, c, 1000); err != nil {
+		t.Fatal(err)
+	}
+	s.Fuel = 0
+
+	// Check the cap invariant against the run's *current* base each tick,
+	// since a cargo_shift event can legitimately grow BaseEscapeSecondsRequired
+	// mid-escape — the cap must still hold relative to that updated base.
+	resolved := false
+	for i := 0; i < 400; i++ {
+		sim.TickRun(s, c, 0.25, 1000+int64(i))
+		if s.Run == nil {
+			resolved = true
+			break
+		}
+		want := s.Run.BaseEscapeSecondsRequired + c.Mining.FuelOutEscapePenaltyCapSeconds
+		if s.Run.EscapeSecondsRequired > want+0.01 {
+			t.Fatalf("escape requirement exceeded the fuel-out cap: got %v want <= %v", s.Run.EscapeSecondsRequired, want)
+		}
+	}
+	if !resolved {
+		t.Fatal("escape never resolved over 100 simulated seconds — fuel-out penalty may not be capped")
+	}
+}
+
+func TestAttemptSkillCheckHitAndMiss(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+
+	// Miss: the zone doesn't cover the marker's position at Elapsed=0.
+	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.5, ZoneWidth: 0.1, Period: 2.0, Window: 6.0}
+	before := s.Run.MinedUnits
+	if err := sim.AttemptSkillCheck(s, c, 2000); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.SkillCheck != nil {
+		t.Fatal("expected the check to be consumed after an attempt")
+	}
+	if s.Run.MinedUnits != before {
+		t.Fatalf("a miss should not grant a bonus: before=%v after=%v", before, s.Run.MinedUnits)
+	}
+	if s.Run.NextSkillCheckIn <= 0 {
+		t.Fatal("expected the next-check countdown to be re-rolled after a miss")
+	}
+
+	// Hit: the zone covers the marker's position at Elapsed=0.
+	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.0, ZoneWidth: 0.2, Period: 2.0, Window: 6.0}
+	before = s.Run.MinedUnits
+	if err := sim.AttemptSkillCheck(s, c, 3000); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.SkillCheck != nil {
+		t.Fatal("expected the check to be consumed after an attempt")
+	}
+	if s.Run.MinedUnits <= before {
+		t.Fatalf("a hit should grant a mining bonus: before=%v after=%v", before, s.Run.MinedUnits)
+	}
+}
+
+func TestAttemptSkillCheckReducedMotionAlwaysHits(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Settings.ReducedMotion = true
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	// Marker position at Elapsed=0 is far outside this zone; reduced motion
+	// should hit anyway since there's no moving target to track.
+	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.9, ZoneWidth: 0.05, Period: 2.0, Window: 6.0}
+	before := s.Run.MinedUnits
+	if err := sim.AttemptSkillCheck(s, c, 2000); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.MinedUnits <= before {
+		t.Fatal("reduced-motion attempts should always hit regardless of marker position")
+	}
+}
+
+func TestPirateETANarrowsWithSurveyor(t *testing.T) {
+	c := testContent(t)
+
+	widthFor := func(surveyor int) float64 {
+		s := sim.New(c, 1, 1000)
+		s.Upgrades.Surveyor = surveyor
+		_ = sim.Depart(s, c, 1)
+		ast := s.Belt[0]
+		s.Fuel = 500
+		s.Belt[0].Scanned = true
+		if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+			t.Fatal(err)
+		}
+		return s.Run.PirateETAMax - s.Run.PirateETAMin
+	}
+
+	base := widthFor(0)
+	upgraded := widthFor(4)
+	if upgraded >= base {
+		t.Fatalf("expected Surveyor upgrades to narrow the pirate ETA range: base=%v upgraded=%v", base, upgraded)
+	}
+}
+
 func TestLowHullIncreasesEventChance(t *testing.T) {
 	c := testContent(t)
 

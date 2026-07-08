@@ -49,9 +49,23 @@ base_escape_seconds = 8.0
 escape_cargo_exponent = 1.6
 cargo_escape_penalty_seconds = 22.0
 fuel_out_escape_penalty_per_sec = 0.6
+fuel_out_escape_penalty_cap_seconds = 12.0
 attack_hull_damage_per_second = 6.0
 
 remnant_keep_threshold = 0.2
+
+# Skill-check "drill calibration" minigame during mining.
+skill_check_min_interval_seconds = 5.0
+skill_check_max_interval_seconds = 9.0
+skill_check_zone_width_pct = 0.22
+skill_check_sweep_period_seconds = 2.4
+skill_check_window_seconds = 6.0
+skill_check_bonus_seconds = 4.0
+
+# Fuzzed pirate ETA range shown on the mining-screen radar.
+eta_base_uncertainty_pct = 0.5
+eta_surveyor_reduction_pct = 0.08
+eta_min_uncertainty_pct = 0.15
 
 [events]
 base_chance_per_minute = 6.0

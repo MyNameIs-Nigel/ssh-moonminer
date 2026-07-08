@@ -74,14 +74,14 @@ func startEvent(s *State, c *content.Content, run *ActiveRun, kind EventKind, no
 		factor := 1 + ec.CargoShiftEscapePct
 		run.CargoShiftPenaltyMul *= factor
 		if run.Phase == PhaseEscaping {
-			run.EscapeSecondsRequired *= factor
+			run.BaseEscapeSecondsRequired *= factor
 		}
 	case EventReactorSurge:
 		ev.Remaining = ec.ReactorSurgeSeconds
 		ev.HUDTreatment = HUDAmberGlow
 		rng := runRNG(s, run, 5000+run.TickCount)
 		if rng.Float64() < ec.ReactorSurgeHullHitChance {
-			applyHullDamage(s, c, run, float64(ec.ReactorSurgeHullHitAmount))
+			applyHullDamageInstant(s, c, run, float64(ec.ReactorSurgeHullHitAmount))
 		}
 	}
 	run.ActiveEvent = ev

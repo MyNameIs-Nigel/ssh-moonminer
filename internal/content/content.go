@@ -85,16 +85,30 @@ type MiningConfig struct {
 	TributeDecisionSeconds float64 `toml:"tribute_decision_seconds"`
 
 	// Escape sequence duration and pressure.
-	BaseEscapeSeconds          float64 `toml:"base_escape_seconds"`
-	EscapeCargoExponent        float64 `toml:"escape_cargo_exponent"`
-	CargoEscapePenaltySeconds  float64 `toml:"cargo_escape_penalty_seconds"`
-	FuelOutEscapePenaltyPerSec float64 `toml:"fuel_out_escape_penalty_per_sec"`
-	AttackHullDamagePerSecond  float64 `toml:"attack_hull_damage_per_second"`
+	BaseEscapeSeconds              float64 `toml:"base_escape_seconds"`
+	EscapeCargoExponent            float64 `toml:"escape_cargo_exponent"`
+	CargoEscapePenaltySeconds      float64 `toml:"cargo_escape_penalty_seconds"`
+	FuelOutEscapePenaltyPerSec     float64 `toml:"fuel_out_escape_penalty_per_sec"`
+	FuelOutEscapePenaltyCapSeconds float64 `toml:"fuel_out_escape_penalty_cap_seconds"`
+	AttackHullDamagePerSecond      float64 `toml:"attack_hull_damage_per_second"`
 
 	// Fraction of an asteroid's units that must remain (of the original)
 	// for a bailed/tribute-paid/escaped rock to stay in the belt instead of
 	// being swept away as "too scattered to reacquire."
 	RemnantKeepThreshold float64 `toml:"remnant_keep_threshold"`
+
+	// Skill-check "drill calibration" minigame during mining.
+	SkillCheckMinIntervalSeconds float64 `toml:"skill_check_min_interval_seconds"`
+	SkillCheckMaxIntervalSeconds float64 `toml:"skill_check_max_interval_seconds"`
+	SkillCheckZoneWidthPct       float64 `toml:"skill_check_zone_width_pct"`
+	SkillCheckSweepPeriodSeconds float64 `toml:"skill_check_sweep_period_seconds"`
+	SkillCheckWindowSeconds      float64 `toml:"skill_check_window_seconds"`
+	SkillCheckBonusSeconds       float64 `toml:"skill_check_bonus_seconds"`
+
+	// Fuzzed pirate ETA range shown on the mining-screen radar.
+	EtaBaseUncertaintyPct   float64 `toml:"eta_base_uncertainty_pct"`
+	EtaSurveyorReductionPct float64 `toml:"eta_surveyor_reduction_pct"`
+	EtaMinUncertaintyPct    float64 `toml:"eta_min_uncertainty_pct"`
 }
 
 // EventsConfig tunes random mining/escape events. The lower the hull
@@ -256,8 +270,23 @@ func (c *Content) validate() error {
 	if c.Mining.BaseEscapeSeconds <= 0 {
 		return fmt.Errorf("content: mining base_escape_seconds must be positive")
 	}
+	if c.Mining.FuelOutEscapePenaltyCapSeconds < 0 {
+		return fmt.Errorf("content: mining fuel_out_escape_penalty_cap_seconds must be non-negative")
+	}
 	if c.Mining.RemnantKeepThreshold < 0 || c.Mining.RemnantKeepThreshold > 1 {
 		return fmt.Errorf("content: mining remnant_keep_threshold must be within 0..1")
+	}
+	if c.Mining.SkillCheckMinIntervalSeconds <= 0 || c.Mining.SkillCheckMaxIntervalSeconds < c.Mining.SkillCheckMinIntervalSeconds {
+		return fmt.Errorf("content: mining skill_check_min/max_interval_seconds must be positive and ascending")
+	}
+	if c.Mining.SkillCheckZoneWidthPct <= 0 || c.Mining.SkillCheckZoneWidthPct > 1 {
+		return fmt.Errorf("content: mining skill_check_zone_width_pct must be within (0..1]")
+	}
+	if c.Mining.SkillCheckSweepPeriodSeconds <= 0 || c.Mining.SkillCheckWindowSeconds <= 0 {
+		return fmt.Errorf("content: mining skill_check_sweep_period_seconds/window_seconds must be positive")
+	}
+	if c.Mining.EtaBaseUncertaintyPct < c.Mining.EtaMinUncertaintyPct || c.Mining.EtaMinUncertaintyPct < 0 {
+		return fmt.Errorf("content: mining eta_base_uncertainty_pct must be >= eta_min_uncertainty_pct >= 0")
 	}
 	if c.Port.RefuelPerPoint < 1 || c.Port.RepairPerPoint < 1 {
 		return fmt.Errorf("content: port prices must be positive")

@@ -149,6 +149,19 @@ type RunEventRecord struct {
 	At   int64     `json:"at"`
 }
 
+// SkillCheck is a periodic "drill calibration" prompt during mining: a
+// marker sweeps the [0,1] gauge on a triangle wave with period Period;
+// hitting AttemptSkillCheck while the marker sits within
+// [ZoneStart, ZoneStart+ZoneWidth] grants a mining-progress bonus. Missing
+// costs nothing — it auto-expires after Window seconds.
+type SkillCheck struct {
+	ZoneStart float64 `json:"zone_start"`
+	ZoneWidth float64 `json:"zone_width"`
+	Period    float64 `json:"period"`
+	Elapsed   float64 `json:"elapsed"`
+	Window    float64 `json:"window"`
+}
+
 // ActiveRun is in-progress mining state (never persisted non-nil).
 type ActiveRun struct {
 	AsteroidID int      `json:"asteroid_id"`
@@ -159,13 +172,28 @@ type ActiveRun struct {
 
 	PirateDistance float64      `json:"pirate_distance"`
 	PirateAction   PirateAction `json:"pirate_action"`
+	// PirateBearing is a cosmetic 0..1 direction rolled once at Lock, giving
+	// the radar-widget blip a fixed approach angle instead of teleporting.
+	PirateBearing float64 `json:"pirate_bearing"`
+	// PirateETAMin/Max are a deliberately fuzzed arrival estimate (seconds),
+	// recomputed each mining tick; the TUI must never render the true,
+	// exact arrival time derived from PirateDistance.
+	PirateETAMin float64 `json:"pirate_eta_min"`
+	PirateETAMax float64 `json:"pirate_eta_max"`
 
 	Intent      OutcomeKind `json:"intent"` // bailed/departed decided when escape starts
 	TributePaid bool        `json:"tribute_paid"`
 
-	EscapeSecondsRequired float64 `json:"escape_seconds_required"`
-	EscapeSecondsElapsed  float64 `json:"escape_seconds_elapsed"`
-	UnderAttack           bool    `json:"under_attack"`
+	// SkillCheck is the currently active "drill calibration" minigame
+	// prompt, if any. NextSkillCheckIn counts down to the next prompt.
+	SkillCheck       *SkillCheck `json:"skill_check,omitempty"`
+	NextSkillCheckIn float64     `json:"next_skill_check_in"`
+
+	EscapeSecondsRequired     float64 `json:"escape_seconds_required"`
+	BaseEscapeSecondsRequired float64 `json:"base_escape_seconds_required"`
+	FuelOutSeconds            float64 `json:"fuel_out_seconds"`
+	EscapeSecondsElapsed      float64 `json:"escape_seconds_elapsed"`
+	UnderAttack               bool    `json:"under_attack"`
 
 	TributeSecondsElapsed float64 `json:"tribute_seconds_elapsed"`
 

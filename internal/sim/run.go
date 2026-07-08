@@ -65,6 +65,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartFuel:            s.Fuel,
 		StartedAt:            now,
 	}
+	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
+	rollNextSkillCheckIn(s, c, s.Run)
+	updatePirateETA(s, c, s.Run, ast)
 	return nil
 }
 
@@ -215,7 +218,9 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	if run.CargoShiftPenaltyMul <= 0 {
 		run.CargoShiftPenaltyMul = 1.0
 	}
-	run.EscapeSecondsRequired = req * run.CargoShiftPenaltyMul
+	run.BaseEscapeSecondsRequired = req * run.CargoShiftPenaltyMul
+	run.FuelOutSeconds = 0
+	run.EscapeSecondsRequired = run.BaseEscapeSecondsRequired
 	run.EscapeSecondsElapsed = 0
 }
 
@@ -291,23 +296,42 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 		if ast.Volume > 0 {
 			run.CargoValue = int(math.Round(float64(ast.Value) * run.MinedUnits / float64(ast.Volume)))
 		}
+		tickSkillCheck(s, c, run, ast, dt)
 	}
 
 	if run.LifeSupportBreached {
-		applyHullDamage(s, c, run, float64(c.Events.LifeSupportBleedPerSecond)*dt)
+		applyHullDamageRate(s, c, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
 	}
 
 	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventRadarBlackout
 	if !blackout {
 		rate := pirateApproachRate(s, c, ast)
 		run.PirateDistance = math.Max(0, run.PirateDistance-rate*dt)
+		updatePirateETA(s, c, run, ast)
 	}
+}
+
+// updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
+// mining-screen radar. The true remaining time is never rendered directly —
+// only this widened, Surveyor-narrowed range.
+func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid) {
+	rate := pirateApproachRate(s, c, ast)
+	trueRemaining := 0.0
+	if rate > 0 {
+		trueRemaining = run.PirateDistance / rate
+	}
+	mc := c.Mining
+	uncertainty := clamp(mc.EtaBaseUncertaintyPct-float64(s.Upgrades.Surveyor)*mc.EtaSurveyorReductionPct,
+		mc.EtaMinUncertaintyPct, 1.0)
+	half := trueRemaining * uncertainty / 2
+	run.PirateETAMin = math.Max(0, trueRemaining-half)
+	run.PirateETAMax = trueRemaining + half
 }
 
 func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	run.EscapeSecondsElapsed += dt
 	if run.UnderAttack {
-		applyHullDamage(s, c, run, c.Mining.AttackHullDamagePerSecond*dt)
+		applyHullDamageRate(s, c, run, c.Mining.AttackHullDamagePerSecond, dt)
 	}
 	fuelDrain := c.Mining.FuelDrainBase
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
@@ -315,8 +339,10 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	}
 	s.Fuel = math.Max(0, s.Fuel-fuelDrain*dt)
 	if s.Fuel <= 0 {
-		run.EscapeSecondsRequired += c.Mining.FuelOutEscapePenaltyPerSec * dt
+		run.FuelOutSeconds += dt
 	}
+	penalty := math.Min(run.FuelOutSeconds*c.Mining.FuelOutEscapePenaltyPerSec, c.Mining.FuelOutEscapePenaltyCapSeconds)
+	run.EscapeSecondsRequired = run.BaseEscapeSecondsRequired + penalty
 }
 
 func rollPirateAction(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, now int64) {
@@ -386,7 +412,27 @@ func pirateApproachRate(s *State, c *content.Content, ast *Asteroid) float64 {
 	return rate * effectiveDamperMul(s, c)
 }
 
-func applyHullDamage(s *State, c *content.Content, run *ActiveRun, amount float64) {
+// applyHullDamageRate applies continuous, tick-scaled damage (attacks,
+// life-support bleed). Plating mitigation and the plating floor are computed
+// at the per-second rate, then the result is scaled by dt — applying the
+// floor directly to a pre-scaled per-tick amount would make it dominate at
+// any tick rate above 1 Hz, since AttackHullDamagePerSecond*dt and similar
+// per-tick amounts are already smaller than the floor before mitigation.
+func applyHullDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
+	if ratePerSecond <= 0 || dt <= 0 {
+		return
+	}
+	reduced := ratePerSecond - float64(s.Upgrades.Plating*c.Upgrades.PlatingReduction)
+	floor := float64(c.Upgrades.PlatingFloor)
+	if reduced < floor {
+		reduced = floor
+	}
+	applyHullDamageCarry(s, run, reduced*dt)
+}
+
+// applyHullDamageInstant applies a single lump hit (e.g. reactor surge),
+// where the plating floor is sized correctly against the raw hit amount.
+func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount float64) {
 	if amount <= 0 {
 		return
 	}
@@ -395,6 +441,10 @@ func applyHullDamage(s *State, c *content.Content, run *ActiveRun, amount float6
 	if reduced < floor {
 		reduced = floor
 	}
+	applyHullDamageCarry(s, run, reduced)
+}
+
+func applyHullDamageCarry(s *State, run *ActiveRun, reduced float64) {
 	if reduced <= 0 {
 		return
 	}
