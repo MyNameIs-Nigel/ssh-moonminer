@@ -131,7 +131,7 @@ func (srv *Server) teaHandler(s ssh.Session) (tui.Model, []tui.ProgramOption) {
 		width, height = pty.Window.Width, pty.Window.Height
 	}
 	idleSecs := int64(srv.cfg.IdleTimeout / time.Second)
-	return tui.NewGame(state.id, state.res, srv.games.Content(), width, height, time.Now().Unix(), idleSecs), nil
+	return tui.NewGame(state.id, state.res, srv.games.Content(), width, height, time.Now().Unix(), idleSecs, srv.cfg.DevMode), nil
 }
 
 func (srv *Server) ListenAndServe() error {

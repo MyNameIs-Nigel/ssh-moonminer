@@ -166,3 +166,43 @@ func (s *Session) UpdateSettings(now int64, fn func(*sim.Settings)) (Snapshot, e
 		return nil
 	})
 }
+
+// DevSetCredits is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevSetCredits(now int64, v int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.DevSetCredits(st, v)
+		return nil
+	})
+}
+
+// DevSetFuel is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevSetFuel(now int64, v float64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.DevSetFuel(st, s.actor.content(), v)
+		return nil
+	})
+}
+
+// DevSetHull is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevSetHull(now int64, v int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.DevSetHull(st, v)
+		return nil
+	})
+}
+
+// DevSetGodMode is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevSetGodMode(now int64, on bool) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.DevSetGodMode(st, on)
+		return nil
+	})
+}
+
+// DevMaxUpgrades is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevMaxUpgrades(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.DevMaxUpgrades(st, s.actor.content())
+		return nil
+	})
+}

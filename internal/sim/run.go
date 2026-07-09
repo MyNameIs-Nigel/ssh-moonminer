@@ -445,7 +445,7 @@ func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount
 }
 
 func applyHullDamageCarry(s *State, run *ActiveRun, reduced float64) {
-	if reduced <= 0 {
+	if reduced <= 0 || s.DevGodMode {
 		return
 	}
 	run.HullDamageCarry += reduced
