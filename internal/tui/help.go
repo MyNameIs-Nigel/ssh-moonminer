@@ -33,7 +33,7 @@ func (g *Game) helpScreenName() string {
 func (g *Game) helpLines() []string {
 	global := []string{
 		theme.Bright.Render("GLOBAL"),
-		"? toggle help · Esc close help",
+		"? toggle help · Esc or Q close help",
 		"Mouse: click to select · double-click to activate",
 		"Wheel: scroll lists and help text",
 		"",
@@ -127,9 +127,9 @@ func (g *Game) renderHelpOverlay() string {
 			view = append(view, "")
 		}
 	}
-	hint := theme.DimStyle.Render("↑/↓ scroll · ? or Esc close")
+	hint := theme.DimStyle.Render("↑/↓ scroll · ?, Esc, or Q close")
 	if g.helpScrollMax() == 0 {
-		hint = theme.DimStyle.Render("? or Esc close")
+		hint = theme.DimStyle.Render("?, Esc, or Q close")
 	}
 	ver := theme.DimStyle.Render("MOON MINER v" + version.Version + " (" + version.Channel + ")")
 	view = append(view, "", hint, ver)

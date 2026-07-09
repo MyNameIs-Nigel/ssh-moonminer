@@ -27,7 +27,7 @@ func (g *Game) renderOverlay() string {
 		if pg == len(onboardPages)-1 {
 			hint = "Press any key to start."
 		}
-		return theme.Panel("ONBOARDING", 55, 6, onboardPages[pg]+"\n\n"+theme.DimStyle.Render(hint), theme.Accent(theme.HueGold))
+		return theme.Panel("ONBOARDING", 70, 6, onboardPages[pg]+"\n\n"+theme.DimStyle.Render(hint), theme.Accent(theme.HueGold))
 	default:
 		return ""
 	}

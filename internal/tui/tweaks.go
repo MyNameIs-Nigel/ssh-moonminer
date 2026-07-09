@@ -183,7 +183,7 @@ func (g *Game) updateTweaksOverlay(k string) []tea.Cmd {
 
 func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 	switch k {
-	case "esc", "?":
+	case "esc", "q", "?":
 		g.overlay = ovNone
 	case "up", "k":
 		g.helpScrollBy(-1)
