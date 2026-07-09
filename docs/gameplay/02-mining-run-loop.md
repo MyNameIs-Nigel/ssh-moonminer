@@ -75,16 +75,19 @@ rate plus an uncertainty percentage that narrows with Surveyor upgrades
 `radar_blackout` event is active. The TUI renders only this range plus the
 radar-scope widget's blip position — never the true, exact arrival time.
 
-### Mining skill-check ("drill calibration")
+### Mining skill-check ("stabilize drill")
 
 During `PhaseMining`, a periodic prompt (`ActiveRun.SkillCheck`, gated by
-`NextSkillCheckIn`) sweeps a marker across `[0,1]` on a triangle wave;
-`AttemptSkillCheck` grants a flat mining-progress bonus if the marker sits
-within `[ZoneStart, ZoneStart+ZoneWidth]` at the moment of the attempt (or
-always, under the `ReducedMotion` accessibility setting, since there's no
-moving target to track). Missing costs nothing — the check simply expires
-and a new one is rolled. This does not pause or replace the pirate
-timer/event rolls; it is a purely additive mining accelerant.
+`NextSkillCheckIn`) opens a plain countdown: `SkillCheck.Window` seconds to
+press the hotkey before `Elapsed` catches up. Any press while the check is
+active — `AttemptSkillCheck` — is a hit and grants a flat mining-progress
+bonus (`remaining asteroid volume * SkillCheckBonusPct`), i.e. the drill
+"speeds up." There is deliberately no moving target or precise zone to line
+up: timing a press against a sweeping marker over a laggy SSH connection
+tests round-trip latency, not player skill. Missing (letting the countdown
+expire without pressing) costs nothing — no hull, fuel, or time penalty — the
+check simply clears and a new one is rolled. This does not pause or replace
+the pirate timer/event rolls; it is a purely additive mining accelerant.
 
 ### Locking a target — `Lock(state, content, asteroidID) error`
 
@@ -161,7 +164,12 @@ operations do not need 8 Hz precision):
   `bailed`; if `RemainingUnits == 0`, intent is `departed`.
 - Escape duration is derived from ship class and cargo load. Full ships should
   feel dangerous: a full Hauler may take several times longer to escape than an
-  empty Skiff.
+  empty Skiff. With no pirates in play, escape is meant to read as a short
+  cooldown rather than a second stress test — the base duration is small and
+  the escape burn itself drains fuel at a deliberately low, separate rate
+  (`EscapeFuelDrainPerSec`, well below normal mining fuel drain). The real
+  tension under fire comes from `AttackHullDamagePerSecond`, not the timer or
+  the tank.
 - If `UnderAttack`, subtract hull every tick. Hull damage can trigger bad
   random events more often.
 - When `EscapeSecondsElapsed >= EscapeSecondsRequired`, resolve as escaped.

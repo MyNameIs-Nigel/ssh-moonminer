@@ -23,8 +23,9 @@ at their ship's cockpit terminal. Screens are "instruments" (star chart,
 belt scanner, drill console, ship's log), system messages are terse and
 diegetic ("CONTACT LOCKED", "TANKS DRY — EMERGENCY TOW DISPATCHED"), and the
 whole thing renders like a phosphor CRT. There is no narrator and no cut
-scenes; the story is the tension in the gauges. Death is delivered as a dark
-red terminal failure: `CONNECTION LOST`.
+scenes; the story is the tension in the gauges. Death is delivered as the HUD
+flickering out, then a full-screen dark red terminal failure: `CONNECTION
+LOST`.
 
 ## The core loop
 

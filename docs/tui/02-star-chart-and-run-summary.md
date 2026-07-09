@@ -105,14 +105,22 @@ recap:
 ┌────────────────────────────────────────────────────────────┐
 │                                                            │
 │                                                            │
-│                    CONNECTION LOST                        │
+│                 CONNECTION LOST █                         │
 │                                                            │
 │                                                            │
+│                     press any key                         │
 └────────────────────────────────────────────────────────────┘
 ```
 
-- Full-screen dark red on near-black. No stats, no tips, no buttons except a
-  dim `press any key` after a short delay if reduced motion allows it.
+- On the tick hull reaches 0, the last mining/escape HUD frame flickers for a
+  handful of fast ticks — cycling monochrome and inverted renders of that
+  frame to read as a dying CRT — before settling on the card above.
+- The settled card fills the *entire* screen (not just a centered box) in
+  deep red on near-black, `CONNECTION LOST` with a cursor block that blinks
+  at the end of the line, and a dim `press any key` beneath it. No stats, no
+  tips, no other buttons.
+- Reduced motion skips the flicker entirely (cuts straight to the settled
+  card) and holds the cursor solid instead of blinking.
 - The next key transitions to the Death Recap / Run Summary.
 - Tests should assert that no cargo/ship-loss details leak onto this screen.
 

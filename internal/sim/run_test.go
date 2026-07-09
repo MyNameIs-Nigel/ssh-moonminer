@@ -359,7 +359,7 @@ func TestFuelOutEscapePenaltyCaps(t *testing.T) {
 	}
 }
 
-func TestAttemptSkillCheckHitAndMiss(t *testing.T) {
+func TestAttemptSkillCheckHitGrantsBonusAndConsumesCheck(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
 	_ = sim.Depart(s, c, 1)
@@ -370,8 +370,9 @@ func TestAttemptSkillCheckHitAndMiss(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Miss: the zone doesn't cover the marker's position at Elapsed=0.
-	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.5, ZoneWidth: 0.1, Period: 2.0, Window: 6.0}
+	// Any press while a check is active is a hit — there's no zone/timing to
+	// miss within the window, only a deadline to beat.
+	s.Run.SkillCheck = &sim.SkillCheck{Window: 3.0}
 	before := s.Run.MinedUnits
 	if err := sim.AttemptSkillCheck(s, c, 2000); err != nil {
 		t.Fatal(err)
@@ -379,31 +380,17 @@ func TestAttemptSkillCheckHitAndMiss(t *testing.T) {
 	if s.Run.SkillCheck != nil {
 		t.Fatal("expected the check to be consumed after an attempt")
 	}
-	if s.Run.MinedUnits != before {
-		t.Fatalf("a miss should not grant a bonus: before=%v after=%v", before, s.Run.MinedUnits)
+	if s.Run.MinedUnits <= before {
+		t.Fatalf("a press on an active check should grant a mining bonus: before=%v after=%v", before, s.Run.MinedUnits)
 	}
 	if s.Run.NextSkillCheckIn <= 0 {
-		t.Fatal("expected the next-check countdown to be re-rolled after a miss")
-	}
-
-	// Hit: the zone covers the marker's position at Elapsed=0.
-	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.0, ZoneWidth: 0.2, Period: 2.0, Window: 6.0}
-	before = s.Run.MinedUnits
-	if err := sim.AttemptSkillCheck(s, c, 3000); err != nil {
-		t.Fatal(err)
-	}
-	if s.Run.SkillCheck != nil {
-		t.Fatal("expected the check to be consumed after an attempt")
-	}
-	if s.Run.MinedUnits <= before {
-		t.Fatalf("a hit should grant a mining bonus: before=%v after=%v", before, s.Run.MinedUnits)
+		t.Fatal("expected the next-check countdown to be re-rolled after an attempt")
 	}
 }
 
-func TestAttemptSkillCheckReducedMotionAlwaysHits(t *testing.T) {
+func TestAttemptSkillCheckNoActiveCheckIsNoop(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	s.Settings.ReducedMotion = true
 	_ = sim.Depart(s, c, 1)
 	ast := s.Belt[0]
 	s.Fuel = 500
@@ -411,15 +398,41 @@ func TestAttemptSkillCheckReducedMotionAlwaysHits(t *testing.T) {
 	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 		t.Fatal(err)
 	}
-	// Marker position at Elapsed=0 is far outside this zone; reduced motion
-	// should hit anyway since there's no moving target to track.
-	s.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.9, ZoneWidth: 0.05, Period: 2.0, Window: 6.0}
+	s.Run.SkillCheck = nil
 	before := s.Run.MinedUnits
 	if err := sim.AttemptSkillCheck(s, c, 2000); err != nil {
 		t.Fatal(err)
 	}
-	if s.Run.MinedUnits <= before {
-		t.Fatal("reduced-motion attempts should always hit regardless of marker position")
+	if s.Run.MinedUnits != before {
+		t.Fatal("pressing with no active check should have no effect")
+	}
+}
+
+func TestSkillCheckExpiryHasNoEffectOnShip(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	s.Run.SkillCheck = &sim.SkillCheck{Window: 3.0}
+	startHull := s.Hull
+
+	// Let the countdown run out without ever pressing the hotkey.
+	if _, ended := sim.TickRun(s, c, 3.1, 2000); ended {
+		t.Fatal("a missed skill check must not end the run")
+	}
+	if s.Run.SkillCheck != nil {
+		t.Fatal("expected the check to auto-expire once Elapsed reaches Window")
+	}
+	if s.Hull != startHull {
+		t.Fatalf("a missed skill check must not damage the ship: hull %d -> %d", startHull, s.Hull)
+	}
+	if s.Run.NextSkillCheckIn <= 0 {
+		t.Fatal("expected the next-check countdown to be re-rolled after expiry")
 	}
 }
 

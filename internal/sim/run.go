@@ -333,7 +333,7 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	if run.UnderAttack {
 		applyHullDamageRate(s, c, run, c.Mining.AttackHullDamagePerSecond, dt)
 	}
-	fuelDrain := c.Mining.FuelDrainBase
+	fuelDrain := c.Mining.EscapeFuelDrainPerSec
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 		fuelDrain *= c.Events.ReactorSurgeFuelMul
 	}

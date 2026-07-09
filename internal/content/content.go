@@ -84,10 +84,16 @@ type MiningConfig struct {
 	TributeDemandPct       float64 `toml:"tribute_demand_pct"`
 	TributeDecisionSeconds float64 `toml:"tribute_decision_seconds"`
 
-	// Escape sequence duration and pressure.
+	// Escape sequence duration and pressure. Escaping is meant to read as a
+	// short cooldown, not a second stress test — the real tension under
+	// attack comes from AttackHullDamagePerSecond, not from the timer or
+	// fuel burn.
 	BaseEscapeSeconds              float64 `toml:"base_escape_seconds"`
 	EscapeCargoExponent            float64 `toml:"escape_cargo_exponent"`
 	CargoEscapePenaltySeconds      float64 `toml:"cargo_escape_penalty_seconds"`
+	// EscapeFuelDrainPerSec is intentionally much lower than FuelDrainBase —
+	// the escape burn itself should barely sip the tank.
+	EscapeFuelDrainPerSec          float64 `toml:"escape_fuel_drain_per_sec"`
 	FuelOutEscapePenaltyPerSec     float64 `toml:"fuel_out_escape_penalty_per_sec"`
 	FuelOutEscapePenaltyCapSeconds float64 `toml:"fuel_out_escape_penalty_cap_seconds"`
 	AttackHullDamagePerSecond      float64 `toml:"attack_hull_damage_per_second"`
@@ -97,11 +103,13 @@ type MiningConfig struct {
 	// being swept away as "too scattered to reacquire."
 	RemnantKeepThreshold float64 `toml:"remnant_keep_threshold"`
 
-	// Skill-check "drill calibration" minigame during mining.
+	// Skill-check "drill calibration" minigame during mining: a countdown
+	// appears every so often, and pressing the hotkey before it expires
+	// grants the mining-progress bonus below. There is no moving target to
+	// track — over SSH, timing a press against a sweeping marker is a
+	// latency test, not a skill test.
 	SkillCheckMinIntervalSeconds float64 `toml:"skill_check_min_interval_seconds"`
 	SkillCheckMaxIntervalSeconds float64 `toml:"skill_check_max_interval_seconds"`
-	SkillCheckZoneWidthPct       float64 `toml:"skill_check_zone_width_pct"`
-	SkillCheckSweepPeriodSeconds float64 `toml:"skill_check_sweep_period_seconds"`
 	SkillCheckWindowSeconds      float64 `toml:"skill_check_window_seconds"`
 	// SkillCheckBonusPct is a fraction of the asteroid's *remaining* volume,
 	// not a flat time amount — a flat "seconds of mining" bonus scales
@@ -274,6 +282,9 @@ func (c *Content) validate() error {
 	if c.Mining.BaseEscapeSeconds <= 0 {
 		return fmt.Errorf("content: mining base_escape_seconds must be positive")
 	}
+	if c.Mining.EscapeFuelDrainPerSec < 0 {
+		return fmt.Errorf("content: mining escape_fuel_drain_per_sec must be non-negative")
+	}
 	if c.Mining.FuelOutEscapePenaltyCapSeconds < 0 {
 		return fmt.Errorf("content: mining fuel_out_escape_penalty_cap_seconds must be non-negative")
 	}
@@ -283,11 +294,8 @@ func (c *Content) validate() error {
 	if c.Mining.SkillCheckMinIntervalSeconds <= 0 || c.Mining.SkillCheckMaxIntervalSeconds < c.Mining.SkillCheckMinIntervalSeconds {
 		return fmt.Errorf("content: mining skill_check_min/max_interval_seconds must be positive and ascending")
 	}
-	if c.Mining.SkillCheckZoneWidthPct <= 0 || c.Mining.SkillCheckZoneWidthPct > 1 {
-		return fmt.Errorf("content: mining skill_check_zone_width_pct must be within (0..1]")
-	}
-	if c.Mining.SkillCheckSweepPeriodSeconds <= 0 || c.Mining.SkillCheckWindowSeconds <= 0 {
-		return fmt.Errorf("content: mining skill_check_sweep_period_seconds/window_seconds must be positive")
+	if c.Mining.SkillCheckWindowSeconds <= 0 {
+		return fmt.Errorf("content: mining skill_check_window_seconds must be positive")
 	}
 	if c.Mining.SkillCheckBonusPct <= 0 || c.Mining.SkillCheckBonusPct > 1 {
 		return fmt.Errorf("content: mining skill_check_bonus_pct must be within (0..1]")

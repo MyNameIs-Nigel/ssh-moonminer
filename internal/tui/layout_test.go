@@ -117,7 +117,7 @@ func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
 	}
 	st.Run.MinedUnits = 50
 	st.Run.CargoValue = 100
-	st.Run.SkillCheck = &sim.SkillCheck{ZoneStart: 0.3, ZoneWidth: 0.2, Period: 2.4, Window: 6.0}
+	st.Run.SkillCheck = &sim.SkillCheck{Window: 3.0}
 	g := &Game{
 		content:   c,
 		width:     80,

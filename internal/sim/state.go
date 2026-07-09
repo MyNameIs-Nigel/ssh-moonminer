@@ -150,16 +150,12 @@ type RunEventRecord struct {
 }
 
 // SkillCheck is a periodic "drill calibration" prompt during mining: a
-// marker sweeps the [0,1] gauge on a triangle wave with period Period;
-// hitting AttemptSkillCheck while the marker sits within
-// [ZoneStart, ZoneStart+ZoneWidth] grants a mining-progress bonus. Missing
-// costs nothing — it auto-expires after Window seconds.
+// countdown of Window seconds starts, and hitting AttemptSkillCheck any time
+// before Elapsed reaches Window grants a mining-progress bonus. Missing
+// costs nothing — it just auto-expires.
 type SkillCheck struct {
-	ZoneStart float64 `json:"zone_start"`
-	ZoneWidth float64 `json:"zone_width"`
-	Period    float64 `json:"period"`
-	Elapsed   float64 `json:"elapsed"`
-	Window    float64 `json:"window"`
+	Elapsed float64 `json:"elapsed"`
+	Window  float64 `json:"window"`
 }
 
 // ActiveRun is in-progress mining state (never persisted non-nil).
