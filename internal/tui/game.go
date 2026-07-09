@@ -183,6 +183,12 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					g.deathFlickerFrames = 0
 				}
 				g.scr = scrDeath
+				// The death screen bypasses overlay compositing entirely
+				// (see View()), but Update()'s key routing checks overlay
+				// state first — leaving one open here would swallow every
+				// keypress into a stale overlay handler and strand the
+				// player on "CONNECTION LOST" with no way to continue.
+				g.overlay = ovNone
 				if g.deathFlickerFrames > 0 {
 					cmds = append(cmds, deathTickCmd())
 				}
@@ -273,7 +279,10 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 
 func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 	k := m.String()
-	if k == "?" {
+	// The death screen bypasses overlay compositing entirely (see View()),
+	// so an overlay opened here would be invisible and unclosable — never
+	// let these global bindings open one while g.scr == scrDeath.
+	if k == "?" && g.scr != scrDeath {
 		if g.overlay == ovHelp {
 			g.overlay = ovNone
 		} else {
@@ -285,7 +294,7 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 	if k == "ctrl+c" {
 		return []tea.Cmd{tea.Quit}
 	}
-	if g.devMode && k == "ctrl+d" {
+	if g.devMode && k == "ctrl+d" && g.scr != scrDeath {
 		if g.overlay == ovDev {
 			g.overlay = ovNone
 		} else {

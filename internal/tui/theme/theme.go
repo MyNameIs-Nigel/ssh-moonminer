@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -283,8 +284,11 @@ func Panel(title string, w, h int, body string, accent string) string {
 		}
 		pad := w - 2 - lipgloss.Width(lineBody)
 		if pad < 0 {
-			lineBody = lipgloss.NewStyle().Width(w - 2).Render(lineBody)
-			pad = 0
+			// lipgloss's Width() word-wraps rather than truncating, which would
+			// spill this line across multiple rows without a border — truncate
+			// to one physical line instead so every row stays bordered.
+			lineBody = ansi.Truncate(lineBody, w-2, "…")
+			pad = max(0, w-2-lipgloss.Width(lineBody))
 		}
 		out = append(out, border.Render("│")+lineBody+strings.Repeat(" ", pad)+border.Render("│"))
 	}

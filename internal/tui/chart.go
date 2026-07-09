@@ -11,14 +11,24 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
+const upgradeTrackCount = 5
+
 func (g *Game) keyChart(k string) []tea.Cmd {
 	st := g.snap.State
 	n := len(g.content.Worlds)
 	switch k {
 	case "up", "k":
-		g.worldSel = (g.worldSel - 1 + n) % n
+		if g.scr == scrShipyard {
+			g.upgradeSel = (g.upgradeSel - 1 + upgradeTrackCount) % upgradeTrackCount
+		} else {
+			g.worldSel = (g.worldSel - 1 + n) % n
+		}
 	case "down", "j":
-		g.worldSel = (g.worldSel + 1) % n
+		if g.scr == scrShipyard {
+			g.upgradeSel = (g.upgradeSel + 1) % upgradeTrackCount
+		} else {
+			g.worldSel = (g.worldSel + 1) % n
+		}
 	case "enter", " ":
 		if g.scr == scrShipyard {
 			snap, err := g.sess.BuyUpgrade(g.now, sim.UpgradeTrack(g.upgradeSel))
@@ -148,7 +158,7 @@ func (g *Game) renderChart() string {
 
 	if g.scr == scrShipyard {
 		rightLines = append(rightLines, "", theme.Violet.Render("◇ SHIPYARD"))
-		for t := 0; t < 5; t++ {
+		for t := 0; t < upgradeTrackCount; t++ {
 			lvl := sim.UpgradeLevel(&st, sim.UpgradeTrack(t))
 			filled := strings.Repeat(theme.Violet.Render("●"), lvl)
 			empty := strings.Repeat(theme.DimStyle.Render("○"), g.content.Upgrades.MaxLevel-lvl)

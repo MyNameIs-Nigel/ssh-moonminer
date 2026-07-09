@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -67,43 +68,18 @@ func clampInt(v, lo, hi int) int {
 	return v
 }
 
-// renderRadar draws a scatter of belt contacts as a small HUD above the
-// asteroid list. Contacts are hollow until selected; the selected contact
-// fills in and shows its name — in its true tier color once scanned, or a
-// neutral "target lock" color if its details are still unknown.
-func (g *Game) renderRadar(st *sim.State) string {
-	w := g.width
-	if w < 24 {
-		w = 24
-	}
-	type mark struct {
-		col   int
-		text  string
-		style lipgloss.Style
-	}
-	rows := make([][]mark, radarHeight)
-	for i, rock := range st.Belt {
-		col := clampInt(rock.X*(w-1)/100, 0, w-1)
-		row := clampInt(rock.Y*(radarHeight-1)/100, 0, radarHeight-1)
-		sel := i == g.rockSel
-		glyph := "○"
-		style := theme.DimStyle
-		text := glyph
-		if sel {
-			glyph = "●"
-			style = theme.White
-			if rock.Scanned {
-				style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe)
-			}
-			text = glyph + " " + rock.Name
-		}
-		if col+lipgloss.Width(text) > w {
-			col = clampInt(w-lipgloss.Width(text), 0, w-1)
-		}
-		rows[row] = append(rows[row], mark{col: col, text: text, style: style})
-	}
-	lines := make([]string, radarHeight)
-	for r := 0; r < radarHeight; r++ {
+type radarMark struct {
+	col   int
+	text  string
+	style lipgloss.Style
+}
+
+// renderMarkGrid lays out marks on a row/col grid, resolving overlaps by
+// nudging later marks past earlier ones on the same row. Shared by the
+// ore-scan and radar-scope belt views so both stay collision-free.
+func renderMarkGrid(w, h int, rows [][]radarMark) string {
+	lines := make([]string, h)
+	for r := 0; r < h; r++ {
 		ms := rows[r]
 		sort.Slice(ms, func(i, j int) bool { return ms[i].col < ms[j].col })
 		var b strings.Builder
@@ -124,6 +100,135 @@ func (g *Game) renderRadar(st *sim.State) string {
 	return strings.Join(lines, "\n")
 }
 
+func sizeGlyph(size string) string {
+	switch size {
+	case "lg":
+		return "▓"
+	case "md":
+		return "▒"
+	default:
+		return "░"
+	}
+}
+
+// renderOreScan draws each contact as a Size-shaped blob at its belt X,Y
+// coordinates. Blobs are hollow/dim until selected; the selected blob fills
+// in and gains its designation label — in its true tier color once scanned,
+// or a neutral "target lock" color if its details are still unknown.
+func (g *Game) renderOreScan(st *sim.State) string {
+	w := g.width
+	if w < 24 {
+		w = 24
+	}
+	rows := make([][]radarMark, radarHeight)
+	for i, rock := range st.Belt {
+		col := clampInt(rock.X*(w-1)/100, 0, w-1)
+		row := clampInt(rock.Y*(radarHeight-1)/100, 0, radarHeight-1)
+		sel := i == g.rockSel
+		glyph := sizeGlyph(rock.Size)
+		style := theme.DimStyle
+		text := glyph
+		if sel {
+			style = theme.White
+			if rock.Scanned {
+				style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe)
+			}
+			text = glyph + " " + rock.Name
+		} else if rock.Scanned {
+			style = theme.TierStyleDim(rock.Tier)
+		}
+		if col+lipgloss.Width(text) > w {
+			col = clampInt(w-lipgloss.Width(text), 0, w-1)
+		}
+		rows[row] = append(rows[row], radarMark{col: col, text: text, style: style})
+	}
+	return renderMarkGrid(w, radarHeight, rows)
+}
+
+// renderRadarScope draws contacts as bearing/range blips on a circular
+// scope centered on the ship, with a sweep line that rotates one step per
+// UI tick and a crosshair + callout on the selected contact. Distinct from
+// renderOreScan: bearing/range are derived from each rock's X,Y instead of
+// placing blobs directly at their belt coordinates.
+func (g *Game) renderRadarScope(st *sim.State) string {
+	w := g.width
+	if w < 24 {
+		w = 24
+	}
+	h := radarHeight
+	cx, cy := w/2, (h-1)/2
+	rx, ry := float64(cx-1), float64(cy)
+	if rx < 1 {
+		rx = 1
+	}
+	if ry < 1 {
+		ry = 1
+	}
+
+	rows := make([][]radarMark, h)
+	// Ambient gridmarks: a ring plus the sweep line, both under the blips.
+	for r := 0; r < h; r++ {
+		for c := 0; c < w; c++ {
+			nx, ny := (float64(c)-float64(cx))/rx, (float64(r)-float64(cy))/ry
+			d := math.Hypot(nx, ny)
+			if d > 0.85 && d <= 1.0 {
+				rows[r] = append(rows[r], radarMark{col: c, text: "·", style: theme.DimStyle})
+			}
+		}
+	}
+	if !st.Settings.ReducedMotion {
+		sweep := float64(g.tickCount%36) * (2 * math.Pi / 36)
+		for t := 0.0; t < 1.0; t += 0.08 {
+			c := cx + int(math.Round(t*rx*math.Cos(sweep)))
+			r := cy + int(math.Round(t*ry*math.Sin(sweep)))
+			if c >= 0 && c < w && r >= 0 && r < h {
+				rows[r] = append(rows[r], radarMark{col: c, text: "·", style: theme.DimStyle})
+			}
+		}
+	}
+
+	maxDist := 0.0
+	for _, rock := range st.Belt {
+		if rock.Distance > maxDist {
+			maxDist = rock.Distance
+		}
+	}
+	if maxDist <= 0 {
+		maxDist = 1
+	}
+	for i, rock := range st.Belt {
+		bearing := math.Atan2(float64(rock.Y-50), float64(rock.X-50))
+		radius := clampF(rock.Distance/maxDist, 0.15, 1.0)
+		col := cx + int(math.Round(radius*rx*math.Cos(bearing)))
+		row := cy + int(math.Round(radius*ry*math.Sin(bearing)))
+		col = clampInt(col, 0, w-1)
+		row = clampInt(row, 0, h-1)
+
+		sel := i == g.rockSel
+		glyph := "◉"
+		style := theme.DimStyle
+		text := glyph
+		if rock.Scanned {
+			style = theme.TierStyleDim(rock.Tier)
+		}
+		if sel {
+			glyph = "┼"
+			style = theme.White
+			if rock.Scanned {
+				style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe)
+			}
+			text = glyph + " " + rock.Name
+		}
+		if col+lipgloss.Width(text) > w {
+			col = clampInt(w-lipgloss.Width(text), 0, w-1)
+		}
+		rows[row] = append(rows[row], radarMark{col: col, text: text, style: style})
+	}
+	// Ship anchor at scope center, drawn last so it always shows through.
+	rows[cy] = append(rows[cy], radarMark{col: cx, text: "▲", style: theme.Bright})
+	return renderMarkGrid(w, h, rows)
+}
+
 func (g *Game) renderBelt() string {
 	st := g.snap.State
 	w := g.content.WorldByIndex(st.WorldIdx)
@@ -135,7 +240,14 @@ func (g *Game) renderBelt() string {
 	if len(st.Belt) == 0 {
 		lines = append(lines, theme.Amber.Render("Belt depleted — press Q to dock and chart a new course"))
 	} else {
-		lines = append(lines, g.renderRadar(&st), "")
+		switch st.Settings.BeltView {
+		case sim.BeltViewOreScan:
+			lines = append(lines, theme.DimStyle.Render("ORE SCAN"), g.renderOreScan(&st), "")
+		case sim.BeltViewRadar:
+			lines = append(lines, theme.DimStyle.Render("RADAR SCOPE"), g.renderRadarScope(&st), "")
+		default:
+			lines = append(lines, theme.DimStyle.Render("DATA TILES"))
+		}
 		for i, rock := range st.Belt {
 			marker := "  "
 			sel := i == g.rockSel
