@@ -220,6 +220,12 @@ func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 		} else if m.Y > 0 {
 			g.tweaksSel = (g.tweaksSel + 1) % tweakCount
 		}
+	case ovDev:
+		if m.Y < 0 {
+			g.devSel = (g.devSel - 1 + devRowCount) % devRowCount
+		} else if m.Y > 0 {
+			g.devSel = (g.devSel + 1) % devRowCount
+		}
 	}
 	return nil
 }

@@ -45,6 +45,7 @@ const (
 	ovTweaks
 	ovKicked
 	ovOnboard
+	ovDev
 )
 
 type (
@@ -65,6 +66,7 @@ type Game struct {
 	content *content.Content
 	id      identity.SessionIdentity
 	attach  game.AttachResult
+	devMode bool
 
 	snap      sim.Snapshot
 	width     int
@@ -75,6 +77,7 @@ type Game struct {
 	onboardPg int
 	helpScroll int
 	tweaksSel  int
+	devSel     int
 
 	worldSel   int
 	rockSel    int
@@ -103,9 +106,9 @@ type Game struct {
 }
 
 // NewGame constructs the session UI.
-func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.Content, w, h int, now, idleSecs int64) Model {
+func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.Content, w, h int, now, idleSecs int64, devMode bool) Model {
 	g := &Game{
-		sess: attach.Session, content: c, id: id, attach: attach,
+		sess: attach.Session, content: c, id: id, attach: attach, devMode: devMode,
 		width: w, height: h, now: now, idleSecs: idleSecs, lastInput: now,
 		scr: scrChart, created: attach.Created, hits: hitbox.New(),
 	}
@@ -229,7 +232,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, g.updateClick(m)...)
 	case tea.MouseWheelMsg:
 		g.lastInput = g.now
-		if g.overlay == ovHelp || g.overlay == ovTweaks {
+		if g.overlay == ovHelp || g.overlay == ovTweaks || g.overlay == ovDev {
 			cmds = append(cmds, g.updateOverlayWheel(m)...)
 			break
 		}
@@ -262,6 +265,8 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		return g.updateHelpOverlay(m.String())
 	case ovTweaks:
 		return g.updateTweaksOverlay(m.String())
+	case ovDev:
+		return g.updateDevOverlay(m.String())
 	}
 	return nil
 }
@@ -279,6 +284,15 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 	}
 	if k == "ctrl+c" {
 		return []tea.Cmd{tea.Quit}
+	}
+	if g.devMode && k == "ctrl+d" {
+		if g.overlay == ovDev {
+			g.overlay = ovNone
+		} else {
+			g.devSel = 0
+			g.overlay = ovDev
+		}
+		return nil
 	}
 	switch g.scr {
 	case scrChart, scrShipyard:

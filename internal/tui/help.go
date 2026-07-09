@@ -38,6 +38,9 @@ func (g *Game) helpLines() []string {
 		"Wheel: scroll lists and help text",
 		"",
 	}
+	if g.devMode {
+		global = append(global, theme.Red.Render("Ctrl+D dev tools (this is a dev build)"), "")
+	}
 	var screen []string
 	switch g.scr {
 	case scrShipyard:

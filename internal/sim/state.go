@@ -230,6 +230,12 @@ type State struct {
 	RunLog    []RunRecord `json:"run_log,omitempty"`
 	Run       *ActiveRun  `json:"run,omitempty"`
 	Scan      *ActiveScan `json:"scan,omitempty"`
+
+	// DevGodMode disables hull damage. It is a dev-server-only debug flag.
+	// It has a real json tag so it survives Clone()'s JSON round-trip
+	// in-memory, but Encode() (used for the persisted DB payload) always
+	// zeroes it first so it can never leak into a saved pilot file.
+	DevGodMode bool `json:"dev_god_mode,omitempty"`
 }
 
 // Snapshot is a value copy for rendering.
@@ -260,6 +266,7 @@ func (s *State) Encode() ([]byte, error) {
 	copy := s.Clone()
 	copy.Run = nil
 	copy.Scan = nil
+	copy.DevGodMode = false
 	return json.Marshal(copy)
 }
 

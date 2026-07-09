@@ -28,6 +28,7 @@ type Config struct {
 	SessionPolicy       string
 	DataDir             string
 	ProxyKeysPath       string
+	DevMode             bool
 }
 
 // Load reads configuration from the environment.
@@ -43,6 +44,7 @@ func Load() (Config, error) {
 		SessionPolicy: envOr("MOONMINER_SESSION_POLICY", "takeover"),
 		DataDir:       os.Getenv("MOONMINER_DATA_DIR"),
 		ProxyKeysPath: os.Getenv("MOONMINER_PROXY_KEYS_PATH"),
+		DevMode:       os.Getenv("MOONMINER_DEV_MODE") != "",
 	}
 	if cfg.ListenPort, err = envIntOr("MOONMINER_LISTEN_PORT", 22); err != nil {
 		return Config{}, err
