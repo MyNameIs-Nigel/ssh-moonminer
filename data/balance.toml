@@ -93,18 +93,152 @@ insurance_credits = 300
 insurance_fuel_threshold = 6
 insurance_credit_threshold = 50
 
-[upgrades]
-# Endgame horizon: maxing all tracks costs ~3.2M credits.
-max_level = 4
-drill_base = 600
-tank_base = 500
-plating_base = 550
-damper_base = 700
-surveyor_base = 800
-drill_rate_mul = 1.15
-tank_bonus = 25
-plating_reduction = 4
-plating_floor = 5
-damper_mul = 0.88
-surveyor_bonus = 1
-base_tank = 100
+[fleet]
+# Ship-track (Thrusters/Hull/Fuel Eff/Power Gen/Scanner) grade economy, the
+# power/mass system, Scanner distance lock, distance-biased rarity, the
+# event hull gate, and ship buyback. See
+# docs/gameplay/05-fleet-ships-and-shipyard-economy.md — grade is 0..5 (E..S).
+grade_price_curve = 2.2
+thrusters_base_price = 500
+hull_base_price = 450
+fuel_eff_base_price = 550
+power_gen_base_price = 650
+scanner_base_price = 700
+thruster_escape_mul = 0.94
+fuel_eff_mul = 0.92
+hull_pool_per_grade = 20
+power_capacity_base = 10
+power_capacity_per_grade = 8
+power_curve_exponent = 1.5
+scanner_lock_base_km = 4.0
+scanner_lock_per_grade_km = 2.0
+scanner_lock_max_km = 10.0
+scanner_eta_bonus_pct = 0.05
+mass_fuel_coefficient = 0.5
+mass_escape_coefficient = 0.6
+distance_rarity_bonus_max = 0.08
+event_hull_gate_pct = 0.20
+buyback_price_pct = 0.25
+
+[slots]
+# Utility/Weapon/Internal slot device catalog. Price = base * fleet's
+# grade_price_curve^grade. Cargo/Fuel Tank have no power_k — they never draw
+# power (the one explicit exception to "every slot costs power").
+cargo_base_price = 300
+cargo_per_grade = 600
+cargo_mass_per_grade = 6
+fuel_tank_base_price = 350
+fuel_tank_per_grade = 10
+fuel_tank_mass_per_grade = 5
+shield_base_price = 900
+shield_power_k = 2.7
+shield_mass_per_grade = 8
+shield_hp_per_grade = 20
+chaff_base_price = 250
+chaff_power_k = 0.6
+chaff_mass_per_grade = 2
+chaff_base_seconds = 2
+turret_base_price = 700
+turret_power_k = 1.6
+turret_mass_per_grade = 7
+turret_pct_per_grade = 0.08
+internal_power_k = 1.0
+internal_mass_per_grade = 4
+seismic_base_price = 600
+seismic_scan_count = 3
+fuel_miner_base_price = 750
+fuel_miner_base_pct = 0.25
+fuel_miner_per_grade_pct = 0.15
+jammer_base_price = 850
+# uses_per_trip = 1 + grade/step: step=2 gives the first bonus charge at
+# grade C (2), matching docs/gameplay/05's "grade C+ grants an extra use".
+jammer_grade_uses_step = 2
+jump_drive_base_price = 5000
+
+[[ships]]
+id = "skiff"
+name = "SKIFF"
+brand = "independent"
+class = "miner"
+price = 0
+tier_mul = 1.0
+base_mass = 100
+base_cargo = 1400
+utility_slots = 2
+weapon_slots = 0
+thrusters_start = 1
+thrusters_cap = 3
+hull_start = 0
+hull_cap = 1
+fuel_eff_start = 1
+fuel_eff_cap = 2
+power_gen_start = 0
+power_gen_cap = 1
+scanner_start = 0
+scanner_cap = 2
+
+[[ships]]
+id = "cicada"
+name = "CICADA"
+brand = "federation"
+class = "miner"
+price = 9000
+tier_mul = 1.8
+base_mass = 120
+base_cargo = 1800
+utility_slots = 3
+weapon_slots = 0
+thrusters_start = 2
+thrusters_cap = 3
+hull_start = 1
+hull_cap = 2
+fuel_eff_start = 2
+fuel_eff_cap = 4
+power_gen_start = 1
+power_gen_cap = 2
+scanner_start = 2
+scanner_cap = 5
+
+[[ships]]
+id = "warden"
+name = "WARDEN"
+brand = "alliance"
+class = "fighter"
+price = 18000
+tier_mul = 2.6
+base_mass = 220
+base_cargo = 2600
+utility_slots = 2
+weapon_slots = 2
+thrusters_start = 2
+thrusters_cap = 3
+hull_start = 2
+hull_cap = 4
+fuel_eff_start = 1
+fuel_eff_cap = 2
+power_gen_start = 2
+power_gen_cap = 3
+scanner_start = 1
+scanner_cap = 2
+
+[[ships]]
+id = "mule"
+name = "MULE"
+brand = "independent"
+class = "freighter"
+price = 26000
+tier_mul = 3.4
+base_mass = 380
+base_cargo = 4700
+utility_slots = 4
+weapon_slots = 1
+thrusters_start = 0
+thrusters_cap = 2
+hull_start = 2
+hull_cap = 5
+fuel_eff_start = 0
+fuel_eff_cap = 2
+power_gen_start = 2
+power_gen_cap = 4
+scanner_start = 0
+scanner_cap = 2

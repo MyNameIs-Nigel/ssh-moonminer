@@ -64,6 +64,11 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartHull:            s.Hull,
 		StartFuel:            s.Fuel,
 		StartedAt:            now,
+		ShieldHP:             ShieldMaxHP(s, c),
+	}
+	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
+		inst.JammerCharges--
+		s.Run.PirateImmune = true
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	rollNextSkillCheckIn(s, c, s.Run)
@@ -91,6 +96,9 @@ func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 	}
 	if ast.Scanned {
 		return ErrAlreadyScanned
+	}
+	if IsOutOfRange(s, c, ast) {
+		return ErrOutOfRange
 	}
 	cost := c.Belt.ScanFuelCost
 	if s.Fuel < cost {
@@ -203,7 +211,7 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 		run.UnderAttack = true
 	}
 	if run.Intent == "" {
-		if ast.Volume > 0 && run.MinedUnits >= float64(ast.Volume) {
+		if RunDepleted(s, c, ast, run) {
 			run.Intent = OutcomeDeparted
 		} else {
 			run.Intent = OutcomeBailed
@@ -218,10 +226,17 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	if run.CargoShiftPenaltyMul <= 0 {
 		run.CargoShiftPenaltyMul = 1.0
 	}
-	run.BaseEscapeSecondsRequired = req * run.CargoShiftPenaltyMul
+	run.BaseEscapeSecondsRequired = req * run.CargoShiftPenaltyMul * EscapeMul(s, c)
 	run.FuelOutSeconds = 0
 	run.EscapeSecondsRequired = run.BaseEscapeSecondsRequired
 	run.EscapeSecondsElapsed = 0
+
+	// A Chaff Launcher auto-fires the instant pirates open fire, suppressing
+	// damage for its full duration — one use per run.
+	if underAttack && hasChaff(s) {
+		run.ChaffActive = true
+		run.ChaffRemaining = ChaffDurationSeconds(s, c)
+	}
 }
 
 // TickRun advances the mining run by dt seconds.
@@ -278,18 +293,29 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt float64) {
 	outage := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventPowerOutage
 	if !outage {
-		remaining := float64(ast.Volume) - run.MinedUnits
+		// Mining stops at the ship's cargo capacity exactly like depletion —
+		// RunDepleted treats "hold full" and "rock exhausted" the same way.
+		cargoCap := math.Min(float64(ast.Volume), CargoCapacityUnits(s, c))
+		remaining := cargoCap - run.MinedUnits
 		if remaining > 0 && s.Fuel > 0 && ast.DrillSec > 0 {
-			mineRate := float64(ast.Volume) / ast.DrillSec * effectiveDrillRate(s, c)
+			mineRate := float64(ast.Volume) / ast.DrillSec
 			mined := math.Min(remaining, mineRate*dt)
 			if mined > 0 {
 				run.MinedUnits += mined
 			}
-			fuelDrain := c.Mining.FuelDrainBase + float64(ast.Tier)*c.Mining.FuelDrainPerTier
+			fuelDrain := (c.Mining.FuelDrainBase + float64(ast.Tier)*c.Mining.FuelDrainPerTier) * FuelDrainMul(s, c)
 			if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 				fuelDrain *= c.Events.ReactorSurgeFuelMul
 			}
 			burn := fuelDrain * dt
+			// Fuel Miner refunds a fraction of a Rare+ asteroid's FuelCost,
+			// spread proportionally to how much of it has been mined so far.
+			if ast.Tier >= 2 && ast.Volume > 0 {
+				if refundPct := FuelMinerRefundPct(s, c); refundPct > 0 {
+					refund := refundPct * float64(ast.FuelCost) * (mined / float64(ast.Volume))
+					burn = math.Max(0, burn-refund)
+				}
+			}
 			s.Fuel = math.Max(0, s.Fuel-burn)
 			s.Stats.FuelBurned += math.Min(burn, s.Fuel+burn)
 		}
@@ -300,20 +326,33 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	}
 
 	if run.LifeSupportBreached {
-		applyHullDamageRate(s, c, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
+		applyHullDamageRate(s, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
 	}
 
+	// A Pirate Jammer charge (consumed at Lock) keeps pirates from ever
+	// approaching this asteroid at all.
 	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventRadarBlackout
-	if !blackout {
+	if !blackout && !run.PirateImmune {
 		rate := pirateApproachRate(s, c, ast)
 		run.PirateDistance = math.Max(0, run.PirateDistance-rate*dt)
 		updatePirateETA(s, c, run, ast)
 	}
 }
 
+// RunDepleted reports whether an in-progress run has reached the green
+// DEPART state: the asteroid's own volume is exhausted, or the ship's cargo
+// hold filled up first, whichever comes sooner.
+func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bool {
+	if ast == nil {
+		return true
+	}
+	cap_ := math.Min(float64(ast.Volume), CargoCapacityUnits(s, c))
+	return run.MinedUnits >= cap_
+}
+
 // updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
 // mining-screen radar. The true remaining time is never rendered directly —
-// only this widened, Surveyor-narrowed range.
+// only this widened range, narrowed at high Scanner grades.
 func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid) {
 	rate := pirateApproachRate(s, c, ast)
 	trueRemaining := 0.0
@@ -321,7 +360,7 @@ func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid
 		trueRemaining = run.PirateDistance / rate
 	}
 	mc := c.Mining
-	uncertainty := clamp(mc.EtaBaseUncertaintyPct-float64(s.Upgrades.Surveyor)*mc.EtaSurveyorReductionPct,
+	uncertainty := clamp(mc.EtaBaseUncertaintyPct-scannerEtaBonus(s, c),
 		mc.EtaMinUncertaintyPct, 1.0)
 	half := trueRemaining * uncertainty / 2
 	run.PirateETAMin = math.Max(0, trueRemaining-half)
@@ -330,10 +369,16 @@ func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid
 
 func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	run.EscapeSecondsElapsed += dt
-	if run.UnderAttack {
-		applyHullDamageRate(s, c, run, c.Mining.AttackHullDamagePerSecond, dt)
+	if run.ChaffActive {
+		run.ChaffRemaining -= dt
+		if run.ChaffRemaining <= 0 {
+			run.ChaffActive = false
+		}
 	}
-	fuelDrain := c.Mining.EscapeFuelDrainPerSec
+	if run.UnderAttack && !run.ChaffActive {
+		applyAttackDamageRate(s, c, run, c.Mining.AttackHullDamagePerSecond, dt)
+	}
+	fuelDrain := c.Mining.EscapeFuelDrainPerSec * FuelDrainMul(s, c)
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 		fuelDrain *= c.Events.ReactorSurgeFuelMul
 	}
@@ -408,40 +453,43 @@ func TickInterval(c *content.Content) time.Duration {
 }
 
 func pirateApproachRate(s *State, c *content.Content, ast *Asteroid) float64 {
-	rate := (float64(ast.Risk) / 100.0) * (c.Mining.PirateApproachBase + float64(ast.Tier)*c.Mining.PirateApproachPerTier) * s.Settings.PirateAggression
-	return rate * effectiveDamperMul(s, c)
+	return (float64(ast.Risk) / 100.0) * (c.Mining.PirateApproachBase + float64(ast.Tier)*c.Mining.PirateApproachPerTier) * s.Settings.PirateAggression
 }
 
-// applyHullDamageRate applies continuous, tick-scaled damage (attacks,
-// life-support bleed). Plating mitigation and the plating floor are computed
-// at the per-second rate, then the result is scaled by dt — applying the
-// floor directly to a pre-scaled per-tick amount would make it dominate at
-// any tick rate above 1 Hz, since AttackHullDamagePerSecond*dt and similar
-// per-tick amounts are already smaller than the floor before mitigation.
-func applyHullDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
+// applyHullDamageRate applies continuous, tick-scaled non-combat damage
+// (life-support bleed) straight to the hull. Shield/Turret only defend
+// against pirate attacks specifically — see applyAttackDamageRate.
+func applyHullDamageRate(s *State, run *ActiveRun, ratePerSecond, dt float64) {
 	if ratePerSecond <= 0 || dt <= 0 {
 		return
 	}
-	reduced := ratePerSecond - float64(s.Upgrades.Plating*c.Upgrades.PlatingReduction)
-	floor := float64(c.Upgrades.PlatingFloor)
-	if reduced < floor {
-		reduced = floor
-	}
-	applyHullDamageCarry(s, run, reduced*dt)
+	applyHullDamageCarry(s, run, ratePerSecond*dt)
 }
 
-// applyHullDamageInstant applies a single lump hit (e.g. reactor surge),
-// where the plating floor is sized correctly against the raw hit amount.
-func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount float64) {
+// applyHullDamageInstant applies a single lump non-combat hit (e.g. reactor
+// surge) straight to the hull, same reasoning as applyHullDamageRate.
+func applyHullDamageInstant(s *State, run *ActiveRun, amount float64) {
 	if amount <= 0 {
 		return
 	}
-	reduced := amount - float64(s.Upgrades.Plating*c.Upgrades.PlatingReduction)
-	floor := float64(c.Upgrades.PlatingFloor)
-	if reduced < floor {
-		reduced = floor
+	applyHullDamageCarry(s, run, amount)
+}
+
+// applyAttackDamageRate applies continuous pirate-attack damage: the
+// Defense Turret's percentage mitigation reduces the incoming rate, then
+// the Shield's remaining buffer for this run absorbs what's left, and only
+// the remainder reaches the hull.
+func applyAttackDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
+	if ratePerSecond <= 0 || dt <= 0 {
+		return
 	}
-	applyHullDamageCarry(s, run, reduced)
+	amount := ratePerSecond * AttackDamageMul(s, c) * dt
+	if run.ShieldHP > 0 {
+		absorbed := math.Min(run.ShieldHP, amount)
+		run.ShieldHP -= absorbed
+		amount -= absorbed
+	}
+	applyHullDamageCarry(s, run, amount)
 }
 
 func applyHullDamageCarry(s *State, run *ActiveRun, reduced float64) {
@@ -480,22 +528,29 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 
 	hullDelta := s.Hull - run.StartHull
 	fuelDelta := s.Fuel - run.StartFuel
-	depleted := astVolume > 0 && run.MinedUnits >= float64(astVolume)
+	depleted := RunDepleted(s, c, ast, run)
+	// volumeExhausted (the rock itself has nothing left) is distinct from
+	// depleted (which also goes true when the cargo hold fills up first,
+	// gameplay/05). Only true volume exhaustion removes the asteroid
+	// outright on Departed — a cargo-capped Departed leaves real ore behind
+	// and must go through the same remnant-preservation path as a bail.
+	volumeExhausted := astVolume > 0 && run.MinedUnits >= float64(astVolume)
 
 	if ast != nil {
-		switch kind {
-		case OutcomeDeparted, OutcomeShipLost:
+		switch {
+		case kind == OutcomeShipLost:
+			RemoveAsteroid(s, run.AsteroidID)
+		case kind == OutcomeDeparted && volumeExhausted:
 			RemoveAsteroid(s, run.AsteroidID)
 		default:
-			if depleted {
+			remainRatio := 1.0
+			if astVolume > 0 {
+				remainRatio = 1 - run.MinedUnits/float64(astVolume)
+			}
+			if remainRatio < c.Mining.RemnantKeepThreshold {
 				RemoveAsteroid(s, run.AsteroidID)
 			} else {
-				remainRatio := 1 - run.MinedUnits/float64(astVolume)
-				if remainRatio < c.Mining.RemnantKeepThreshold {
-					RemoveAsteroid(s, run.AsteroidID)
-				} else {
-					applyMinedRemnant(s, run.AsteroidID, run.MinedUnits)
-				}
+				applyMinedRemnant(s, run.AsteroidID, run.MinedUnits)
 			}
 		}
 	}
@@ -520,7 +575,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	updateStatsOnOutcome(s, kind, recovered, astTier)
 
 	if kind == OutcomeShipLost {
-		respawnShip(s, c)
+		respawnActiveShip(s, c)
 	} else if kind == OutcomeDeparted {
 		s.Settings.InsuranceUsed = false
 	}
@@ -548,16 +603,6 @@ func applyMinedRemnant(s *State, id int, minedUnits float64) {
 	}
 	ast.Volume = newVolume
 	s.Belt[idx] = *ast
-}
-
-func respawnShip(s *State, c *content.Content) {
-	s.Hull = c.Pilot.StartHull
-	s.Fuel = float64(c.Pilot.StartFuel)
-	s.Upgrades = Upgrades{}
-	s.WorldIdx = -1
-	s.Belt = nil
-	s.Scan = nil
-	s.Stats.ShipsLost++
 }
 
 func appendRunLog(s *State, rec RunRecord) {

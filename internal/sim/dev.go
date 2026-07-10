@@ -26,13 +26,14 @@ func DevSetFuel(s *State, c *content.Content, v float64) {
 	s.Fuel = v
 }
 
-// DevSetHull sets hull directly, clamped to [0, 100].
-func DevSetHull(s *State, v int) {
+// DevSetHull sets hull directly, clamped to [0, active ship's max].
+func DevSetHull(s *State, c *content.Content, v int) {
 	if v < 0 {
 		v = 0
 	}
-	if v > 100 {
-		v = 100
+	max := MaxHull(s, c)
+	if v > max {
+		v = max
 	}
 	s.Hull = v
 }
@@ -42,13 +43,22 @@ func DevSetGodMode(s *State, on bool) {
 	s.DevGodMode = on
 }
 
-// DevMaxUpgrades sets every upgrade track to its max level, free of charge.
-func DevMaxUpgrades(s *State, c *content.Content) {
-	s.Upgrades = Upgrades{
-		Drill:    c.Upgrades.MaxLevel,
-		Tank:     c.Upgrades.MaxLevel,
-		Plating:  c.Upgrades.MaxLevel,
-		Damper:   c.Upgrades.MaxLevel,
-		Surveyor: c.Upgrades.MaxLevel,
+// DevMaxShip sets the active ship's stat tracks to their model caps, free
+// of charge.
+func DevMaxShip(s *State, c *content.Content) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	model := c.ShipByID(inst.ModelID)
+	if model == nil {
+		return
+	}
+	inst.Grades = TrackGrades{
+		Thrusters: model.ThrustersCap,
+		Hull:      model.HullCap,
+		FuelEff:   model.FuelEffCap,
+		PowerGen:  model.PowerGenCap,
+		Scanner:   model.ScannerCap,
 	}
 }

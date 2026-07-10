@@ -68,25 +68,29 @@ type Game struct {
 	attach  game.AttachResult
 	devMode bool
 
-	snap      sim.Snapshot
-	width     int
-	height    int
-	scr       screen
-	overlay   overlay
-	created   bool
-	onboardPg int
+	snap       sim.Snapshot
+	width      int
+	height     int
+	scr        screen
+	overlay    overlay
+	created    bool
+	onboardPg  int
 	helpScroll int
 	tweaksSel  int
 	devSel     int
 
-	worldSel   int
-	rockSel    int
-	upgradeSel int
-	logScroll  int
-	tickCount  int
-	now        int64
-	idleSecs   int64
-	lastInput  int64
+	worldSel  int
+	rockSel   int
+	logScroll int
+
+	// Shipyard screen navigation state (internal/tui/shipyard.go).
+	shipyardPane      int
+	shipyardHangarSel int
+	shipyardRowSel    int
+	tickCount         int
+	now               int64
+	idleSecs          int64
+	lastInput         int64
 
 	lastClickID string
 	lastClickAt int64
@@ -304,8 +308,10 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 		return nil
 	}
 	switch g.scr {
-	case scrChart, scrShipyard:
+	case scrChart:
 		return g.keyChart(k)
+	case scrShipyard:
+		return g.keyShipyard(k)
 	case scrBelt:
 		return g.keyBelt(k)
 	case scrMining:
@@ -386,7 +392,8 @@ func (g *Game) renderChrome() string {
 	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
 	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
 	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
-	hull := theme.HullStyle(float64(st.Hull)).Render(fmt.Sprintf("HULL %d%%", st.Hull))
+	hullPct := sim.HullPct(&st, g.content)
+	hull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL %.0f%%", hullPct))
 
 	hud := fmt.Sprintf(" %s — %s — %s  %s  %s ", title, pilot, credits, fuel, hull)
 	hudLine := accentStyle.Render(strings.Repeat("─", g.width))

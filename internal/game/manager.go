@@ -90,7 +90,7 @@ func (m *Manager) Attach(ctx context.Context, id identity.SessionIdentity, publi
 		if err != nil {
 			return AttachResult{}, err
 		}
-		state, err := sim.DecodeState(row.State)
+		state, err := sim.DecodeState(row.State, m.content)
 		if err != nil {
 			return AttachResult{}, fmt.Errorf("load save: %w", err)
 		}

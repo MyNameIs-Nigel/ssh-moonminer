@@ -93,7 +93,7 @@ func (s *Session) Scan(now int64, asteroidID int) (Snapshot, error) {
 
 func (s *Session) Dock(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		sim.Dock(st)
+		sim.Dock(st, s.actor.content())
 		return nil
 	})
 }
@@ -154,9 +154,40 @@ func (s *Session) Insurance(now int64) (Snapshot, error) {
 	})
 }
 
-func (s *Session) BuyUpgrade(now int64, track sim.UpgradeTrack) (Snapshot, error) {
+// AcquireShip buys (or buys back) a ship model into the hangar and makes it
+// active.
+func (s *Session) AcquireShip(now int64, modelID string) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		return sim.BuyUpgrade(st, s.actor.content(), track)
+		return sim.AcquireShip(st, s.actor.content(), modelID)
+	})
+}
+
+// SwitchActiveShip makes an already-owned ship the active ship.
+func (s *Session) SwitchActiveShip(now int64, modelID string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.SwitchActiveShip(st, s.actor.content(), modelID)
+	})
+}
+
+// BuyShipTrack buys the next grade of a stat track for an owned ship.
+func (s *Session) BuyShipTrack(now int64, shipID string, track sim.Track) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.BuyShipTrack(st, s.actor.content(), shipID, track)
+	})
+}
+
+// InstallSlotDevice buys and installs a slot item at grade into an owned
+// ship's slot.
+func (s *Session) InstallSlotDevice(now int64, shipID string, kind sim.SlotKind, index int, itemID string, grade int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.InstallSlotDevice(st, s.actor.content(), shipID, kind, index, itemID, grade)
+	})
+}
+
+// RemoveSlotDevice clears an installed slot device with no refund.
+func (s *Session) RemoveSlotDevice(now int64, shipID string, kind sim.SlotKind, index int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.RemoveSlotDevice(st, s.actor.content(), shipID, kind, index)
 	})
 }
 
@@ -186,7 +217,7 @@ func (s *Session) DevSetFuel(now int64, v float64) (Snapshot, error) {
 // DevSetHull is a dev-server-only debug action (see internal/sim/dev.go).
 func (s *Session) DevSetHull(now int64, v int) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		sim.DevSetHull(st, v)
+		sim.DevSetHull(st, s.actor.content(), v)
 		return nil
 	})
 }
@@ -199,10 +230,10 @@ func (s *Session) DevSetGodMode(now int64, on bool) (Snapshot, error) {
 	})
 }
 
-// DevMaxUpgrades is a dev-server-only debug action (see internal/sim/dev.go).
-func (s *Session) DevMaxUpgrades(now int64) (Snapshot, error) {
+// DevMaxShip is a dev-server-only debug action (see internal/sim/dev.go).
+func (s *Session) DevMaxShip(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		sim.DevMaxUpgrades(st, s.actor.content())
+		sim.DevMaxShip(st, s.actor.content())
 		return nil
 	})
 }

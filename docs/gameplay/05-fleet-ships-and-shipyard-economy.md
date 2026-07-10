@@ -312,12 +312,12 @@ round(itemBase * 2.2^grade)`.
 | --- | --- | --- | --- |
 | **Extra Cargo** | Utility | 300 | Cargo capacity `+15*(g+1)` |
 | **Extra Fuel Tank** | Utility | 350 | Fuel capacity `+10*(g+1)` |
-| **Shield** | Utility | 900 | Absorbs `20*(g+1)` hull damage per encounter before hull itself takes damage; recharges to full every time the ship departs |
-| **Chaff Launcher** | Utility | 250 | Auto-fires on the first attack tick each run, suppressing pirate fire for `2+g` seconds; one use per run, resets on next departure |
+| **Shield** | Utility | 900 | Absorbs `20*(g+1)` hull damage before hull itself takes damage; recharges to full at the start of every mining run (every `Lock`, not just once per belt visit — a multi-asteroid belt visit gets a fresh shield buffer each rock) |
+| **Chaff Launcher** | Utility | 250 | Auto-fires on the first attack tick, suppressing pirate fire for `2+g` seconds; one use per run, resets fresh at the start of the next one |
 | **Defense Turret** | Weapon | 700 | Reduces `AttackHullDamagePerSecond` by `8%*(g+1)` (cumulative multiplier `1 - 0.08*(g+1)`) |
-| **Seismic Sensors** | Internal | 600 | 3 random belt asteroids arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
+| **Seismic Sensors** | Internal | 600 | 3 random *in-range* belt asteroids (respects the ship's own Scanner lock — this is a free convenience pre-scan, not a way to see past it) arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
 | **Fuel Miner** | Internal | 750 | Mining a Rare+ asteroid refunds fuel equal to `(0.25 + 0.15*g)` of that asteroid's `FuelCost` |
-| **Pirate Jammer** | Internal | 850 | While armed, the asteroid currently being mined draws no pirates at all; consumes the arm on use, must rearm (free, instant) while docked; grade C+ grants `1 + floor(g/3)` uses per trip before a dock visit is required |
+| **Pirate Jammer** | Internal | 850 | While armed, the asteroid currently being mined draws no pirates at all; consumes the arm on use, must rearm (free, instant) while docked — switching the active ship also counts as arriving fresh and rearms it; grade C+ grants `1 + floor(g/2)` uses per trip before a dock visit is required |
 | **Jump Drive** | Internal | 5,000 | **Locked.** Visible in the shipyard as a teased, un-buyable item ("REQUIRES NEXT-SYSTEM ACCESS") until the future system-travel content lands. No power cost or effect yet. |
 
 ### Buyback

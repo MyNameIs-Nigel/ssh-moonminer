@@ -11,29 +11,15 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
-const upgradeTrackCount = 5
-
 func (g *Game) keyChart(k string) []tea.Cmd {
 	st := g.snap.State
 	n := len(g.content.Worlds)
 	switch k {
 	case "up", "k":
-		if g.scr == scrShipyard {
-			g.upgradeSel = (g.upgradeSel - 1 + upgradeTrackCount) % upgradeTrackCount
-		} else {
-			g.worldSel = (g.worldSel - 1 + n) % n
-		}
+		g.worldSel = (g.worldSel - 1 + n) % n
 	case "down", "j":
-		if g.scr == scrShipyard {
-			g.upgradeSel = (g.upgradeSel + 1) % upgradeTrackCount
-		} else {
-			g.worldSel = (g.worldSel + 1) % n
-		}
+		g.worldSel = (g.worldSel + 1) % n
 	case "enter", " ":
-		if g.scr == scrShipyard {
-			snap, err := g.sess.BuyUpgrade(g.now, sim.UpgradeTrack(g.upgradeSel))
-			return g.refreshSnap(snap, err)
-		}
 		snap, err := g.sess.Depart(g.now, g.worldSel)
 		if err == nil {
 			g.scr = scrBelt
@@ -46,9 +32,9 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 	case "h":
 		snap, err := g.sess.Repair(g.now)
 		return g.refreshSnap(snap, err)
-	case "u":
+	case "s":
 		g.scr = scrShipyard
-		g.upgradeSel = 0
+		g.shipyardPane = 0
 	case "l":
 		g.scr = scrLog
 	case "i":
@@ -65,18 +51,16 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 		}
 	case "q":
 		return []tea.Cmd{tea.Quit}
-	case "esc":
-		if g.scr == scrShipyard {
-			g.scr = scrChart
-		}
 	}
 	return nil
 }
 
 func (g *Game) renderScreen() string {
 	switch g.scr {
-	case scrChart, scrShipyard:
+	case scrChart:
 		return g.renderChart()
+	case scrShipyard:
+		return g.renderShipyard()
 	case scrBelt:
 		return g.renderBelt()
 	case scrMining:
@@ -89,19 +73,12 @@ func (g *Game) renderScreen() string {
 	return ""
 }
 
-func (g *Game) chartAccent() string {
-	if g.scr == scrShipyard {
-		return theme.Accent(theme.HueViolet)
-	}
-	return theme.Accent(theme.HueCyan)
-}
-
 func (g *Game) renderChart() string {
 	st := g.snap.State
 	leftW := g.width/2 - 1
 	rightW := g.width - leftW - 1
 	rightX := leftW + 1
-	accent := g.chartAccent()
+	accent := theme.Accent(theme.HueCyan)
 	leftLines := []string{}
 	for i, w := range g.content.Worlds {
 		marker := "  "
@@ -128,8 +105,9 @@ func (g *Game) renderChart() string {
 	refuelCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RefuelCost(&st, g.content))
 	repairCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RepairCost(&st, g.content))
 	fuelPct := st.Fuel / sim.TankSize(&st, g.content) * 100
+	hullPct := sim.HullPct(&st, g.content)
 	fuelLabel := "FUEL " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f%%", fuelPct))
-	hullLabel := "HULL " + theme.HullBar(float64(st.Hull), 20) + theme.HullStyle(float64(st.Hull)).Render(fmt.Sprintf(" %d%%", st.Hull))
+	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
 
 	rightLines := []string{fuelLabel}
 	refuelBtn := theme.Button("F", "REFUEL TO 100%", refuelCost, st.Credits > 0 && fuelPct < 100, theme.HueGreen)
@@ -137,7 +115,7 @@ func (g *Game) renderChart() string {
 	g.hitPanelLine(1, rightX, refuelBtn, "svc:refuel", nil)
 
 	rightLines = append(rightLines, hullLabel)
-	repairBtn := theme.Button("H", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && st.Hull < 100, theme.HueGreen)
+	repairBtn := theme.Button("H", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
 	rightLines = append(rightLines, repairBtn)
 	g.hitPanelLine(3, rightX, repairBtn, "svc:repair", nil)
 
@@ -146,7 +124,7 @@ func (g *Game) renderChart() string {
 		rightLines = append(rightLines, insBtn)
 		g.hitPanelLine(len(rightLines)-1, rightX, insBtn, "svc:insurance", nil)
 	}
-	shipyardBtn := theme.Button("U", "SHIPYARD", "", true, theme.HueViolet)
+	shipyardBtn := theme.Button("S", "SHIPYARD", "", true, theme.HueViolet)
 	rightLines = append(rightLines, shipyardBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, shipyardBtn, "btn:shipyard", nil)
 
@@ -155,38 +133,13 @@ func (g *Game) renderChart() string {
 	g.hitPanelLine(len(rightLines)-1, rightX, logBtn, "btn:log", nil)
 
 	rightLines = append(rightLines, "", theme.DimStyle.Render("Bigger rocks pay more but attract pirates."))
-
-	if g.scr == scrShipyard {
-		rightLines = append(rightLines, "", theme.Violet.Render("◇ SHIPYARD"))
-		for t := 0; t < upgradeTrackCount; t++ {
-			lvl := sim.UpgradeLevel(&st, sim.UpgradeTrack(t))
-			filled := strings.Repeat(theme.Violet.Render("●"), lvl)
-			empty := strings.Repeat(theme.DimStyle.Render("○"), g.content.Upgrades.MaxLevel-lvl)
-			price := sim.UpgradePrice(g.content, sim.UpgradeTrack(t), lvl)
-			priceStr := fmt.Sprintf("%d cr", price)
-			if lvl >= g.content.Upgrades.MaxLevel {
-				priceStr = "MAX"
-			}
-			sel := t == g.upgradeSel
-			prefix := "  "
-			if sel {
-				prefix = "▸ "
-			}
-			trackPart := fmt.Sprintf("%s%s", prefix, sim.TrackName(sim.UpgradeTrack(t)))
-			dotsPart := filled + empty
-			pricePart := theme.Gold.Render(priceStr)
-			line := theme.OptionHC(theme.HueViolet, sel, st.Settings.HighContrast).Render(trackPart) + " " + dotsPart + " " + pricePart
-			rightLines = append(rightLines, line)
-			g.hitPanelLine(len(rightLines)-1, rightX, line, fmt.Sprintf("upg:%d", t), t)
-		}
-	}
 	rightBody := strings.Join(rightLines, "\n")
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
 		theme.Panel("STAR CHART", leftW, g.height-5, leftBody, accent),
 		theme.Panel("PORT SERVICES", rightW, g.height-5, rightBody, accent),
 	)
-	hint := "↑/↓ SELECT · ENTER DEPART · F REFUEL · H REPAIR · U SHIPYARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
+	hint := "↑/↓ SELECT · ENTER DEPART · F REFUEL · H REPAIR · S SHIPYARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
 	return body + "\n" + g.renderKeybar(hint)
 }
 
@@ -203,7 +156,9 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 		case "svc:insurance":
 			return g.keyChart("i")
 		case "btn:shipyard":
-			return g.keyChart("u")
+			return g.keyChart("s")
+		case "btn:shipyard:remove":
+			return g.keyShipyard("x")
 		case "btn:log":
 			return g.keyChart("l")
 		case "btn:scan":
@@ -230,8 +185,10 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 				return g.keyChart("enter")
 			case strings.HasPrefix(b.ID, "belt:"):
 				return g.keyBelt("enter")
-			case strings.HasPrefix(b.ID, "upg:"):
-				return g.keyChart("enter")
+			case strings.HasPrefix(b.ID, "hangar:"):
+				return g.keyShipyard("enter")
+			case strings.HasPrefix(b.ID, "loadout:"):
+				return g.keyShipyard("enter")
 			}
 		}
 		g.lastClickID = b.ID
@@ -245,9 +202,15 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			if idx, ok := b.Data.(int); ok {
 				g.rockSel = idx
 			}
-		case strings.HasPrefix(b.ID, "upg:"):
+		case strings.HasPrefix(b.ID, "hangar:"):
 			if idx, ok := b.Data.(int); ok {
-				g.upgradeSel = idx
+				g.shipyardHangarSel = idx
+				g.shipyardPane = shipyardPaneHangar
+			}
+		case strings.HasPrefix(b.ID, "loadout:"):
+			if idx, ok := b.Data.(int); ok {
+				g.shipyardRowSel = idx
+				g.shipyardPane = shipyardPaneLoadout
 			}
 		}
 	}
@@ -258,13 +221,18 @@ func (g *Game) updateWheel(m tea.MouseWheelMsg) []tea.Cmd {
 	if g.overlay != ovNone {
 		return nil
 	}
-	if g.scr == scrChart || g.scr == scrShipyard {
+	switch g.scr {
+	case scrChart:
 		if m.Y < 0 {
 			return g.keyChart("up")
 		}
 		return g.keyChart("down")
-	}
-	if g.scr == scrBelt {
+	case scrShipyard:
+		if m.Y < 0 {
+			return g.keyShipyard("up")
+		}
+		return g.keyShipyard("down")
+	case scrBelt:
 		if m.Y < 0 {
 			return g.keyBelt("up")
 		}

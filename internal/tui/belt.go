@@ -254,13 +254,18 @@ func (g *Game) renderBelt() string {
 			if sel {
 				marker = "▸ "
 			}
+			outOfRange := !rock.Scanned && sim.IsOutOfRange(&st, g.content, &rock)
 			var line string
-			if rock.Scanned {
+			switch {
+			case rock.Scanned:
 				tierGlyph := g.content.Tiers.Glyphs[rock.Tier]
 				line = fmt.Sprintf("%s%-8s %5.1fkm  %s %-9s VOL %4d  ⏱ %4.1fs  %s %5d  %s",
 					marker, rock.Name, rock.Distance, tierGlyph, g.content.Tiers.Labels[rock.Tier],
 					rock.Volume, rock.DrillSec, theme.Glyph("credit", st.Settings.ASCIISafe), rock.Value, theme.Dots(rock.Dots, 5))
-			} else {
+			case outOfRange:
+				line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
+					marker, rock.Name, rock.Distance, theme.Red.Render("OUT OF RANGE"))
+			default:
 				line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
 					marker, rock.Name, rock.Distance, theme.DimStyle.Render("UNKNOWN"))
 			}
@@ -272,6 +277,8 @@ func (g *Game) renderBelt() string {
 				style = theme.White.Bold(true).Background(lipgloss.Color(lipglossColorForUnknown))
 			case rock.Scanned:
 				style = theme.TierStyleDim(rock.Tier)
+			case outOfRange:
+				style = theme.DimStyle
 			default:
 				style = theme.DimStyle
 			}
@@ -306,6 +313,13 @@ func (g *Game) renderBelt() string {
 				fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
 					theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
 				theme.Button("ENTER", "LOCK & FLY", "", true, theme.HueGold),
+				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
+		case sim.IsOutOfRange(&st, g.content, &rock):
+			lockKm := sim.ScannerLockKm(&st, g.content)
+			lines = append(lines, "",
+				fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm", theme.White.Render(rock.Name), rock.Distance),
+				theme.Red.Render(fmt.Sprintf("OUT OF RANGE — SCANNER REACHES %.0fkm", lockKm)),
+				theme.DimStyle.Render("Upgrade Scanner grade at the shipyard to reach farther contacts."),
 				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
 		default:
 			scanFuelStr := fmt.Sprintf("%.0f fuel", g.content.Belt.ScanFuelCost)

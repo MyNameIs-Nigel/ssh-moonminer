@@ -7,8 +7,12 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version.
-const StateVersion = 1
+// StateVersion is the current save schema version. Bumped to 2 for the
+// fleet/shipyard rework (gameplay/05): pre-2 saves have no Ships/
+// ActiveShipID and are migrated onto a fresh starter ship in DecodeState,
+// discarding the old single-track Upgrades field (silently dropped by
+// json.Unmarshal, since State no longer declares it).
+const StateVersion = 2
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -29,15 +33,39 @@ type Settings struct {
 	InsuranceUsed    bool         `json:"insurance_used"`
 }
 
-// Upgrades holds ship upgrade levels (0-4 per track). Upgrades represent
-// installed equipment on the pilot's active (disposable) ship — they are
-// wiped to zero on ship loss, per the "ships are lives" design.
-type Upgrades struct {
-	Drill    int `json:"drill"`
-	Tank     int `json:"tank"`
-	Plating  int `json:"plating"`
-	Damper   int `json:"damper"`
-	Surveyor int `json:"surveyor"`
+// TrackGrades holds a ship's five stat-track grades (0..5, E..S) — see
+// gameplay/05-fleet-ships-and-shipyard-economy.md.
+type TrackGrades struct {
+	Thrusters int `json:"thrusters"`
+	Hull      int `json:"hull"`
+	FuelEff   int `json:"fuel_eff"`
+	PowerGen  int `json:"power_gen"`
+	Scanner   int `json:"scanner"`
+}
+
+// SlotDevice is one installed Utility/Weapon/Internal item and its grade
+// (0..5, E..S).
+type SlotDevice struct {
+	ItemID string `json:"item_id"`
+	Grade  int    `json:"grade"`
+}
+
+// ShipInstance is one owned, persistent hangar ship: its model, its own
+// stat grades, and its own slot loadout. Utility/Weapon slices are
+// fixed-length (model.UtilitySlots/WeaponSlots) with nil entries for empty
+// slots; Internal is always exactly one slot per ship.
+type ShipInstance struct {
+	ModelID string `json:"model_id"`
+
+	Grades   TrackGrades   `json:"grades"`
+	Utility  []*SlotDevice `json:"utility,omitempty"`
+	Weapon   []*SlotDevice `json:"weapon,omitempty"`
+	Internal *SlotDevice   `json:"internal,omitempty"`
+
+	// JammerCharges is how many more asteroids this run's Pirate Jammer
+	// internal module can suppress before it must be rearmed at dock.
+	// Rearmed to full on Dock(); irrelevant unless Internal is the jammer.
+	JammerCharges int `json:"jammer_charges"`
 }
 
 // Stats tracks lifetime pilot statistics.
@@ -48,6 +76,7 @@ type Stats struct {
 	RunsTributePaid      int     `json:"runs_tribute_paid"`
 	RunsEscapedUnderFire int     `json:"runs_escaped_under_fire"`
 	ShipsLost            int     `json:"ships_lost"`
+	ShipsPurchased       int     `json:"ships_purchased"`
 	CreditsEarned        int     `json:"credits_earned"`
 	CreditsSpent         int     `json:"credits_spent"`
 	LegendariesMined     int     `json:"legendaries_mined"`
@@ -205,6 +234,17 @@ type ActiveRun struct {
 	StartHull int     `json:"start_hull"`
 	StartFuel float64 `json:"start_fuel"`
 	StartedAt int64   `json:"started_at"`
+
+	// ShieldHP is this run's remaining Shield absorption buffer (0 if no
+	// Shield installed); it recharges to full each time a run is Locked.
+	ShieldHP float64 `json:"shield_hp"`
+	// ChaffActive/ChaffRemaining track the one auto-triggered Chaff Launcher
+	// suppression window per run, started the instant pirates attack.
+	ChaffActive    bool    `json:"chaff_active"`
+	ChaffRemaining float64 `json:"chaff_remaining"`
+	// PirateImmune is set at Lock time when a Pirate Jammer charge was
+	// consumed for this asteroid — pirates never approach for the run.
+	PirateImmune bool `json:"pirate_immune"`
 }
 
 // ActiveScan is an in-progress sensor scan (never persisted non-nil).
@@ -216,20 +256,32 @@ type ActiveScan struct {
 
 // State is the full authoritative save.
 type State struct {
-	Version   int         `json:"version"`
-	Seed      uint64      `json:"seed"`
-	BeltCount uint64      `json:"belt_count"`
-	Credits   int         `json:"credits"`
-	Fuel      float64     `json:"fuel"`
-	Hull      int         `json:"hull"`
-	WorldIdx  int         `json:"world_idx"`
-	Belt      []Asteroid  `json:"belt,omitempty"`
-	Upgrades  Upgrades    `json:"upgrades"`
-	Settings  Settings    `json:"settings"`
-	Stats     Stats       `json:"stats"`
-	RunLog    []RunRecord `json:"run_log,omitempty"`
-	Run       *ActiveRun  `json:"run,omitempty"`
-	Scan      *ActiveScan `json:"scan,omitempty"`
+	Version   int        `json:"version"`
+	Seed      uint64     `json:"seed"`
+	BeltCount uint64     `json:"belt_count"`
+	Credits   int        `json:"credits"`
+	Fuel      float64    `json:"fuel"`
+	Hull      int        `json:"hull"`
+	WorldIdx  int        `json:"world_idx"`
+	Belt      []Asteroid `json:"belt,omitempty"`
+
+	// Ships is the pilot's hangar: owned ship models keyed by ModelID, each
+	// with its own persistent grades and loadout. ActiveShipID selects
+	// which one is currently flown (its Hull/Fuel condition is State.Hull/
+	// State.Fuel above — hangar ships otherwise sit fully maintained).
+	// ShipsUnlocked records every model ever owned, so re-acquiring one
+	// after losing it prices as a 25% buyback forever after, not a
+	// time-limited window. See
+	// docs/gameplay/05-fleet-ships-and-shipyard-economy.md.
+	Ships         map[string]*ShipInstance `json:"ships"`
+	ActiveShipID  string                   `json:"active_ship_id"`
+	ShipsUnlocked map[string]bool          `json:"ships_unlocked,omitempty"`
+
+	Settings Settings    `json:"settings"`
+	Stats    Stats       `json:"stats"`
+	RunLog   []RunRecord `json:"run_log,omitempty"`
+	Run      *ActiveRun  `json:"run,omitempty"`
+	Scan     *ActiveScan `json:"scan,omitempty"`
 
 	// DevGodMode disables hull damage. It is a dev-server-only debug flag.
 	// It has a real json tag so it survives Clone()'s JSON round-trip
@@ -243,15 +295,13 @@ type Snapshot struct {
 	State State
 }
 
-// New creates a fresh pilot save.
+// New creates a fresh pilot save, owning the free starter ship.
 func New(c *content.Content, seed uint64, now int64) *State {
-	return &State{
+	s := &State{
 		Version:   StateVersion,
 		Seed:      seed,
 		BeltCount: 0,
 		Credits:   c.Pilot.StartCredits,
-		Fuel:      float64(c.Pilot.StartFuel),
-		Hull:      c.Pilot.StartHull,
 		WorldIdx:  -1,
 		Settings: Settings{
 			BeltView:         BeltViewTiles,
@@ -259,6 +309,10 @@ func New(c *content.Content, seed uint64, now int64) *State {
 		},
 		Stats: Stats{FirstSeen: now, LastSeen: now},
 	}
+	grantStarterShip(s, c)
+	s.Fuel = FuelCapacity(s, c)
+	s.Hull = MaxHull(s, c)
+	return s
 }
 
 // Encode serializes state for storage. Run is cleared before encode.
@@ -286,8 +340,9 @@ func (s *State) Clone() *State {
 	return &out
 }
 
-// DecodeState parses and upgrades stored state.
-func DecodeState(b []byte) (*State, error) {
+// DecodeState parses and upgrades stored state. c is required to build a
+// fresh starter ship when migrating a pre-fleet (version < 2) save.
+func DecodeState(b []byte, c *content.Content) (*State, error) {
 	var s State
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, fmt.Errorf("sim: decode state: %w", err)
@@ -300,6 +355,30 @@ func DecodeState(b []byte) (*State, error) {
 	}
 	if s.Settings.PirateAggression == 0 {
 		s.Settings.PirateAggression = 1.0
+	}
+	activeUnresolvable := s.Ships == nil || s.ActiveShipID == "" || s.Ships[s.ActiveShipID] == nil ||
+		c.ShipByID(s.Ships[s.ActiveShipID].ModelID) == nil
+	if activeUnresolvable {
+		// Pre-fleet save (or a corrupted/dangling active-ship reference):
+		// grant a fresh starter ship rather than leaving ActiveShip()
+		// unresolvable. Old per-track Upgrades levels have no clean mapping
+		// onto the new grade/slot system and are intentionally not carried
+		// over.
+		s.Ships = nil
+		s.ActiveShipID = ""
+		grantStarterShip(&s, c)
+		s.Fuel = FuelCapacity(&s, c)
+		s.Hull = MaxHull(&s, c)
+	} else {
+		// Drop any other hangar entries referencing a ship model no longer
+		// in content (e.g. removed from data/*.toml) so later lookups like
+		// CargoCapacityUnits can't silently resolve against a nil model.
+		for id, inst := range s.Ships {
+			if id != s.ActiveShipID && c.ShipByID(inst.ModelID) == nil {
+				delete(s.Ships, id)
+				delete(s.ShipsUnlocked, id)
+			}
+		}
 	}
 	s.Run = nil  // never restore mid-run
 	s.Scan = nil // never restore mid-scan

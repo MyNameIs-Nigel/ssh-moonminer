@@ -36,15 +36,29 @@ func tickEvents(s *State, c *content.Content, run *ActiveRun, dt float64, now in
 		return
 	}
 
-	hullPct := clamp(float64(s.Hull)/100.0, 0, 1)
-	chancePerMinute := c.Events.BaseChancePerMinute + math.Pow(1-hullPct, 2)*c.Events.LowHullChanceBonus
+	// Random events only roll below the hull gate (20% by default) — above
+	// it, chance is exactly zero, not merely low. See gameplay/05-fleet-
+	// ships-and-shipyard-economy.md "Random events: hull-gated, not
+	// hull-scaled".
+	gate := c.Fleet.EventHullGatePct
+	maxHull := MaxHull(s, c)
+	if maxHull <= 0 {
+		return
+	}
+	hullPct := clamp(float64(s.Hull)/float64(maxHull), 0, 1)
+	if hullPct >= gate {
+		return
+	}
+	seriousness := (gate - hullPct) / gate // 0 at the gate, 1 at hull=0
+
+	chancePerMinute := c.Events.BaseChancePerMinute + seriousness*c.Events.LowHullChanceBonus
 	chanceThisTick := chancePerMinute / 60.0 * dt
 	rng := runRNG(s, run, 4000+run.TickCount)
 	if rng.Float64() >= chanceThisTick {
 		return
 	}
 
-	badWeight := c.Events.BaseBadWeight + (1-hullPct)*c.Events.LowHullBadWeight
+	badWeight := c.Events.BaseBadWeight + seriousness*c.Events.LowHullBadWeight
 	isBad := rng.Float64() < badWeight/(badWeight+1)
 	var kind EventKind
 	if isBad {
@@ -81,7 +95,7 @@ func startEvent(s *State, c *content.Content, run *ActiveRun, kind EventKind, no
 		ev.HUDTreatment = HUDAmberGlow
 		rng := runRNG(s, run, 5000+run.TickCount)
 		if rng.Float64() < ec.ReactorSurgeHullHitChance {
-			applyHullDamageInstant(s, c, run, float64(ec.ReactorSurgeHullHitAmount))
+			applyHullDamageInstant(s, run, float64(ec.ReactorSurgeHullHitAmount))
 		}
 	}
 	run.ActiveEvent = ev
