@@ -411,10 +411,52 @@ func (g *Game) renderChrome() string {
 	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
 	hullPct := sim.HullPct(&st, g.content)
 	hull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL %.0f%%", hullPct))
+	shield := g.renderShieldStatus(&st, 0)
 
-	hud := fmt.Sprintf(" %s — %s — %s  %s  %s ", title, pilot, credits, fuel, hull)
+	hud := fmt.Sprintf(" %s — %s — %s  %s  %s  %s ", title, pilot, credits, fuel, hull, shield)
 	hudLine := accentStyle.Render(strings.Repeat("─", g.width))
 	return hudLine + "\n" + hud + "\n" + hudLine
+}
+
+// renderShieldStatus renders a compact shield readout for the shared HUD and
+// a bar-backed detailed readout for dock and belt screens. Every normal
+// screen uses renderChrome, so the compact form keeps the shield visible
+// throughout play while the detailed form exposes recovery at the belt.
+func (g *Game) renderShieldStatus(st *sim.State, width int) string {
+	hp, maxHP, damaged := sim.ShieldStatus(st, g.content)
+	if maxHP <= 0 {
+		return theme.DimStyle.Render("SHIELD —")
+	}
+	pct := hp / maxHP * 100
+	status := ""
+	switch {
+	case damaged:
+		status = " " + theme.Red.Render("DAMAGED")
+	case st.WorldIdx >= 0 && sim.ShieldRechargeETA(st, g.content) > 0:
+		status = " " + theme.Cyan.Render(fmt.Sprintf("RECHARGING %.0fs", sim.ShieldRechargeETA(st, g.content)))
+	case st.IsDocked():
+		status = " " + theme.Green.Render("CHARGED")
+	}
+	if width <= 0 {
+		return theme.Cyan.Render(fmt.Sprintf("SHD %.0f/%.0f", hp, maxHP)) + status
+	}
+	if width <= 10 {
+		return fmt.Sprintf("SHIELD %s %s", theme.HullShieldBar(100, pct, width), theme.Cyan.Render(fmt.Sprintf("%.0f/%.0f", hp, maxHP)))
+	}
+	return fmt.Sprintf("SHIELD %s %3.0f%% %s%s",
+		theme.HullShieldBar(100, pct, width), pct,
+		theme.Cyan.Render(fmt.Sprintf("%.0f/%.0f", hp, maxHP)), status)
+}
+
+func (g *Game) renderDockShieldService(st *sim.State) string {
+	_, maxHP, damaged := sim.ShieldStatus(st, g.content)
+	if maxHP <= 0 {
+		return theme.DimStyle.Render("NO SHIELD INSTALLED")
+	}
+	if damaged {
+		return theme.Red.Render("SHIELD SERVICE REQUIRED")
+	}
+	return theme.Green.Render("SHIELD SERVICE — CHARGED")
 }
 
 func (g *Game) renderKeybar(hint string) string {

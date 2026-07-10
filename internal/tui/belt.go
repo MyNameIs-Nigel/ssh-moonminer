@@ -237,6 +237,7 @@ func (g *Game) renderBelt() string {
 		worldName = w.Name
 	}
 	lines := []string{theme.Gold.Render("◇ ASTEROID BELT — " + worldName)}
+	lines = append(lines, g.renderShieldStatus(&st, 20))
 	if len(st.Belt) == 0 {
 		lines = append(lines, theme.Amber.Render("Belt depleted — press Q to dock and chart a new course"))
 	} else {

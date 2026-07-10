@@ -108,6 +108,7 @@ func (g *Game) renderChart() string {
 	hullPct := sim.HullPct(&st, g.content)
 	fuelLabel := "FUEL " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f%%", fuelPct))
 	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
+	shieldLabel := g.renderShieldStatus(&st, 8)
 
 	rightLines := []string{fuelLabel}
 	refuelBtn := theme.Button("F", "REFUEL TO 100%", refuelCost, st.Credits > 0 && fuelPct < 100, theme.HueGreen)
@@ -118,6 +119,9 @@ func (g *Game) renderChart() string {
 	repairBtn := theme.Button("H", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
 	rightLines = append(rightLines, repairBtn)
 	g.hitPanelLine(3, rightX, repairBtn, "svc:repair", nil)
+
+	rightLines = append(rightLines, shieldLabel)
+	rightLines = append(rightLines, g.renderDockShieldService(&st))
 
 	if sim.InsuranceEligible(&st, g.content) {
 		insBtn := theme.Amber.Render("[I] INSURANCE ADVANCE")
