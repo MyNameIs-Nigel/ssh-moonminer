@@ -11,18 +11,34 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/data"
 )
 
-// World is one destination on the star chart.
+// System is one large travel region on the star chart.
+type System struct {
+	ID                string `toml:"id"`
+	Name              string `toml:"name"`
+	StartsUnlocked    bool   `toml:"starts_unlocked"`
+	TransferFee       int    `toml:"transfer_fee"`
+	RequiredShipClass string `toml:"required_ship_class"`
+}
+
+// World is one mineable destination on the star chart. The retained Go name
+// keeps the deterministic belt API compact while TOML calls these entries
+// destinations.
 type World struct {
-	Name        string  `toml:"name"`
-	Sub         string  `toml:"sub"`
-	Ring        string  `toml:"ring"`
-	PirateLabel string  `toml:"pirate_label"`
-	PirateMul   float64 `toml:"pirate_mul"`
-	RarityBias  float64 `toml:"rarity_bias"`
-	TravelFuel  int     `toml:"travel_fuel"`
-	RarityLabel string  `toml:"rarity_label"`
-	Desc        string  `toml:"desc"`
-	Art         string  `toml:"art"`
+	ID                   string  `toml:"id"`
+	SystemID             string  `toml:"system_id"`
+	Name                 string  `toml:"name"`
+	Sub                  string  `toml:"sub"`
+	Ring                 string  `toml:"ring"`
+	PirateLabel          string  `toml:"pirate_label"`
+	PirateMul            float64 `toml:"pirate_mul"`
+	RarityBias           float64 `toml:"rarity_bias"`
+	TravelFuel           int     `toml:"travel_fuel"`
+	RarityLabel          string  `toml:"rarity_label"`
+	Desc                 string  `toml:"desc"`
+	Art                  string  `toml:"art"`
+	StartsUnlocked       bool    `toml:"starts_unlocked"`
+	RequiredFuelCapacity float64 `toml:"required_fuel_capacity"`
+	PermitFee            int     `toml:"permit_fee"`
 }
 
 // PilotStart is the new-pilot starting resources.
@@ -283,7 +299,8 @@ type SlotsConfig struct {
 }
 
 type worldsFile struct {
-	Worlds []World `toml:"worlds"`
+	Systems      []System `toml:"systems"`
+	Destinations []World  `toml:"destinations"`
 }
 
 type balanceFile struct {
@@ -300,16 +317,17 @@ type balanceFile struct {
 
 // Content is immutable validated game configuration.
 type Content struct {
-	Worlds []World
-	Pilot  PilotStart
-	Belt   BeltConfig
-	Tiers  TierConfig
-	Mining MiningConfig
-	Events EventsConfig
-	Port   PortConfig
-	Fleet  FleetConfig
-	Slots  SlotsConfig
-	Ships  []ShipModel
+	Systems []System
+	Worlds  []World
+	Pilot   PilotStart
+	Belt    BeltConfig
+	Tiers   TierConfig
+	Mining  MiningConfig
+	Events  EventsConfig
+	Port    PortConfig
+	Fleet   FleetConfig
+	Slots   SlotsConfig
+	Ships   []ShipModel
 }
 
 // ShipByID returns the ship model with the given ID, or nil.
@@ -337,16 +355,17 @@ func Load(overrideDir string) (*Content, error) {
 		return nil, err
 	}
 	c := &Content{
-		Worlds: wf.Worlds,
-		Pilot:  bf.Pilot,
-		Belt:   bf.Belt,
-		Tiers:  bf.Tiers,
-		Mining: bf.Mining,
-		Events: bf.Events,
-		Port:   bf.Port,
-		Fleet:  bf.Fleet,
-		Slots:  bf.Slots,
-		Ships:  bf.Ships,
+		Systems: wf.Systems,
+		Worlds:  wf.Destinations,
+		Pilot:   bf.Pilot,
+		Belt:    bf.Belt,
+		Tiers:   bf.Tiers,
+		Mining:  bf.Mining,
+		Events:  bf.Events,
+		Port:    bf.Port,
+		Fleet:   bf.Fleet,
+		Slots:   bf.Slots,
+		Ships:   bf.Ships,
 	}
 	if err := c.validate(); err != nil {
 		return nil, err
@@ -366,13 +385,40 @@ func decodeTOML(fsys fs.FS, name string, v any) error {
 }
 
 func (c *Content) validate() error {
+	if len(c.Systems) < 2 {
+		return fmt.Errorf("content: need at least 2 systems, got %d", len(c.Systems))
+	}
+	systems := make(map[string]bool, len(c.Systems))
+	for _, system := range c.Systems {
+		if system.ID == "" || system.Name == "" {
+			return fmt.Errorf("content: system id and name are required")
+		}
+		if systems[system.ID] {
+			return fmt.Errorf("content: duplicate system id %q", system.ID)
+		}
+		if system.TransferFee < 0 {
+			return fmt.Errorf("content: system %q transfer_fee must be non-negative", system.ID)
+		}
+		if system.RequiredShipClass != "" && !validClasses[system.RequiredShipClass] {
+			return fmt.Errorf("content: system %q has invalid required_ship_class %q", system.ID, system.RequiredShipClass)
+		}
+		systems[system.ID] = true
+	}
 	if len(c.Worlds) < 4 {
 		return fmt.Errorf("content: need at least 4 worlds, got %d", len(c.Worlds))
 	}
+	destinations := make(map[string]bool, len(c.Worlds))
 	for i, w := range c.Worlds {
-		if w.Name == "" {
+		if w.ID == "" || w.Name == "" {
 			return fmt.Errorf("content: world #%d has no name", i+1)
 		}
+		if destinations[w.ID] || !systems[w.SystemID] {
+			return fmt.Errorf("content: destination %q has duplicate id or unknown system", w.ID)
+		}
+		if w.PermitFee < 0 || w.RequiredFuelCapacity < 0 {
+			return fmt.Errorf("content: destination %q has invalid progression gate", w.ID)
+		}
+		destinations[w.ID] = true
 		if w.TravelFuel < 1 {
 			return fmt.Errorf("content: world %q travel_fuel must be positive", w.Name)
 		}
@@ -435,6 +481,16 @@ func (c *Content) validate() error {
 	}
 	if err := c.validateFleet(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// SystemByID returns a system by its stable content ID.
+func (c *Content) SystemByID(id string) *System {
+	for i := range c.Systems {
+		if c.Systems[i].ID == id {
+			return &c.Systems[i]
+		}
 	}
 	return nil
 }
@@ -542,4 +598,14 @@ func (c *Content) WorldByIndex(idx int) *World {
 		return nil
 	}
 	return &c.Worlds[idx]
+}
+
+// WorldByID returns a destination by its stable content ID.
+func (c *Content) WorldByID(id string) *World {
+	for i := range c.Worlds {
+		if c.Worlds[i].ID == id {
+			return &c.Worlds[i]
+		}
+	}
+	return nil
 }

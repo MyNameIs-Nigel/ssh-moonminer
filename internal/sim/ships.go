@@ -420,6 +420,7 @@ func respawnActiveShip(s *State, c *content.Content) {
 	}
 	activateShip(s, c, cmp.Or(next, s.ActiveShipID))
 	s.WorldIdx = -1
+	s.SystemID = "sol"
 	s.Belt = nil
 	s.Scan = nil
 }

@@ -91,8 +91,9 @@ func (g *Game) helpLines() []string {
 	default:
 		screen = []string{
 			theme.Bright.Render("STAR CHART"),
-			"↑/↓ select destination world",
+			"↑/↓ select destination",
 			"Enter depart to asteroid belt",
+			"P buy selected route permit · C sell cargo",
 			"F refuel · H repair hull",
 			"I insurance (when eligible)",
 			"S shipyard · L ship's log",

@@ -70,7 +70,8 @@ func AttemptSkillCheck(s *State, c *content.Content, now int64) error {
 	if ast == nil || ast.Volume <= 0 {
 		return nil
 	}
-	remaining := float64(ast.Volume) - run.MinedUnits
+	capacityRemaining := math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits-run.MinedUnits)
+	remaining := math.Min(float64(ast.Volume)-run.MinedUnits, capacityRemaining)
 	bonus := remaining * c.Mining.SkillCheckBonusPct
 	if bonus > 0 {
 		run.MinedUnits += bonus

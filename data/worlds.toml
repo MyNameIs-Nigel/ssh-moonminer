@@ -1,4 +1,19 @@
-[[worlds]]
+[[systems]]
+id = "sol"
+name = "SOL"
+starts_unlocked = true
+transfer_fee = 0
+
+[[systems]]
+id = "eridani"
+name = "ERIDANI DRIFT"
+starts_unlocked = false
+transfer_fee = 25000
+required_ship_class = "fighter"
+
+[[destinations]]
+id = "ceres_claims"
+system_id = "sol"
 name = "CERES"
 sub = "INNER BELT"
 ring = "DENSE"
@@ -9,8 +24,13 @@ travel_fuel = 8
 rarity_label = "RICH"
 desc = "Crowded, lucrative, lawless. Raiders everywhere."
 art = "sphere"
+starts_unlocked = false
+required_fuel_capacity = 140
+permit_fee = 7000
 
-[[worlds]]
+[[destinations]]
+id = "vesta_local"
+system_id = "sol"
 name = "VESTA"
 sub = "MID BELT"
 ring = "MODERATE"
@@ -21,8 +41,13 @@ travel_fuel = 6
 rarity_label = "BALANCED"
 desc = "Close to port. Steady, honest pickings."
 art = "sphere"
+starts_unlocked = true
+required_fuel_capacity = 0
+permit_fee = 0
 
-[[worlds]]
+[[destinations]]
+id = "titan_rings"
+system_id = "eridani"
 name = "TITAN"
 sub = "SATURN RINGS"
 ring = "RINGED"
@@ -33,8 +58,13 @@ travel_fuel = 20
 rarity_label = "RARE-HEAVY"
 desc = "Rare ices in the rings. A long, cold haul."
 art = "ringed"
+starts_unlocked = true
+required_fuel_capacity = 120
+permit_fee = 0
 
-[[worlds]]
+[[destinations]]
+id = "io_shadow"
+system_id = "sol"
 name = "IO"
 sub = "JOVIAN ORBIT"
 ring = "SPARSE"
@@ -45,3 +75,6 @@ travel_fuel = 14
 rarity_label = "THIN"
 desc = "Quiet and safe. Slim takings for the patient."
 art = "sphere"
+starts_unlocked = true
+required_fuel_capacity = 120
+permit_fee = 0

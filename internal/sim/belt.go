@@ -121,12 +121,16 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 		return ErrActiveRun
 	}
 	w := c.Worlds[worldIdx]
+	if reason := RouteLockReason(s, c, worldIdx); reason != "" {
+		return ErrRouteLocked
+	}
 	travel := float64(w.TravelFuel)
 	if s.Fuel < travel {
 		return ErrInsufficientFuel
 	}
 	s.Fuel -= travel
 	s.WorldIdx = worldIdx
+	s.SystemID = w.SystemID
 	s.Belt = GenerateBelt(s, c, worldIdx)
 	applySeismicSensors(s, c)
 	return nil

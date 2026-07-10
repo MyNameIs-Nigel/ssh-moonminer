@@ -35,8 +35,9 @@ func (g *Game) renderLog() string {
 			theme.Amber.Render(fmt.Sprintf("%d", st.Stats.RunsTributePaid)),
 			theme.Red.Render(fmt.Sprintf("%d", st.Stats.RunsEscapedUnderFire)),
 			theme.Red.Render(fmt.Sprintf("%d", st.Stats.ShipsLost))),
-		fmt.Sprintf("EARNED: %s  SPENT: %s  LEGENDARIES: %s",
+		fmt.Sprintf("EARNED: %s  SOLD: %s  SPENT: %s  LEGENDARIES: %s",
 			theme.Gold.Render(fmt.Sprintf("%d", st.Stats.CreditsEarned)),
+			theme.Green.Render(fmt.Sprintf("%d", st.Stats.CargoValueSold)),
 			theme.Red.Render(fmt.Sprintf("%d", st.Stats.CreditsSpent)),
 			theme.Violet.Render(fmt.Sprintf("%d", st.Stats.LegendariesMined))),
 	}
@@ -48,7 +49,10 @@ func (g *Game) renderLog() string {
 		outcome := theme.OutcomeStyle(r.Outcome).Render(strings.ToUpper(r.Outcome))
 		amount := r.CargoValueRecovered
 		sign := "+"
-		if r.Outcome == string(sim.OutcomeShipLost) {
+		if r.CargoValueSold > 0 {
+			amount = r.CargoValueSold
+			sign = "$"
+		} else if r.Outcome == string(sim.OutcomeShipLost) {
 			amount = r.CargoValueLost
 			sign = "-"
 		}

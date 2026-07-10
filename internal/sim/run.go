@@ -217,8 +217,8 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 		}
 	}
 	cargoLoadRatio := 0.0
-	if ast.Value > 0 {
-		cargoLoadRatio = clamp(float64(run.CargoValue)/float64(ast.Value), 0, 1)
+	if cap_ := CargoCapacityUnits(s, c); cap_ > 0 {
+		cargoLoadRatio = clamp((s.CargoUnits+run.MinedUnits)/cap_, 0, 1)
 	}
 	mc := c.Mining
 	req := mc.BaseEscapeSeconds + math.Pow(cargoLoadRatio, mc.EscapeCargoExponent)*mc.CargoEscapePenaltySeconds
@@ -294,7 +294,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	if !outage {
 		// Mining stops at the ship's cargo capacity exactly like depletion —
 		// RunDepleted treats "hold full" and "rock exhausted" the same way.
-		cargoCap := math.Min(float64(ast.Volume), CargoCapacityUnits(s, c))
+		cargoCap := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
 		remaining := cargoCap - run.MinedUnits
 		if remaining > 0 && s.Fuel > 0 && ast.DrillSec > 0 {
 			mineRate := float64(ast.Volume) / ast.DrillSec
@@ -345,7 +345,7 @@ func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bo
 	if ast == nil {
 		return true
 	}
-	cap_ := math.Min(float64(ast.Volume), CargoCapacityUnits(s, c))
+	cap_ := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
 	return run.MinedUnits >= cap_
 }
 
@@ -522,12 +522,13 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	recovered, lost := 0, 0
 	switch kind {
 	case OutcomeShipLost:
-		lost = run.CargoValue
+		lost = s.CargoValue + run.CargoValue
+		s.CargoValue = 0
+		s.CargoUnits = 0
 	default:
 		recovered = run.CargoValue
-	}
-	if recovered > 0 {
-		s.Credits += recovered
+		s.CargoValue += recovered
+		s.CargoUnits += run.MinedUnits
 	}
 
 	hullDelta := s.Hull - run.StartHull
@@ -576,7 +577,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 		HullDelta: hullDelta, FuelDelta: fuelDelta, Depleted: depleted, Events: events,
 	}
 	appendRunLog(s, rec)
-	updateStatsOnOutcome(s, kind, recovered, astTier)
+	updateStatsOnOutcome(s, kind, astTier)
 
 	if kind == OutcomeShipLost {
 		respawnActiveShip(s, c)
@@ -619,9 +620,8 @@ func appendRunLog(s *State, rec RunRecord) {
 	}
 }
 
-func updateStatsOnOutcome(s *State, kind OutcomeKind, banked, tier int) {
+func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int) {
 	s.Stats.RunsTotal++
-	s.Stats.CreditsEarned += banked
 	switch kind {
 	case OutcomeDeparted:
 		s.Stats.RunsDeparted++

@@ -134,6 +134,12 @@ func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.C
 	}
 	snap, _ := g.sess.SnapshotNow()
 	g.snap = snap
+	for i := range c.Worlds {
+		if c.Worlds[i].SystemID == snap.State.SystemID && sim.RouteLockReason(&snap.State, c, i) == "" {
+			g.worldSel = i
+			break
+		}
+	}
 	return g
 }
 

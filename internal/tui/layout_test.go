@@ -51,8 +51,8 @@ func TestChartHitboxAlignment(t *testing.T) {
 	leftW := g.width/2 - 1
 	rightX := leftW + 1
 
-	if b, ok := g.hits.At(1, panelBodyY(0)); !ok || b.ID != "world:0" {
-		t.Fatalf("world:0 hitbox missing at (1,%d), got %#v", panelBodyY(0), b)
+	if b, ok := g.hits.At(1, panelBodyY(1)); !ok || b.ID != "world:0" {
+		t.Fatalf("world:0 hitbox missing at (1,%d), got %#v", panelBodyY(1), b)
 	}
 	if b, ok := g.hits.At(rightX, panelBodyY(1)); !ok || b.ID != "svc:refuel" {
 		t.Fatalf("svc:refuel hitbox missing at (%d,%d), got %#v", rightX, panelBodyY(1), b)

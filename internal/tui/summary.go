@@ -51,9 +51,10 @@ func (g *Game) renderSummary() string {
 		theme.DimStyle.Render(out.Description),
 		"",
 		theme.Gold.Render("ASTEROID: ") + theme.TxtStyle.Render(out.Record.Asteroid),
-		theme.Green.Render("CARGO RECOVERED: ") + theme.Gold.Render(fmt.Sprintf("+%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.CargoValueRecovered)),
+		theme.Green.Render("CARGO SEALED: ") + theme.Gold.Render(fmt.Sprintf("+%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.CargoValueRecovered)),
+		theme.DimStyle.Render("Sell it at dock before your next loss."),
 		theme.Amber.Render(fmt.Sprintf("HULL DELTA: %+d   FUEL DELTA: %+.0f", out.Record.HullDelta, out.Record.FuelDelta)),
-		theme.Gold.Render(fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
+		theme.Gold.Render(fmt.Sprintf("HOLD VALUE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue)),
 	}
 	continueBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
 	dockBtn := theme.Button("Q", "DOCK AT PORT", "", true, theme.HueGold)
@@ -77,7 +78,7 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 		"",
 		theme.Red.Render("LOST: ") + theme.TxtStyle.Render("active ship, installed upgrades, unsold cargo"),
 		theme.Red.Render(fmt.Sprintf("CARGO LOST: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.CargoValueLost)),
-		theme.Green.Render("KEPT: ") + theme.TxtStyle.Render("banked credits, permits, stations, cosmetics"),
+		theme.Green.Render("KEPT: ") + theme.TxtStyle.Render("banked credits, route permits, settings"),
 		theme.Gold.Render(fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
 		"",
 		theme.TxtStyle.Render("A starter Salvage Skiff is waiting at the Sol dock."),
