@@ -325,9 +325,18 @@ func findDevice(devices []*SlotDevice, itemID string) *SlotDevice {
 }
 
 // ShieldMaxHP returns the active ship's Shield absorption buffer size (0 if
-// none installed).
+// none is installed).
 func ShieldMaxHP(s *State, c *content.Content) float64 {
 	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
+	return ShieldMaxHPFor(s, c, s.ActiveShipID)
+}
+
+// ShieldMaxHPFor returns shipID's Shield absorption capacity.
+func ShieldMaxHPFor(s *State, c *content.Content, shipID string) float64 {
+	inst := s.Ships[shipID]
 	if inst == nil {
 		return 0
 	}
@@ -336,6 +345,106 @@ func ShieldMaxHP(s *State, c *content.Content) float64 {
 		return 0
 	}
 	return c.Slots.ShieldHPPerGrade * float64(d.Grade+1)
+}
+
+// ShieldStatus returns the active ship's current shield charge, capacity, and
+// whether the shield burst and now needs dock service for a full recharge.
+func ShieldStatus(s *State, c *content.Content) (hp, maxHP float64, damaged bool) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0, 0, false
+	}
+	maxHP = ShieldMaxHP(s, c)
+	if maxHP <= 0 {
+		return 0, 0, false
+	}
+	return clamp(inst.ShieldHP, 0, maxHP), maxHP, inst.ShieldDamaged
+}
+
+// ShieldRechargeSeconds returns how long the active shield takes to recover
+// from empty in the belt: 90 seconds at E, 15 seconds at S, linearly between.
+func ShieldRechargeSeconds(s *State, c *content.Content) float64 {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
+	d := findDevice(inst.Utility, ItemShield)
+	if d == nil {
+		return 0
+	}
+	grade := clampInt(d.Grade, 0, MaxGrade)
+	return c.Slots.ShieldRechargeESeconds +
+		(c.Slots.ShieldRechargeSSeconds-c.Slots.ShieldRechargeESeconds)*float64(grade)/float64(MaxGrade)
+}
+
+// TickBelt advances belt-only systems. Shields recharge only between mining
+// runs, never while the ship is drilling or fleeing.
+func TickBelt(s *State, c *content.Content, dt float64) {
+	if s.WorldIdx < 0 || s.Run != nil || dt <= 0 || math.IsNaN(dt) {
+		return
+	}
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	maxHP := ShieldMaxHP(s, c)
+	if maxHP <= 0 {
+		inst.ShieldHP = 0
+		inst.ShieldDamaged = false
+		return
+	}
+	cap_ := maxHP
+	if inst.ShieldDamaged {
+		cap_ *= c.Slots.ShieldBurstReturnPct
+	}
+	if inst.ShieldHP >= cap_ {
+		return
+	}
+	seconds := ShieldRechargeSeconds(s, c)
+	if seconds <= 0 {
+		return
+	}
+	inst.ShieldHP = math.Min(cap_, inst.ShieldHP+maxHP*dt/seconds)
+}
+
+// restoreBurstShieldOnBeltReturn applies the limited emergency recovery for
+// a shield that was fully depleted during the just-finished run.
+func restoreBurstShieldOnBeltReturn(s *State, c *content.Content) {
+	inst := ActiveShip(s)
+	if inst == nil || !inst.ShieldDamaged {
+		return
+	}
+	maxHP := ShieldMaxHP(s, c)
+	if maxHP <= 0 {
+		inst.ShieldHP = 0
+		inst.ShieldDamaged = false
+		return
+	}
+	inst.ShieldHP = math.Min(maxHP, maxHP*c.Slots.ShieldBurstReturnPct)
+}
+
+// restoreShipShieldFull is the dock/installation service action.
+func restoreShipShieldFull(s *State, c *content.Content, shipID string) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	inst.ShieldHP = ShieldMaxHPFor(s, c, shipID)
+	inst.ShieldDamaged = false
+}
+
+func normalizeShipShield(s *State, c *content.Content, shipID string) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	maxHP := ShieldMaxHPFor(s, c, shipID)
+	if maxHP <= 0 {
+		inst.ShieldHP = 0
+		inst.ShieldDamaged = false
+		return
+	}
+	inst.ShieldHP = clamp(inst.ShieldHP, 0, maxHP)
 }
 
 // ChaffDurationSeconds returns the active ship's Chaff Launcher suppression
@@ -490,6 +599,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	s.Credits -= price
 	s.Stats.CreditsSpent += price
 	*target = &SlotDevice{ItemID: itemID, Grade: grade}
+	if itemID == ItemShield {
+		restoreShipShieldFull(s, c, shipID)
+	}
 	if itemID == ItemJammer {
 		inst.JammerCharges = jammerMaxCharges(c, grade)
 	}
@@ -521,6 +633,7 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 	}
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
+	normalizeShipShield(s, c, shipID)
 	return nil
 }
 
@@ -534,6 +647,7 @@ func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, 
 	}
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
+	normalizeShipShield(s, c, shipID)
 	return nil
 }
 
@@ -599,6 +713,9 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	copy(s.Inventory[invIndex:], s.Inventory[invIndex+1:])
 	s.Inventory[last] = nil // drop the moved pointer so the vacated backing-array slot doesn't keep it alive
 	s.Inventory = s.Inventory[:last]
+	if d.ItemID == ItemShield {
+		restoreShipShieldFull(s, c, shipID)
+	}
 	if d.ItemID == ItemJammer {
 		inst.JammerCharges = jammerMaxCharges(c, d.Grade)
 	}

@@ -24,7 +24,8 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 		case "b", "esc", "enter":
 			snap, err := g.sess.BailOrDepart(g.now)
 			return g.refreshSnap(snap, err)
-		case " ":
+		}
+		if isSkillCheckKey(k) {
 			if run.SkillCheck == nil {
 				return nil
 			}
@@ -46,6 +47,10 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 	}
 	return nil
 }
+
+// Bubble Tea identifies physical space-bar presses as "space". Keep the
+// literal-space form too because the shipyard mouse hitbox synthesizes it.
+func isSkillCheckKey(k string) bool { return k == "space" || k == " " }
 
 func (g *Game) renderMining() string {
 	st := g.snap.State
@@ -123,10 +128,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 			theme.Glyph("drill", st.Settings.ASCIISafe),
 			theme.DrillBar(resourcePct, 26),
 			theme.TxtStyle.Render(fmt.Sprintf("%3.0f%%", resourcePct))),
-		fmt.Sprintf("%s HULL         %s %s",
-			theme.Glyph("skull", st.Settings.ASCIISafe),
-			theme.HullBar(hullPct, 26),
-			theme.HullStyle(hullPct).Render(fmt.Sprintf("%3.0f%%", hullPct))),
+		g.renderHullLine(st, hullPct, 26),
 		fmt.Sprintf("%s FUEL         %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
@@ -290,10 +292,7 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 			theme.Glyph("drill", st.Settings.ASCIISafe),
 			theme.DrillBar(pct, 26),
 			theme.DrillStyle(pct).Render(fmt.Sprintf("%3.0f%%", pct)), remaining),
-		fmt.Sprintf("%s HULL          %s %s",
-			theme.Glyph("skull", st.Settings.ASCIISafe),
-			theme.HullBar(hullPct, 26),
-			theme.HullStyle(hullPct).Render(fmt.Sprintf("%3.0f%%", hullPct))),
+		g.renderHullLine(st, hullPct, 26),
 		fmt.Sprintf("%s FUEL          %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
@@ -309,6 +308,23 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 		hint = theme.Red.Render("UNDER FIRE — HULL FALLING")
 	}
 	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
+}
+
+func (g *Game) renderHullLine(st *sim.State, hullPct float64, width int) string {
+	hullBar := theme.HullBar(hullPct, width)
+	shieldHP, shieldMax, shieldDamaged := sim.ShieldStatus(st, g.content)
+	shieldLabel := ""
+	if shieldMax > 0 {
+		shieldPct := shieldHP / shieldMax * 100
+		hullBar = theme.HullShieldBar(hullPct, shieldPct, width)
+		shieldLabel = theme.Cyan.Render(fmt.Sprintf(" SHIELD %.0f/%.0f", shieldHP, shieldMax))
+		if shieldDamaged {
+			shieldLabel += " " + theme.Red.Render("DAMAGED")
+		}
+	}
+	return fmt.Sprintf("%s HULL         %s %s%s",
+		theme.Glyph("skull", st.Settings.ASCIISafe), hullBar,
+		theme.HullStyle(hullPct).Render(fmt.Sprintf("%3.0f%%", hullPct)), shieldLabel)
 }
 
 func clampF(v, lo, hi float64) float64 {
