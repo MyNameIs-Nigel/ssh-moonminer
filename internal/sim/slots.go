@@ -377,6 +377,28 @@ func ShieldRechargeSeconds(s *State, c *content.Content) float64 {
 		(c.Slots.ShieldRechargeSSeconds-c.Slots.ShieldRechargeESeconds)*float64(grade)/float64(MaxGrade)
 }
 
+// ShieldRechargeETA returns the seconds until the active shield reaches its
+// current belt-side cap. A burst shield's cap is its emergency 25% charge;
+// docking is required to restore the remaining capacity.
+func ShieldRechargeETA(s *State, c *content.Content) float64 {
+	hp, maxHP, damaged := ShieldStatus(s, c)
+	if s.WorldIdx < 0 || maxHP <= 0 {
+		return 0
+	}
+	cap_ := maxHP
+	if damaged {
+		cap_ *= c.Slots.ShieldBurstReturnPct
+	}
+	if hp >= cap_ {
+		return 0
+	}
+	seconds := ShieldRechargeSeconds(s, c)
+	if seconds <= 0 {
+		return 0
+	}
+	return (cap_ - hp) * seconds / maxHP
+}
+
 // TickBelt advances belt-only systems. Shields recharge only between mining
 // runs, never while the ship is drilling or fleeing.
 func TickBelt(s *State, c *content.Content, dt float64) {

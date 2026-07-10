@@ -62,6 +62,9 @@ func TestShieldBeltRechargeAndBurstCap(t *testing.T) {
 	inst := s.Ships[s.ActiveShipID]
 
 	inst.ShieldHP = 0
+	if got := sim.ShieldRechargeETA(s, c); math.Abs(got-c.Slots.ShieldRechargeESeconds) > 0.001 {
+		t.Fatalf("empty E shield ETA = %v, want %v", got, c.Slots.ShieldRechargeESeconds)
+	}
 	sim.TickBelt(s, c, c.Slots.ShieldRechargeESeconds)
 	hp, _, damaged := sim.ShieldStatus(s, c)
 	if math.Abs(hp-maxHP) > 0.001 || damaged {
