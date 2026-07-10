@@ -25,7 +25,7 @@ func installTestShield(t *testing.T, grade int) (*sim.State, float64) {
 func TestShieldAbsorbsAttackBeforeHull(t *testing.T) {
 	c := testContent(t)
 	s, maxHP := installTestShield(t, 0)
-	if err := sim.Depart(s, c, 0); err != nil {
+	if err := sim.Depart(s, c, 1); err != nil {
 		t.Fatal(err)
 	}
 	s.Belt[0].Scanned = true
@@ -56,7 +56,7 @@ func TestShieldAbsorbsAttackBeforeHull(t *testing.T) {
 func TestShieldBeltRechargeAndBurstCap(t *testing.T) {
 	c := testContent(t)
 	s, maxHP := installTestShield(t, 0)
-	if err := sim.Depart(s, c, 0); err != nil {
+	if err := sim.Depart(s, c, 1); err != nil {
 		t.Fatal(err)
 	}
 	inst := s.Ships[s.ActiveShipID]

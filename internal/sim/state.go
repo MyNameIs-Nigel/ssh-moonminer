@@ -7,9 +7,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Version 2 introduced the
-// fleet/shipyard rework; version 3 adds persistent per-ship shield state.
-const StateVersion = 3
+// StateVersion is the current save schema version. Version 4 adds systems,
+// route permits, and cargo that must be sold at dock.
+const StateVersion = 4
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -83,6 +83,7 @@ type Stats struct {
 	ShipsPurchased       int     `json:"ships_purchased"`
 	CreditsEarned        int     `json:"credits_earned"`
 	CreditsSpent         int     `json:"credits_spent"`
+	CargoValueSold       int     `json:"cargo_value_sold"`
 	LegendariesMined     int     `json:"legendaries_mined"`
 	FuelBurned           float64 `json:"fuel_burned"`
 	InsuranceClaims      int     `json:"insurance_claims"`
@@ -102,6 +103,7 @@ type RunRecord struct {
 	HullDelta           int      `json:"hull_delta"`
 	FuelDelta           float64  `json:"fuel_delta"`
 	Depleted            bool     `json:"depleted"`
+	CargoValueSold      int      `json:"cargo_value_sold"`
 	Events              []string `json:"events,omitempty"`
 }
 
@@ -266,6 +268,15 @@ type State struct {
 	WorldIdx  int        `json:"world_idx"`
 	Belt      []Asteroid `json:"belt,omitempty"`
 
+	// SystemID is the dock/belt system the pilot currently occupies. The
+	// permit maps only record purchases; content-defined starter routes need
+	// not be written into every save.
+	SystemID           string          `json:"system_id"`
+	SystemPermits      map[string]bool `json:"system_permits,omitempty"`
+	DestinationPermits map[string]bool `json:"destination_permits,omitempty"`
+	CargoUnits         float64         `json:"cargo_units,omitempty"`
+	CargoValue         int             `json:"cargo_value,omitempty"`
+
 	// Ships is the pilot's hangar: owned ship models keyed by ModelID, each
 	// with its own persistent grades and loadout. ActiveShipID selects
 	// which one is currently flown (its Hull/Fuel condition is State.Hull/
@@ -311,6 +322,7 @@ func New(c *content.Content, seed uint64, now int64) *State {
 		BeltCount: 0,
 		Credits:   c.Pilot.StartCredits,
 		WorldIdx:  -1,
+		SystemID:  "sol",
 		Settings: Settings{
 			BeltView:         BeltViewTiles,
 			PirateAggression: 1.0,
@@ -364,6 +376,20 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 	}
 	if s.Settings.PirateAggression == 0 {
 		s.Settings.PirateAggression = 1.0
+	}
+	if s.SystemID == "" {
+		s.SystemID = "sol"
+		if s.WorldIdx >= 0 {
+			if world := c.WorldByIndex(s.WorldIdx); world != nil {
+				s.SystemID = world.SystemID
+			}
+		}
+	}
+	if s.SystemPermits == nil {
+		s.SystemPermits = make(map[string]bool)
+	}
+	if s.DestinationPermits == nil {
+		s.DestinationPermits = make(map[string]bool)
 	}
 	activeUnresolvable := s.Ships == nil || s.ActiveShipID == "" || s.Ships[s.ActiveShipID] == nil ||
 		c.ShipByID(s.Ships[s.ActiveShipID].ModelID) == nil

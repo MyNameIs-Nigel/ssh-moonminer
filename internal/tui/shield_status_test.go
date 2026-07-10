@@ -32,7 +32,7 @@ func TestShieldStatusAppearsInGlobalHUDAndDock(t *testing.T) {
 
 func TestBeltShieldStatusShowsRechargeProgress(t *testing.T) {
 	g, st := shieldStatusGame(t)
-	if err := sim.Depart(st, g.content, 0); err != nil {
+	if err := sim.Depart(st, g.content, 1); err != nil {
 		t.Fatal(err)
 	}
 	st.Ships[st.ActiveShipID].ShieldHP = 10

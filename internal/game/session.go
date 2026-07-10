@@ -154,6 +154,25 @@ func (s *Session) Insurance(now int64) (Snapshot, error) {
 	})
 }
 
+func (s *Session) BuySystemPermit(now int64, systemID string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.BuySystemPermit(st, s.actor.content(), systemID)
+	})
+}
+
+func (s *Session) BuyDestinationPermit(now int64, destinationID string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.BuyDestinationPermit(st, s.actor.content(), destinationID)
+	})
+}
+
+func (s *Session) SellCargo(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		_, err := sim.SellCargo(st, s.actor.content(), now)
+		return err
+	})
+}
+
 // AcquireShip buys (or buys back) a ship model into the hangar and makes it
 // active.
 func (s *Session) AcquireShip(now int64, modelID string) (Snapshot, error) {

@@ -64,7 +64,11 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 		}
 		tier := rollTier(rng, weights)
 		vol := int(math.Round(clamp(rng.Float64()*float64(bc.VolumeMax-bc.VolumeMin)+float64(bc.VolumeMin), float64(bc.VolumeMin), float64(bc.VolumeMax))/float64(bc.VolumeStep))) * bc.VolumeStep
-		drill := round1(clamp(float64(vol)/bc.DrillSecPerVol, bc.DrillSecMin, bc.DrillSecMax))
+		drillMul := w.DrillTimeMul
+		if drillMul <= 0 {
+			drillMul = 1
+		}
+		drill := round1(clamp(float64(vol)/bc.DrillSecPerVol, bc.DrillSecMin, bc.DrillSecMax) * drillMul)
 		tierMult := c.Tiers.Mults[tier]
 		value := int(math.Round(float64(vol)*bc.ValuePerVolume*tierMult/float64(bc.ValueStep))) * bc.ValueStep
 		fuelCost := int(math.Round(clamp(distance*bc.FuelPerKm+float64(tier*bc.FuelCostTierBon), float64(bc.FuelCostMin), float64(bc.FuelCostMax))))
@@ -121,12 +125,16 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 		return ErrActiveRun
 	}
 	w := c.Worlds[worldIdx]
+	if reason := RouteLockReason(s, c, worldIdx); reason != "" {
+		return ErrRouteLocked
+	}
 	travel := float64(w.TravelFuel)
 	if s.Fuel < travel {
 		return ErrInsufficientFuel
 	}
 	s.Fuel -= travel
 	s.WorldIdx = worldIdx
+	s.SystemID = w.SystemID
 	s.Belt = GenerateBelt(s, c, worldIdx)
 	applySeismicSensors(s, c)
 	return nil

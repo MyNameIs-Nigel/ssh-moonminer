@@ -1,7 +1,9 @@
 package sim
 
 import (
+	"fmt"
 	"math"
+	"strings"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
@@ -39,7 +41,65 @@ func CanDepart(s *State, c *content.Content, worldIdx int) bool {
 	if s.Hull <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
 		return false
 	}
-	return s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+	return RouteLockReason(s, c, worldIdx) == "" && s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+}
+
+// RouteLockReason returns player-facing route gate text. An empty string
+// means the destination is unlocked and compatible with the active ship.
+func RouteLockReason(s *State, c *content.Content, worldIdx int) string {
+	w := c.WorldByIndex(worldIdx)
+	if w == nil {
+		return "INVALID DESTINATION"
+	}
+	system := c.SystemByID(w.SystemID)
+	if system == nil {
+		return "INVALID SYSTEM"
+	}
+	if system.RequiredShipClass != "" {
+		model := c.ShipByID(s.ActiveShipID)
+		if model == nil || model.Class != system.RequiredShipClass {
+			return "NEED " + strings.ToUpper(system.RequiredShipClass) + "-CLASS SHIP"
+		}
+	}
+	if system.RequiredItemID != "" && !HasActiveSlotItem(s, system.RequiredItemID) {
+		return "NEED " + strings.ToUpper(strings.ReplaceAll(system.RequiredItemID, "_", " "))
+	}
+	if !system.StartsUnlocked && !s.SystemPermits[system.ID] {
+		return fmt.Sprintf("BUY TRANSFER %d cr", system.TransferFee)
+	}
+	if !w.StartsUnlocked && !s.DestinationPermits[w.ID] {
+		return fmt.Sprintf("BUY NAV PERMIT %d cr", w.PermitFee)
+	}
+	if w.RequiredShipClass != "" {
+		model := c.ShipByID(s.ActiveShipID)
+		if model == nil || model.Class != w.RequiredShipClass {
+			return "NEED " + strings.ToUpper(w.RequiredShipClass) + "-CLASS SHIP"
+		}
+	}
+	if FuelCapacity(s, c) < w.RequiredFuelCapacity {
+		return fmt.Sprintf("NEED FUEL CAPACITY %.0f", w.RequiredFuelCapacity)
+	}
+	return ""
+}
+
+// HasActiveSlotItem reports whether the active ship has the given device
+// installed in any of its slots.
+func HasActiveSlotItem(s *State, itemID string) bool {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return false
+	}
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == itemID {
+			return true
+		}
+	}
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == itemID {
+			return true
+		}
+	}
+	return inst.Internal != nil && inst.Internal.ItemID == itemID
 }
 
 // InsuranceEligible reports softlock protection availability.

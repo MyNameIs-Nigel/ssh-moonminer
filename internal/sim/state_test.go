@@ -59,7 +59,7 @@ func TestDepartInsufficientFuel(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 0)
 	s.Fuel = 5
-	err := sim.Depart(s, c, 0) // Ceres needs 8
+	err := sim.Depart(s, c, 1) // Vesta needs 6
 	if err != sim.ErrInsufficientFuel {
 		t.Fatalf("got %v", err)
 	}

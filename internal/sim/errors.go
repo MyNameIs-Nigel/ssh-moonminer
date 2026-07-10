@@ -20,6 +20,10 @@ var (
 	ErrScanInProgress    = errors.New("scan already in progress")
 	ErrInvalidRunPhase   = errors.New("action not valid in current run phase")
 	ErrOutOfRange        = errors.New("asteroid is beyond scanner range")
+	ErrRouteLocked       = errors.New("route is locked")
+	ErrInvalidSystem     = errors.New("invalid system")
+	ErrAlreadyUnlocked   = errors.New("route already unlocked")
+	ErrCargoEmpty        = errors.New("cargo hold is empty")
 
 	// Fleet/shipyard errors (gameplay/05-fleet-ships-and-shipyard-economy.md).
 	ErrInvalidShip      = errors.New("unknown ship model")
