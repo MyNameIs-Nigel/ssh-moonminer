@@ -123,10 +123,10 @@ services split — that's the point of giving it its own screen.
   `[X] REMOVE`'s **Store** choice (free to re-equip — already paid for).
   Unaffordable or power-exceeding combinations render visibly disabled
   rather than hidden, so the player learns the power ceiling by seeing it,
-  not by guessing. Installing over an occupied slot forfeits the old device
-  with no refund (matches "installed upgrades are lost, not banked" tone) —
-  Internal is a single-select swap for exactly this reason, so removing
-  first via `[X] REMOVE` is the only way to not lose it outright.
+   not by guessing. Choosing a different item for an occupied slot opens the
+   same **REMOVE MODULE** confirmation first, so the installed device is
+   explicitly stored or sold before the selected replacement is equipped.
+   Direct install calls reject occupied slots as an additional safeguard.
 - `[X] REMOVE`/`Backspace` on an occupied slot opens a small confirm overlay
   with two choices: **Store** (moves the device into the pilot's
   account-wide inventory, free to re-equip on any owned ship later via the

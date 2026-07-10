@@ -75,6 +75,53 @@ func TestStoreAndSellRequireAnOccupiedSlot(t *testing.T) {
 	}
 }
 
+// TestInstallSlotDeviceRejectsReplacingAnInstalledModule ensures callers
+// cannot silently destroy a module by installing another one over it.
+func TestInstallSlotDeviceRejectsReplacingAnInstalledModule(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemShield, 1); err != nil {
+		t.Fatal(err)
+	}
+	creditsBefore := s.Credits
+
+	err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemChaff, 0)
+	if err != sim.ErrSlotOccupied {
+		t.Fatalf("expected ErrSlotOccupied, got %v", err)
+	}
+	if s.Credits != creditsBefore {
+		t.Fatalf("rejected replacement changed credits: before=%d after=%d", creditsBefore, s.Credits)
+	}
+	d := s.Ships["skiff"].Utility[0]
+	if d == nil || d.ItemID != sim.ItemShield || d.Grade != 1 {
+		t.Fatalf("rejected replacement changed installed module: %+v", d)
+	}
+}
+
+// TestInstallSlotDeviceFromInventoryRejectsReplacingAnInstalledModule covers
+// the same safeguard for a stored module being re-equipped.
+func TestInstallSlotDeviceFromInventoryRejectsReplacingAnInstalledModule(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemShield, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemChaff, Grade: 1}}
+
+	err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotUtility, 0, 0)
+	if err != sim.ErrSlotOccupied {
+		t.Fatalf("expected ErrSlotOccupied, got %v", err)
+	}
+	if len(s.Inventory) != 1 || s.Inventory[0].ItemID != sim.ItemChaff {
+		t.Fatalf("rejected replacement changed inventory: %+v", s.Inventory)
+	}
+	if d := s.Ships["skiff"].Utility[0]; d == nil || d.ItemID != sim.ItemShield {
+		t.Fatalf("rejected replacement changed installed module: %+v", d)
+	}
+}
+
 // TestInstallSlotDeviceFromInventoryIsFreeAndAccountWide covers re-equipping
 // a stored device on a *different* owned ship than it was removed from,
 // confirming the inventory pool is account-wide, not per-ship, and that the

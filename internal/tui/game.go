@@ -98,6 +98,7 @@ type Game struct {
 	pickerScroll       int
 	pickerCatalogGrade []int
 	removeConfirmSel   int
+	pendingSlotInstall *pickerEntry
 
 	tickCount int
 	now       int64

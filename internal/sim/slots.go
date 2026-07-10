@@ -449,8 +449,9 @@ func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, err
 // InstallSlotDevice buys and installs itemID at grade into shipID's slot
 // kind at index (index is ignored for Internal, which has exactly one
 // slot). Requires docked, ownership, a valid index, power headroom, and
-// affordability; replacing an occupied slot forfeits the old device with no
-// refund.
+// affordability; the target slot must be empty. Call StoreSlotDevice or
+// SellSlotDevice first when changing a loadout, so a module can never be
+// silently destroyed by an install.
 func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int, itemID string, grade int) error {
 	if !s.IsDocked() {
 		return ErrInBelt
@@ -471,6 +472,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
 		return err
+	}
+	if *target != nil {
+		return ErrSlotOccupied
 	}
 
 	price := SlotItemPrice(c, itemID, grade)
@@ -556,8 +560,8 @@ func resolveOccupiedSlot(s *State, shipID string, kind SlotKind, index int) (*Sh
 // InstallSlotDeviceFromInventory moves a previously-stored device out of
 // the pilot's inventory and into shipID's slot at index, for free (it was
 // already paid for). Requires docked, ownership, a valid inventory index
-// matching kind, and power headroom; replacing an occupied slot forfeits
-// the old device with no refund, matching InstallSlotDevice.
+// matching kind, power headroom, and an empty target slot. Call
+// StoreSlotDevice or SellSlotDevice first when changing a loadout.
 func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string, kind SlotKind, index, invIndex int) error {
 	if !s.IsDocked() {
 		return ErrInBelt
@@ -579,6 +583,9 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
 		return err
+	}
+	if *target != nil {
+		return ErrSlotOccupied
 	}
 
 	capacity := PowerCapacityFor(s, c, shipID)

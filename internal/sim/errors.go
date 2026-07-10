@@ -30,5 +30,6 @@ var (
 	ErrInvalidSlotIndex = errors.New("invalid slot index")
 	ErrPowerExceeded    = errors.New("insufficient power capacity")
 	ErrSlotEmpty        = errors.New("slot is empty")
+	ErrSlotOccupied     = errors.New("slot already has a module — store or sell it first")
 	ErrInvalidInventory = errors.New("invalid inventory item")
 )
