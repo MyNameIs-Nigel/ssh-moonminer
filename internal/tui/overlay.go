@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
@@ -93,11 +94,21 @@ func overlayLine(base string, x int, insert string, termW int) string {
 	if x < 0 {
 		x = 0
 	}
-	pad := strings.Repeat(" ", x)
-	// Base is faint-rendered; rebuild row as pad + overlay + trailing faint spaces.
-	trail := termW - x - lipgloss.Width(insert)
-	if trail < 0 {
-		trail = 0
+	insertW := lipgloss.Width(insert)
+	right := x + insertW
+	if right > termW {
+		right = termW
 	}
-	return pad + insert + strings.Repeat(" ", trail)
+	// Keep the faint-rendered base content on either side of the overlay
+	// instead of blanking it out.
+	left := ansi.Cut(base, 0, x)
+	if lipgloss.Width(left) < x {
+		left += strings.Repeat(" ", x-lipgloss.Width(left))
+	}
+	trailStr := ansi.Cut(base, right, termW)
+	trailW := lipgloss.Width(trailStr)
+	if want := termW - right; trailW < want {
+		trailStr += strings.Repeat(" ", want-trailW)
+	}
+	return left + insert + trailStr
 }
