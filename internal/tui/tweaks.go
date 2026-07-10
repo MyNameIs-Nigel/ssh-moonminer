@@ -140,29 +140,14 @@ func (g *Game) renderTweaksOverlay() string {
 		line = theme.OptionHC(theme.HueViolet, sel, hc).Render(left+strings.Repeat(" ", pad)) + theme.Bright.Render(val)
 		lines = append(lines, line)
 		// Hitboxes registered relative to overlay panel; map to terminal in overlay click handler.
-		g.tweaksHitLine(len(lines) - 1, line, i)
+		g.tweaksHitLine(len(lines)-1, line, i)
 	}
 	body := strings.Join(lines, "\n")
 	return theme.Panel("TWEAKS", tweaksPanelW, tweaksPanelH, body, theme.Accent(theme.HueViolet))
 }
 
 func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx int) {
-	y0 := (g.height - tweaksPanelH) / 2
-	x0 := (g.width - tweaksPanelW) / 2
-	if y0 < 0 {
-		y0 = 0
-	}
-	if x0 < 0 {
-		x0 = 0
-	}
-	// Panel body starts one line below top border.
-	y := y0 + 1 + lineIdx
-	x := x0 + 1
-	w := lipgloss.Width(label)
-	if w < 1 {
-		w = 1
-	}
-	g.addHit(x, y, w, 1, fmt.Sprintf("tweak:%d", tweakIdx), tweakIdx)
+	g.overlayHitLine(tweaksPanelW, tweaksPanelH, lineIdx, label, "tweak", tweakIdx)
 }
 
 func (g *Game) updateTweaksOverlay(k string) []tea.Cmd {
@@ -202,6 +187,33 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 				return g.cycleTweak(1)
 			}
 		}
+	case ovSlotPicker:
+		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "picker:") {
+			if idx, ok := b.Data.(int); ok {
+				model, row, entries, ctxOK := g.pickerContext()
+				if !ctxOK {
+					break
+				}
+				if idx == g.pickerSel {
+					return g.pickerConfirm(model, row, entries)
+				}
+				g.pickerSel = idx
+				g.pickerClampScroll(len(entries))
+			}
+		}
+	case ovSlotRemove:
+		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "removeopt:") {
+			if sel, ok := b.Data.(int); ok {
+				model, row, ctxOK := g.removeContext()
+				if !ctxOK {
+					break
+				}
+				if sel == g.removeConfirmSel {
+					return g.removeConfirm(model, row)
+				}
+				g.removeConfirmSel = sel
+			}
+		}
 	}
 	return nil
 }
@@ -226,6 +238,17 @@ func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 		} else if m.Y > 0 {
 			g.devSel = (g.devSel + 1) % devRowCount
 		}
+	case ovSlotPicker:
+		_, _, entries, ok := g.pickerContext()
+		if !ok || len(entries) == 0 {
+			break
+		}
+		if m.Y < 0 {
+			g.pickerSel = (g.pickerSel - 1 + len(entries)) % len(entries)
+		} else if m.Y > 0 {
+			g.pickerSel = (g.pickerSel + 1) % len(entries)
+		}
+		g.pickerClampScroll(len(entries))
 	}
 	return nil
 }

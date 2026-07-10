@@ -184,10 +184,27 @@ func (s *Session) InstallSlotDevice(now int64, shipID string, kind sim.SlotKind,
 	})
 }
 
-// RemoveSlotDevice clears an installed slot device with no refund.
-func (s *Session) RemoveSlotDevice(now int64, shipID string, kind sim.SlotKind, index int) (Snapshot, error) {
+// StoreSlotDevice removes an installed slot device into the pilot's
+// account-wide inventory for a later free re-equip.
+func (s *Session) StoreSlotDevice(now int64, shipID string, kind sim.SlotKind, index int) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		return sim.RemoveSlotDevice(st, s.actor.content(), shipID, kind, index)
+		return sim.StoreSlotDevice(st, s.actor.content(), shipID, kind, index)
+	})
+}
+
+// SellSlotDevice removes an installed slot device and refunds 95% of its
+// buy price in credits.
+func (s *Session) SellSlotDevice(now int64, shipID string, kind sim.SlotKind, index int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.SellSlotDevice(st, s.actor.content(), shipID, kind, index)
+	})
+}
+
+// InstallSlotDeviceFromInventory moves a stored device out of inventory and
+// into an owned ship's slot for free.
+func (s *Session) InstallSlotDeviceFromInventory(now int64, shipID string, kind sim.SlotKind, index, invIndex int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.InstallSlotDeviceFromInventory(st, s.actor.content(), shipID, kind, index, invIndex)
 	})
 }
 

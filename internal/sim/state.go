@@ -277,6 +277,13 @@ type State struct {
 	ActiveShipID  string                   `json:"active_ship_id"`
 	ShipsUnlocked map[string]bool          `json:"ships_unlocked,omitempty"`
 
+	// Inventory holds slot devices removed via "store" (as opposed to sold)
+	// rather than discarded — an account-wide pool any owned ship can
+	// re-equip from for free via the shipyard's item picker. Not
+	// ship-scoped, so moving a device between hangar ships costs nothing
+	// once it's been stored.
+	Inventory []*SlotDevice `json:"inventory,omitempty"`
+
 	Settings Settings    `json:"settings"`
 	Stats    Stats       `json:"stats"`
 	RunLog   []RunRecord `json:"run_log,omitempty"`

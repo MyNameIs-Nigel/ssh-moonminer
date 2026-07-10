@@ -48,8 +48,8 @@ func (g *Game) helpLines() []string {
 			theme.Bright.Render("SHIPYARD"),
 			"Tab switch HANGAR/LOADOUT focus",
 			"↑/↓ select ship, track, or slot",
-			"Enter buy ship/track or install/upgrade a slot device",
-			"X or Backspace remove an installed slot device",
+			"Enter buy ship/track or open the item picker for a slot",
+			"X or Backspace remove — then choose store or sell for 95%",
 			"Esc or Q return to star chart",
 		}
 	case scrBelt:
@@ -95,7 +95,7 @@ func (g *Game) helpLines() []string {
 			"Enter depart to asteroid belt",
 			"F refuel · H repair hull",
 			"I insurance (when eligible)",
-			"U shipyard · L ship's log",
+			"S shipyard · L ship's log",
 			"T tweaks · Q quit",
 		}
 	}

@@ -232,6 +232,10 @@ type FleetConfig struct {
 // Extra Cargo and Extra Fuel Tank intentionally have no power fields — they
 // never draw power, the one explicit exception in the slot power system.
 type SlotsConfig struct {
+	// SellValuePct is the shipyard's remove-and-sell refund fraction (of the
+	// device's current buy price), used by sim.SlotItemSellValue.
+	SellValuePct float64 `toml:"sell_value_pct"`
+
 	CargoBasePrice    int     `toml:"cargo_base_price"`
 	CargoPerGrade     float64 `toml:"cargo_per_grade"`
 	CargoMassPerGrade float64 `toml:"cargo_mass_per_grade"`
@@ -451,6 +455,9 @@ func (c *Content) validateFleet() error {
 	}
 	if c.Fleet.BuybackPricePct <= 0 || c.Fleet.BuybackPricePct >= 1 {
 		return fmt.Errorf("content: fleet buyback_price_pct must be within (0..1)")
+	}
+	if c.Slots.SellValuePct <= 0 || c.Slots.SellValuePct >= 1 {
+		return fmt.Errorf("content: slots sell_value_pct must be within (0..1)")
 	}
 	if len(c.Ships) < 4 {
 		return fmt.Errorf("content: need at least 4 ships, got %d", len(c.Ships))

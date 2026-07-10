@@ -117,7 +117,7 @@ buyback price is always 0, so a pilot can never be permanently shipless.
 
 Every ship track and every slot device has a **grade** from 0 to 5, rendered
 as the existing filled/empty circle indicator (`●●●○○` style, already in
-`internal/tui/chart.go`) at a fixed width of 5 circles:
+`internal/tui/chart.go`):
 
 | Grade | E | D | C | B | A | S |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -125,10 +125,14 @@ as the existing filled/empty circle indicator (`●●●○○` style, already 
 
 A ship's **cap** per track is the highest grade its model can ever reach —
 different classes/models cap different tracks at different grades on purpose
-(see the ship table), so no ship can be maxed out everywhere. Slot devices are
-not ship-capped; any device up to grade 5 can be bought and installed if power
-and mass allow it (see below) — the constraint on a device's grade is the
-player's power/mass/credit budget, not the hull.
+(see the ship table), so no ship can be maxed out everywhere. **Track rows
+render exactly `cap` circles, not a fixed 5** — a Skiff whose Thrusters cap
+at C (grade 2) shows `●●○` for that row, never trailing circles it can
+mathematically never fill; slot devices have no per-item cap, so their rows
+always render all 5. Slot devices are not ship-capped; any device up to
+grade 5 can be bought and installed if power and mass allow it (see below) —
+the constraint on a device's grade is the player's power/mass/credit budget,
+not the hull.
 
 ### Brands
 

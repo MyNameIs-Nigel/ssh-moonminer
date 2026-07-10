@@ -125,17 +125,12 @@ func (g *Game) keyShipyard(k string) []tea.Cmd {
 	return nil
 }
 
-// shipyardSlotTarget decides what Enter would install on a slot row: the
-// cheapest unlocked catalog item at grade E on an empty slot, the next
-// grade of the currently-installed item while below S, or the next
-// catalog item at grade E once maxed — so every item/grade combination in
-// a slot kind is reachable by repeatedly pressing Enter.
-//
-// This is a v1 stand-in for the browsable item/grade picker described in
-// docs/tui/05-shipyard-screen.md's Navigation section (a list showing every
-// item at every affordable, power-fitting grade before committing). Replace
-// this cycle-on-Enter behavior with that picker rather than deleting it
-// outright — it can stay as the picker's default initial selection.
+// shipyardSlotTarget picks a sane starting cursor for the item picker
+// overlay (internal/tui/shipyard_picker.go, openSlotPicker): the first
+// unlocked catalog item at grade E on an empty slot, the next grade of the
+// currently-installed item while below S (so the default selection reads
+// as "the upgrade you'd get"), or the next catalog item at grade E once
+// maxed.
 func (g *Game) shipyardSlotTarget(inst *sim.ShipInstance, row shipyardRow) (sim.SlotKind, string, int) {
 	kind := row.slotKind()
 	var current *sim.SlotDevice
@@ -215,12 +210,8 @@ func (g *Game) shipyardActivate() []tea.Cmd {
 		snap, err := g.sess.BuyShipTrack(g.now, model.ID, row.track)
 		return g.refreshSnap(snap, err)
 	}
-	kind, itemID, grade := g.shipyardSlotTarget(st.Ships[model.ID], row)
-	if itemID == "" {
-		return nil
-	}
-	snap, err := g.sess.InstallSlotDevice(g.now, model.ID, kind, row.index, itemID, grade)
-	return g.refreshSnap(snap, err)
+	g.openSlotPicker(st.Ships[model.ID], row)
+	return nil
 }
 
 func (g *Game) shipyardRemove() []tea.Cmd {
@@ -240,17 +231,49 @@ func (g *Game) shipyardRemove() []tea.Cmd {
 	if row.kind == rowTrack {
 		return nil // track rows aren't removable
 	}
-	snap, err := g.sess.RemoveSlotDevice(g.now, model.ID, row.slotKind(), row.index)
-	return g.refreshSnap(snap, err)
+	if slotDeviceAt(st.Ships[model.ID], row) == nil {
+		return nil // nothing installed to remove
+	}
+	g.removeConfirmSel = 0
+	g.overlay = ovSlotRemove
+	return nil
 }
 
-// gradeDots renders a grade (0..5, E..S) as the existing violet
+// slotDeviceAt returns the device currently installed at row on inst, or
+// nil for an empty slot / a track row.
+func slotDeviceAt(inst *sim.ShipInstance, row shipyardRow) *sim.SlotDevice {
+	if inst == nil {
+		return nil
+	}
+	switch row.kind {
+	case rowUtility:
+		if row.index < len(inst.Utility) {
+			return inst.Utility[row.index]
+		}
+	case rowWeapon:
+		if row.index < len(inst.Weapon) {
+			return inst.Weapon[row.index]
+		}
+	case rowInternal:
+		return inst.Internal
+	}
+	return nil
+}
+
+// gradeDots renders a grade (0..max, E..S) as the existing violet
 // filled/empty circle indicator, matching the pips already shipped in
-// internal/tui/chart.go before this screen split out on its own.
-func gradeDots(grade int) string {
-	g := clampInt(grade, 0, sim.MaxGrade)
+// internal/tui/chart.go before this screen split out on its own. max is the
+// row's own cap (a track's model-specific TrackCap, or sim.MaxGrade for
+// slot devices, which have no per-item cap) — dots always render at exactly
+// that width rather than a fixed 5, so a ship whose track caps below S
+// doesn't show trailing pips it can never fill.
+func gradeDots(grade, max int) string {
+	if max < 0 {
+		max = 0
+	}
+	g := clampInt(grade, 0, max)
 	filled := strings.Repeat(theme.Violet.Render("●"), g)
-	empty := strings.Repeat(theme.DimStyle.Render("○"), sim.MaxGrade-g)
+	empty := strings.Repeat(theme.DimStyle.Render("○"), max-g)
 	return filled + empty
 }
 
@@ -273,7 +296,7 @@ func (g *Game) renderShipyard() string {
 		theme.Panel(fmt.Sprintf("%s — %s · %s", model.Name, strings.ToUpper(model.Brand), strings.ToUpper(model.Class)), loadoutW, panelH, loadoutBody, theme.Accent(theme.HueViolet)),
 		theme.Panel("STATUS", statusW, panelH, statusBody, theme.Accent(theme.HueViolet)),
 	)
-	hint := "↑/↓ SELECT · TAB PANE · ENTER BUY/EQUIP · X REMOVE · ESC/Q CHART"
+	hint := "↑/↓ SELECT · TAB PANE · ENTER BUY/PICK · X REMOVE · ESC/Q CHART"
 	return body + "\n" + g.renderKeybar(hint)
 }
 
@@ -360,7 +383,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		}
 		name := fmt.Sprintf("%-16s", sim.TrackName(t))
 		line := theme.OptionHC(theme.HueViolet, sel, st.Settings.HighContrast).Render(prefix+name) +
-			" " + gradeDots(grade) + " " + sim.GradeLetter(grade) +
+			" " + gradeDots(grade, cap) + " " + sim.GradeLetter(grade) +
 			" " + theme.Gold.Render(priceStr)
 		lines = append(lines, line)
 		g.hitPanelLine(len(lines)-1, loadoutX, line, fmt.Sprintf("loadout:%d", i), i)
@@ -446,7 +469,7 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 	if p := sim.SlotItemPower(g.content, d.ItemID, d.Grade); p > 0 {
 		powerGlyph = theme.Amber.Render(fmt.Sprintf(" ⚡%d", p))
 	}
-	line := fmt.Sprintf("%s%s %-14s %s %s%s", prefix, tag, name, gradeDots(d.Grade), sim.GradeLetter(d.Grade), powerGlyph)
+	line := fmt.Sprintf("%s%s %-14s %s %s%s", prefix, tag, name, gradeDots(d.Grade, sim.MaxGrade), sim.GradeLetter(d.Grade), powerGlyph)
 	if sel {
 		return theme.Bright.Render(line)
 	}

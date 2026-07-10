@@ -29,4 +29,6 @@ var (
 	ErrInvalidSlotItem  = errors.New("item does not fit this slot")
 	ErrInvalidSlotIndex = errors.New("invalid slot index")
 	ErrPowerExceeded    = errors.New("insufficient power capacity")
+	ErrSlotEmpty        = errors.New("slot is empty")
+	ErrInvalidInventory = errors.New("invalid inventory item")
 )
