@@ -42,16 +42,25 @@ working their current system because changing systems is expensive.
 
 ### Ships are lives
 
-The active ship is a consumable run-defining asset:
+**Superseded by** [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md):
+the pilot now owns a small **hangar** of ships (not a single always-replaced
+active ship), so death is scoped to the one ship that died, not the account's
+entire fleet:
 
 - Hull at `0` means the ship is dead, not merely unspaceworthy.
-- Death destroys the active ship, installed ship upgrades, unsold cargo, and any
-  active asteroid claim.
-- The pilot respawns at the Sol dock in a starter salvage skiff.
+- Death destroys **that specific owned ship** — its persistent stat grades and
+  every slot device bolted to it — plus unsold cargo and any active asteroid
+  claim. Any other ship already sitting in the hangar is untouched.
+- If the pilot still owns another ship, they simply keep flying the fleet they
+  have. If the destroyed ship was their only ship, they may **buy back** that
+  same model for 25% of its price — a fresh, unupgraded hull, not the one that
+  died — or fall back to the free starter Skiff, whose buyback price is always
+  0.
 - Banked credits, cosmetic unlocks, system transfer permits, and owned space
   stations survive death.
-- Superior ships must be repurchased after death. This is intentional: buying a
-  better ship is powerful but never permanent safety.
+- Superior ships must be repurchased (or bought back at the buyback discount)
+  after death. This is intentional: buying a better ship is powerful but never
+  permanent safety.
 
 This keeps death punishing without wiping account identity or late-game
 infrastructure.
@@ -105,8 +114,11 @@ first implementation should make pirates terrifying and readable.
 
 ## Random events
 
-Random events happen during mining and escape. The lower the hull percentage,
-the higher the chance that the next event is bad.
+**Superseded by** [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md):
+random events no longer have any chance of firing above 20% hull — they are
+gated entirely off, not merely rarer. Below that threshold, the lower the
+hull percentage within the 0–20% band, the higher the chance that the next
+event is bad, same shape as before just rescaled to the smaller band.
 
 Events are deterministic from the sim RNG and have TUI-visible effects:
 

@@ -3,6 +3,16 @@
 **Area:** Gameplay · **Phase:** 4 · **Depends on:** gameplay/01–03 ·
 **Parallel-safe with:** framework/04, tests/*, tui tasks
 
+> **Superseded in part:** the "Ships" and "Installed upgrades" sections below
+> (the five-ship purchase list and the five-track Drill/Tank/Cargo/Plating/
+> Surveyor upgrade system) are replaced by
+> [05-fleet-ships-and-shipyard-economy.md](05-fleet-ships-and-shipyard-economy.md) —
+> a 4-ship hangar model with per-track stat grades and slot devices. This
+> doc's Cosmetics, Lifetime stats, and Ship's log sections are still
+> authoritative; only `RunRecord.ShipClass` should eventually reference the
+> new model IDs (Skiff/Cicada/Warden/Mule) instead of the old five names —
+> a small follow-up, not a blocker.
+
 ## Goal
 
 Give the credits a long-term purpose and the pilot a history. Five systems,

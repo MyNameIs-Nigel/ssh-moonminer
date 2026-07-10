@@ -3,6 +3,16 @@
 **Area:** TUI · **Phase:** 3 · **Depends on:** tui/01, tui/04, gameplay/01
 (types) · **Parallel-safe with:** tui/03, framework/03
 
+> **Superseded in part:** the Shipyard is no longer a Star Chart sub-view/
+> overlay. It is now its own screen — see
+> [05-shipyard-screen.md](05-shipyard-screen.md) and
+> [../gameplay/05-fleet-ships-and-shipyard-economy.md](../gameplay/05-fleet-ships-and-shipyard-economy.md).
+> Wherever this doc below describes the Shipyard as a sub-view/overlay
+> (the `[S] SHIPYARD` sketch row and the "Shipyard (sub-view or overlay)"
+> paragraph), tui/05 wins. The Star Chart still owns the `[S] SHIPYARD`
+> button that *navigates* there, plus everything else on this page
+> (port services, cosmetics, stations, run summary, death, ship's log).
+
 ## Goal
 
 The bookend screens: the **Star Chart** (system/destination selection + port
@@ -24,7 +34,8 @@ after death, and reflects.
 ## Deliverables
 
 - `internal/tui/` — `chart.go`, `summary.go`, `death.go`, `shiplog.go`,
-  `shipyard.go`, `cosmetics.go`, `station.go` (+ tests)
+  `cosmetics.go`, `station.go` (+ tests). `shipyard.go` moved to
+  [05-shipyard-screen.md](05-shipyard-screen.md).
 
 ## Spec
 

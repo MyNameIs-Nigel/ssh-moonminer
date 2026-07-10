@@ -251,6 +251,8 @@ build_stage_count = 4
 ## Out of scope / handoffs
 
 - Loader plumbing/embed → framework/04.
-- Ship prices, upgrade prices, cosmetic unlock prices → gameplay/04 (adds its
-  own `[ships]`, `[upgrades]`, `[cosmetics]` tables here).
+- Ship prices, upgrade prices → **gameplay/05**
+  (`05-fleet-ships-and-shipyard-economy.md`), which supersedes the
+  `[ships]`/`[upgrades]` pointer this doc originally made to gameplay/04.
+  Cosmetic unlock prices remain gameplay/04's, unaffected.
 - Port UI (buttons, eligibility display) → tui/02.

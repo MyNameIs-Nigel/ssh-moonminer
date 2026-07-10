@@ -89,9 +89,18 @@ low-yield belt, one nearby planet that needs a fuel tank upgrade, one lucrative
 planet locked behind a permit, and one outer destination that needs both a
 bigger tank and a better ship.
 
-Ships gate range and risk capacity:
+Ships gate range and risk capacity. **Superseded:** the five-ship list below
+is historical — the authoritative fleet is now 4 ships across 3 brands
+(Federation, Alliance, Independent) and 3 classes (Miner, Fighter, Freighter),
+each with persistent per-ship stat grades and swappable slot devices under a
+per-ship power/mass budget, owned simultaneously in a hangar rather than
+replaced one-for-one. See
+[gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md)
+for the full ship table and economy, and
+[tui/05-shipyard-screen.md](tui/05-shipyard-screen.md) for the standalone
+Shipyard screen this replaces the old chart-overlay Shipyard with.
 
-| Ship class | Role |
+| Ship class (historical) | Role |
 | --- | --- |
 | **SALVAGE SKIFF** | free respawn ship; tiny hold, poor hull, Sol-local |
 | **PROSPECTOR** | first purchased ship; reaches more Sol planets |
