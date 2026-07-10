@@ -26,19 +26,18 @@ The chart is hierarchical:
 
 Most destinations start locked. A new pilot begins in the Sol system with only
 one low-yield destination available. Nearby Sol destinations can be reached with
-the starter ship only after fuel-tank upgrades; farther systems require both a
-ship with a sufficient jump rating and a large credit transfer fee.
+the starter ship only after fuel-tank upgrades; Eridani Drift requires an
+installed Jump Drive rather than a one-time transfer payment.
 
 Locks should explain themselves in the UI:
 
 - `LOCKED — NEED FUEL TANK II`
-- `LOCKED — BUY SYSTEM TRANSFER: ◈ 75,000`
-- `LOCKED — NEED CUTTER-CLASS SHIP`
+- `LOCKED — NEED JUMP DRIVE`
+- `LOCKED — NEED FIGHTER-CLASS SHIP`
 - `LOCKED — STATION NAV BEACON REQUIRED`
 
-Purchasing a system transfer is not a cheap fast-travel button. It is a major
-decision with a route-dependent cost. The player should often decide to keep
-working their current system because changing systems is expensive.
+The Jump Drive is an expensive, ship-mounted commitment. The pilot must choose
+between that route key and the competing internal modules that improve a run.
 
 ### Ships are lives
 
@@ -179,13 +178,10 @@ have identity even when ships are disposable.
 These are not blockers for the documentation revamp, but they should be decided
 before final balance/content authoring:
 
-1. Should system-transfer fees be paid once as a permanent route permit, or on
-   every transfer? This spec assumes a one-time permit plus smaller repeat fuel
-   costs.
-2. Should passive station income accrue while fully offline? This spec assumes
+1. Should passive station income accrue while fully offline? This spec assumes
    capped offline accrual so stations feel passive without becoming infinite
    idle-game income.
-3. Should the first implementation include player weapons, or keep pirates as
+2. Should the first implementation include player weapons, or keep pirates as
    flee-only pressure? This spec assumes flee-only for MVP.
-4. Should death ever take a percentage of banked credits? This spec assumes no:
+3. Should death ever take a percentage of banked credits? This spec assumes no:
    ship/cargo/upgrade loss is already severe and clearer.

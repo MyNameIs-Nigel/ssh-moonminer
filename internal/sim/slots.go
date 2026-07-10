@@ -69,10 +69,9 @@ func SlotItemName(itemID string) string {
 	return itemID
 }
 
-// SlotItemLocked reports whether the item cannot be installed yet (the Jump
-// Drive is teased in the shipyard catalog but requires future
-// next-system-travel content).
-func SlotItemLocked(itemID string) bool { return itemID == ItemJumpDrive }
+// SlotItemLocked reports whether the item is unavailable for purchase. Every
+// current catalog item is usable; the Jump Drive now unlocks Eridani Drift.
+func SlotItemLocked(itemID string) bool { return false }
 
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.

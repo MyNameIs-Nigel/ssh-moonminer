@@ -163,7 +163,7 @@ jammer_base_price = 850
 # uses_per_trip = 1 + grade/step: step=2 gives the first bonus charge at
 # grade C (2), matching docs/gameplay/05's "grade C+ grants an extra use".
 jammer_grade_uses_step = 2
-jump_drive_base_price = 5000
+jump_drive_base_price = 25000
 
 [[ships]]
 id = "skiff"

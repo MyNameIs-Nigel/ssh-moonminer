@@ -18,6 +18,7 @@ type System struct {
 	StartsUnlocked    bool   `toml:"starts_unlocked"`
 	TransferFee       int    `toml:"transfer_fee"`
 	RequiredShipClass string `toml:"required_ship_class"`
+	RequiredItemID    string `toml:"required_item_id"`
 }
 
 // World is one mineable destination on the star chart. The retained Go name
@@ -39,6 +40,11 @@ type World struct {
 	StartsUnlocked       bool    `toml:"starts_unlocked"`
 	RequiredFuelCapacity float64 `toml:"required_fuel_capacity"`
 	PermitFee            int     `toml:"permit_fee"`
+	RequiredShipClass    string  `toml:"required_ship_class"`
+	DrillTimeMul         float64 `toml:"drill_time_mul"`
+	PirateStartDistance  float64 `toml:"pirate_start_distance"`
+	PiratesAlwaysAttack  bool    `toml:"pirates_always_attack"`
+	PirateAttackMul      float64 `toml:"pirate_attack_mul"`
 }
 
 // PilotStart is the new-pilot starting resources.
@@ -402,6 +408,9 @@ func (c *Content) validate() error {
 		if system.RequiredShipClass != "" && !validClasses[system.RequiredShipClass] {
 			return fmt.Errorf("content: system %q has invalid required_ship_class %q", system.ID, system.RequiredShipClass)
 		}
+		if system.RequiredItemID != "" && system.RequiredItemID != "jump_drive" {
+			return fmt.Errorf("content: system %q has unsupported required_item_id %q", system.ID, system.RequiredItemID)
+		}
 		systems[system.ID] = true
 	}
 	if len(c.Worlds) < 4 {
@@ -417,6 +426,12 @@ func (c *Content) validate() error {
 		}
 		if w.PermitFee < 0 || w.RequiredFuelCapacity < 0 {
 			return fmt.Errorf("content: destination %q has invalid progression gate", w.ID)
+		}
+		if w.RequiredShipClass != "" && !validClasses[w.RequiredShipClass] {
+			return fmt.Errorf("content: destination %q has invalid required_ship_class %q", w.ID, w.RequiredShipClass)
+		}
+		if w.DrillTimeMul < 0 || w.PirateStartDistance < 0 || w.PirateAttackMul < 0 {
+			return fmt.Errorf("content: destination %q has invalid danger modifiers", w.ID)
 		}
 		destinations[w.ID] = true
 		if w.TravelFuel < 1 {

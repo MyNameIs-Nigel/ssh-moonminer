@@ -192,18 +192,15 @@ func TestInstallSlotDeviceFromInventoryRejectsWrongKindAndOverPower(t *testing.T
 	}
 }
 
-// TestInstallSlotDeviceFromInventoryRejectsLockedItem covers a device that
-// became locked after it was stored (InstallSlotDevice already blocks a
-// locked item from ever being bought, so this can only happen via a
-// content-side lock toggle after the fact — inject it directly into
-// Inventory to simulate that).
-func TestInstallSlotDeviceFromInventoryRejectsLockedItem(t *testing.T) {
+// TestInstallSlotDeviceFromInventoryReequipsJumpDrive ensures a stored Jump
+// Drive remains usable: it is now the permanent Eridani Drift route key.
+func TestInstallSlotDeviceFromInventoryReequipsJumpDrive(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
 	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemJumpDrive, Grade: 0}}
 
-	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotInternal, 0, 0); err != sim.ErrItemLocked {
-		t.Fatalf("expected ErrItemLocked for a locked stored item, got %v", err)
+	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotInternal, 0, 0); err != nil {
+		t.Fatalf("re-equip stored Jump Drive: %v", err)
 	}
 }
 

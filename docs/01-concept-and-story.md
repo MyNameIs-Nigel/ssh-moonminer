@@ -80,7 +80,7 @@ expansion:
 | System | Starting access | Design role |
 | --- | --- | --- |
 | **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit |
-| **ERIDANI DRIFT** | locked by transfer fee + ship class | harsher pirates, better ore |
+| **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks |
 | **KEPLER REACH** | locked by expensive transfer + higher jump rating | late-game station value |
 | **REDLINE EXPANSE** | locked endgame route | extremely profitable, routinely lethal |
 

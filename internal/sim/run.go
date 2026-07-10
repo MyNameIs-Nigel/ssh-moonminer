@@ -56,10 +56,14 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		return ErrInsufficientFuel
 	}
 	s.Fuel -= float64(ast.FuelCost)
+	pirateStartDistance := 100.0
+	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateStartDistance > 0 {
+		pirateStartDistance = w.PirateStartDistance
+	}
 	s.Run = &ActiveRun{
 		AsteroidID:           asteroidID,
 		Phase:                PhaseMining,
-		PirateDistance:       100,
+		PirateDistance:       pirateStartDistance,
 		CargoShiftPenaltyMul: 1.0,
 		StartHull:            s.Hull,
 		StartFuel:            s.Fuel,
@@ -375,7 +379,7 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 		}
 	}
 	if run.UnderAttack && !run.ChaffActive {
-		applyAttackDamageRate(s, c, run, c.Mining.AttackHullDamagePerSecond, dt)
+		applyAttackDamageRate(s, c, run, attackHullDamagePerSecond(s, c), dt)
 	}
 	fuelDrain := c.Mining.EscapeFuelDrainPerSec * FuelDrainMul(s, c)
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
@@ -390,6 +394,12 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 }
 
 func rollPirateAction(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, now int64) {
+	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PiratesAlwaysAttack {
+		run.PirateAction = PirateActionAttack
+		run.EventLog = append(run.EventLog, RunEventRecord{Kind: "pirate_attack", At: now})
+		startEscape(s, c, ast, true)
+		return
+	}
 	rng := runRNG(s, run, 9001)
 	if rng.Float64() < c.Mining.TributeChance {
 		run.PirateAction = PirateActionTribute
@@ -453,6 +463,14 @@ func TickInterval(c *content.Content) time.Duration {
 
 func pirateApproachRate(s *State, c *content.Content, ast *Asteroid) float64 {
 	return (float64(ast.Risk) / 100.0) * (c.Mining.PirateApproachBase + float64(ast.Tier)*c.Mining.PirateApproachPerTier) * s.Settings.PirateAggression
+}
+
+func attackHullDamagePerSecond(s *State, c *content.Content) float64 {
+	mul := 1.0
+	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateAttackMul > 0 {
+		mul = w.PirateAttackMul
+	}
+	return c.Mining.AttackHullDamagePerSecond * mul
 }
 
 // applyHullDamageRate applies continuous, tick-scaled non-combat damage

@@ -14,14 +14,14 @@ func TestRouteGatesAndPermits(t *testing.T) {
 	if got := sim.RouteLockReason(s, c, 1); got != "" { // Vesta starter belt
 		t.Fatalf("starter route locked: %q", got)
 	}
-	if got := sim.RouteLockReason(s, c, 3); got != "NEED FUEL CAPACITY 120" { // Io
+	if got := sim.RouteLockReason(s, c, 2); got != "NEED FUEL CAPACITY 120" { // Io
 		t.Fatalf("Io lock = %q", got)
 	}
 	s.Credits = 100000
 	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {
 		t.Fatal(err)
 	}
-	if got := sim.RouteLockReason(s, c, 3); got != "" {
+	if got := sim.RouteLockReason(s, c, 2); got != "" {
 		t.Fatalf("fuel-tank gate did not clear: %q", got)
 	}
 	if got := sim.RouteLockReason(s, c, 0); got != "BUY NAV PERMIT 7000 cr" {
@@ -40,23 +40,81 @@ func TestRouteGatesAndPermits(t *testing.T) {
 		t.Fatalf("Ceres permit and tank gates did not clear: %q", got)
 	}
 
-	if got := sim.RouteLockReason(s, c, 2); got != "NEED FIGHTER-CLASS SHIP" {
-		t.Fatalf("Eridani lock = %q", got)
+	if got := sim.RouteLockReason(s, c, 3); got != "NEED FIGHTER-CLASS SHIP" {
+		t.Fatalf("Titan lock = %q", got)
 	}
 	if err := sim.AcquireShip(s, c, "warden"); err != nil {
 		t.Fatal(err)
 	}
-	if err := sim.BuySystemPermit(s, c, "eridani"); err != nil {
-		t.Fatal(err)
-	}
-	if got := sim.RouteLockReason(s, c, 2); got != "NEED FUEL CAPACITY 120" {
-		t.Fatalf("Titan post-permit lock = %q", got)
+	if got := sim.RouteLockReason(s, c, 3); got != "NEED FUEL CAPACITY 120" {
+		t.Fatalf("Titan post-fighter lock = %q", got)
 	}
 	if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {
 		t.Fatal(err)
 	}
-	if got := sim.RouteLockReason(s, c, 2); got != "" {
+	if got := sim.RouteLockReason(s, c, 3); got != "" {
+		t.Fatalf("Titan route remains locked: %q", got)
+	}
+	if got := sim.RouteLockReason(s, c, 4); got != "NEED JUMP DRIVE" {
+		t.Fatalf("Eridani lock = %q", got)
+	}
+	if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotInternal, 0, sim.ItemJumpDrive, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := sim.RouteLockReason(s, c, 4); got != "" {
 		t.Fatalf("Eridani route remains locked: %q", got)
+	}
+}
+
+func TestSolDestinationOrderKeepsTitanBeforeEridani(t *testing.T) {
+	c := testContent(t)
+	want := []string{"ceres_claims", "vesta_local", "io_shadow", "titan_rings"}
+	for i, id := range want {
+		if c.Worlds[i].ID != id || c.Worlds[i].SystemID != "sol" {
+			t.Fatalf("world[%d] = %s in %s, want %s in sol", i, c.Worlds[i].ID, c.Worlds[i].SystemID, id)
+		}
+	}
+}
+
+func TestEridaniRingsAreSlowAndLethal(t *testing.T) {
+	c := testContent(t)
+	base := sim.New(c, 77, 0)
+	drift := sim.New(c, 77, 0)
+	baseBelt := sim.GenerateBelt(base, c, 1)   // Vesta
+	driftBelt := sim.GenerateBelt(drift, c, 4) // Eris
+	for i := range baseBelt {
+		if driftBelt[i].DrillSec < baseBelt[i].DrillSec*1.4-0.1 {
+			t.Fatalf("Eridani drill time too short: %.1f vs %.1f", driftBelt[i].DrillSec, baseBelt[i].DrillSec)
+		}
+	}
+
+	s := sim.New(c, 78, 0)
+	s.Credits = 100000
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotInternal, 0, sim.ItemJumpDrive, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.Depart(s, c, 4); err != nil {
+		t.Fatal(err)
+	}
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, s.Belt[0].ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.PirateDistance != 170 {
+		t.Fatalf("Eridani pirate start distance = %.0f, want 170", s.Run.PirateDistance)
+	}
+	s.Run.PirateDistance = 0
+	sim.TickRun(s, c, 0, 2)
+	if !s.Run.UnderAttack {
+		t.Fatal("Eridani pirates must always attack")
+	}
+	startHull := s.Hull
+	sim.TickRun(s, c, 1, 3)
+	if got, want := startHull-s.Hull, int(c.Mining.AttackHullDamagePerSecond*3); got != want {
+		t.Fatalf("Eridani attack damage = %d, want %d", got, want)
 	}
 }
 
