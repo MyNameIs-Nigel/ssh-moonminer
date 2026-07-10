@@ -42,6 +42,43 @@ func HullBar(pct float64, width int) string {
 	return RenderBar(pct, width, HullStyle(pct))
 }
 
+// HullShieldBar renders the Shield's blue charge over the hull bar. As the
+// shield drains, the underlying hull color is revealed instead.
+func HullShieldBar(hullPct, shieldPct float64, width int) string {
+	if width < 1 {
+		return ""
+	}
+	hullFill := int(float64(width) * clampPct(hullPct) / 100)
+	shieldFill := int(float64(width) * clampPct(shieldPct) / 100)
+	if shieldFill > width {
+		shieldFill = width
+	}
+	blue := lipgloss.NewStyle().Foreground(lipgloss.Color(brightC))
+	empty := lipgloss.NewStyle().Foreground(lipgloss.Color(emptyC))
+	var out strings.Builder
+	for i := 0; i < width; i++ {
+		switch {
+		case i < shieldFill:
+			out.WriteString(blue.Render("█"))
+		case i < hullFill:
+			out.WriteString(HullStyle(hullPct).Render("█"))
+		default:
+			out.WriteString(empty.Render("█"))
+		}
+	}
+	return out.String()
+}
+
+func clampPct(pct float64) float64 {
+	if pct < 0 {
+		return 0
+	}
+	if pct > 100 {
+		return 100
+	}
+	return pct
+}
+
 // DrillBar draws a drill progress gauge — cyan to green as it fills.
 func DrillBar(pct float64, width int) string {
 	return RenderBar(pct, width, DrillStyle(pct))

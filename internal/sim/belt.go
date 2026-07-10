@@ -142,6 +142,7 @@ func Dock(s *State, c *content.Content) {
 	s.Belt = nil
 	s.Scan = nil
 	RearmJammer(s, c)
+	restoreShipShieldFull(s, c, s.ActiveShipID)
 }
 
 // applySeismicSensors pre-scans free asteroids on belt arrival when the

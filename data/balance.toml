@@ -136,8 +136,14 @@ fuel_tank_per_grade = 10
 fuel_tank_mass_per_grade = 5
 shield_base_price = 900
 shield_power_k = 2.7
-shield_mass_per_grade = 8
-shield_hp_per_grade = 20
+  shield_mass_per_grade = 8
+  shield_hp_per_grade = 20
+  # E shields recharge from empty in 90 seconds; S shields in 15 seconds.
+  # A shield that bursts in a run can recover only 25% in the belt until it
+  # returns to dock for a full service.
+  shield_recharge_e_seconds = 90
+  shield_recharge_s_seconds = 15
+  shield_burst_return_pct = 0.25
 chaff_base_price = 250
 chaff_power_k = 0.6
 chaff_mass_per_grade = 2

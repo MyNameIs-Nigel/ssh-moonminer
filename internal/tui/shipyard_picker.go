@@ -24,7 +24,7 @@ import (
 
 const (
 	pickerPanelW  = 56
-	pickerVisible = 8
+	pickerVisible = 7
 	pickerPanelH  = pickerVisible + 6
 )
 
@@ -273,7 +273,27 @@ func (g *Game) pickerConfirm(model *content.ShipModel, row shipyardRow, entries 
 		g.setFlash("INSUFFICIENT CREDITS")
 		return nil
 	}
+	current := slotDeviceAt(g.snap.State.Ships[model.ID], row)
+	if current != nil {
+		if current.ItemID == e.itemID && current.Grade == e.grade {
+			g.setFlash("MODULE ALREADY INSTALLED")
+			return nil
+		}
+		// Never replace an occupied slot directly: retain the selected module,
+		// then use the normal Store/Sell confirmation for the installed one.
+		// The selected module is installed only after that choice completes.
+		g.pendingSlotInstall = &e
+		g.removeConfirmSel = removeConfirmStore
+		g.overlay = ovSlotRemove
+		return nil
+	}
+	return g.installPickerEntry(model, row, e)
+}
 
+// installPickerEntry installs an already-validated picker entry into an empty
+// slot. A replacement first passes through removeConfirm, which makes the slot
+// empty before calling this helper.
+func (g *Game) installPickerEntry(model *content.ShipModel, row shipyardRow, e pickerEntry) []tea.Cmd {
 	var snap sim.Snapshot
 	var err error
 	if e.fromInv {
@@ -293,13 +313,17 @@ func (g *Game) renderSlotPickerOverlay() string {
 
 	lines := []string{
 		theme.DimStyle.Render("←/→ grade · ↑/↓ item · ENTER install · ESC cancel"),
-		"",
+		theme.DimStyle.Render("CATALOG"),
 	}
+	catalogCount := len(sim.SlotItemsFor(row.slotKind()))
 	visible := pickerVisible
 	if len(entries) < visible {
 		visible = len(entries)
 	}
 	for i := g.pickerScroll; i < g.pickerScroll+visible && i < len(entries); i++ {
+		if i == catalogCount {
+			lines = append(lines, theme.Violet.Render("IN STORAGE — free to re-equip"))
+		}
 		e := entries[i]
 		sel := i == g.pickerSel
 		prefix := "  "
@@ -347,7 +371,8 @@ func (g *Game) renderSlotPickerOverlay() string {
 	}
 	lines = append(lines, theme.DimStyle.Render(scrollHint))
 	body := strings.Join(lines, "\n")
-	title := fmt.Sprintf("INSTALL — %s", pickerRowLabel(row))
+	stored := inventoryCountForKind(g.snap.State.Inventory, row.slotKind())
+	title := fmt.Sprintf("INSTALL — %s · STORAGE %d", pickerRowLabel(row), stored)
 	return theme.Panel(title, pickerPanelW, pickerPanelH, body, theme.Accent(theme.HueViolet))
 }
 
@@ -375,7 +400,12 @@ func (g *Game) updateSlotRemoveOverlay(k string) []tea.Cmd {
 	}
 	switch k {
 	case "esc", "q":
-		g.overlay = ovNone
+		if g.pendingSlotInstall != nil {
+			g.pendingSlotInstall = nil
+			g.overlay = ovSlotPicker
+		} else {
+			g.overlay = ovNone
+		}
 		return nil
 	case "up", "down", "left", "right", "h", "j", "k", "l", "tab":
 		g.removeConfirmSel = 1 - g.removeConfirmSel
@@ -399,8 +429,17 @@ func (g *Game) removeConfirm(model *content.ShipModel, row shipyardRow) []tea.Cm
 	} else {
 		snap, err = g.sess.StoreSlotDevice(g.now, model.ID, row.slotKind(), row.index)
 	}
+	if err != nil {
+		return g.refreshSnap(snap, err)
+	}
+	g.refreshSnap(snap, nil)
+	if g.pendingSlotInstall != nil {
+		e := *g.pendingSlotInstall
+		g.pendingSlotInstall = nil
+		return g.installPickerEntry(model, row, e)
+	}
 	g.overlay = ovNone
-	return g.refreshSnap(snap, err)
+	return nil
 }
 
 // removeContext re-derives the model/row the remove-confirm overlay is
@@ -434,7 +473,12 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	lines := []string{
 		theme.DimStyle.Render("REMOVE — " + pickerRowLabel(row)),
 		name,
-		"",
+	}
+	if g.pendingSlotInstall != nil {
+		e := *g.pendingSlotInstall
+		lines = append(lines, theme.DimStyle.Render("THEN INSTALL — "+sim.SlotItemName(e.itemID)+" "+sim.GradeLetter(e.grade)))
+	} else {
+		lines = append(lines, "")
 	}
 	storeStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmStore, st.Settings.HighContrast)
 	sellStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmSell, st.Settings.HighContrast)

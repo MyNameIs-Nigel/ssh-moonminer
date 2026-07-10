@@ -134,6 +134,68 @@ func TestPickerBuildEntriesListsCatalogAndMatchingInventoryOnly(t *testing.T) {
 	}
 }
 
+// TestPickerRendersStorageSection makes stored modules discoverable and
+// selectable from a distinct in-storage section of the item picker.
+func TestPickerRendersStorageSection(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	st.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemChaff, Grade: 1}}
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+
+	out := g.renderSlotPickerOverlay()
+	if !strings.Contains(out, "IN STORAGE") || !strings.Contains(out, "CHAFF LAUNCHER") {
+		t.Fatalf("expected a visible storage section with the stored module, got:\n%s", out)
+	}
+}
+
+// TestPickerReplacementUsesRemoveConfirmation ensures selecting a different
+// module never overwrites the installed one directly.
+func TestPickerReplacementUsesRemoveConfirmation(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	st.Credits = 100000
+	if err := sim.InstallSlotDevice(st, c, "skiff", sim.SlotUtility, 0, sim.ItemShield, 0); err != nil {
+		t.Fatal(err)
+	}
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+	model, row, entries, ok := g.pickerContext()
+	if !ok {
+		t.Fatal("expected a valid picker context")
+	}
+	for i, e := range entries {
+		if e.itemID == sim.ItemCargo {
+			g.pickerSel = i
+			break
+		}
+	}
+	g.pickerConfirm(model, row, entries)
+
+	if g.overlay != ovSlotRemove || g.pendingSlotInstall == nil {
+		t.Fatalf("expected replacement to open the store/sell dialog, got overlay=%v pending=%+v", g.overlay, g.pendingSlotInstall)
+	}
+	if d := g.snap.State.Ships["skiff"].Utility[0]; d == nil || d.ItemID != sim.ItemShield {
+		t.Fatalf("opening removal confirmation changed installed module: %+v", d)
+	}
+}
+
 // TestPickerLeftRightAdjustsCatalogGradeOnly covers that arrow keys only
 // move the grade cursor on catalog rows, never on the inventory section.
 func TestPickerLeftRightAdjustsCatalogGradeOnly(t *testing.T) {

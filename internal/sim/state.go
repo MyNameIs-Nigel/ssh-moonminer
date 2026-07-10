@@ -7,12 +7,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Bumped to 2 for the
-// fleet/shipyard rework (gameplay/05): pre-2 saves have no Ships/
-// ActiveShipID and are migrated onto a fresh starter ship in DecodeState,
-// discarding the old single-track Upgrades field (silently dropped by
-// json.Unmarshal, since State no longer declares it).
-const StateVersion = 2
+// StateVersion is the current save schema version. Version 2 introduced the
+// fleet/shipyard rework; version 3 adds persistent per-ship shield state.
+const StateVersion = 3
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -66,6 +63,13 @@ type ShipInstance struct {
 	// internal module can suppress before it must be rearmed at dock.
 	// Rearmed to full on Dock(); irrelevant unless Internal is the jammer.
 	JammerCharges int `json:"jammer_charges"`
+
+	// ShieldHP persists the active Shield module's remaining absorption pool
+	// between mining runs. ShieldDamaged is set when that pool is depleted;
+	// a burst shield can only recover to its belt-side emergency charge until
+	// the ship reaches dock for service.
+	ShieldHP      float64 `json:"shield_hp"`
+	ShieldDamaged bool    `json:"shield_damaged"`
 }
 
 // Stats tracks lifetime pilot statistics.
@@ -235,9 +239,6 @@ type ActiveRun struct {
 	StartFuel float64 `json:"start_fuel"`
 	StartedAt int64   `json:"started_at"`
 
-	// ShieldHP is this run's remaining Shield absorption buffer (0 if no
-	// Shield installed); it recharges to full each time a run is Locked.
-	ShieldHP float64 `json:"shield_hp"`
 	// ChaffActive/ChaffRemaining track the one auto-triggered Chaff Launcher
 	// suppression window per run, started the instant pirates attack.
 	ChaffActive    bool    `json:"chaff_active"`
@@ -354,7 +355,8 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, fmt.Errorf("sim: decode state: %w", err)
 	}
-	if s.Version > StateVersion {
+	savedVersion := s.Version
+	if savedVersion > StateVersion {
 		return nil, fmt.Errorf("sim: unsupported state version %d", s.Version)
 	}
 	if s.Version < StateVersion {
@@ -389,6 +391,16 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 	}
 	s.Run = nil  // never restore mid-run
 	s.Scan = nil // never restore mid-scan
+	if savedVersion < 3 {
+		// Old saves reset a shield on every Lock and therefore have no
+		// persistent charge. Give installed shields a full starting charge
+		// rather than treating every existing pilot's shield as burst.
+		for shipID := range s.Ships {
+			if ShieldMaxHPFor(&s, c, shipID) > 0 {
+				restoreShipShieldFull(&s, c, shipID)
+			}
+		}
+	}
 	return &s, nil
 }
 

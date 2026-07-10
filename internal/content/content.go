@@ -248,6 +248,13 @@ type SlotsConfig struct {
 	ShieldPowerK       float64 `toml:"shield_power_k"`
 	ShieldMassPerGrade float64 `toml:"shield_mass_per_grade"`
 	ShieldHPPerGrade   float64 `toml:"shield_hp_per_grade"`
+	// ShieldRechargeESeconds / ShieldRechargeSSeconds are the full-recharge
+	// times at E and S grade; intermediate grades interpolate linearly.
+	ShieldRechargeESeconds float64 `toml:"shield_recharge_e_seconds"`
+	ShieldRechargeSSeconds float64 `toml:"shield_recharge_s_seconds"`
+	// ShieldBurstReturnPct caps a burst shield's belt-side recovery until it
+	// is serviced at dock.
+	ShieldBurstReturnPct float64 `toml:"shield_burst_return_pct"`
 
 	ChaffBasePrice    int     `toml:"chaff_base_price"`
 	ChaffPowerK       float64 `toml:"chaff_power_k"`
@@ -458,6 +465,14 @@ func (c *Content) validateFleet() error {
 	}
 	if c.Slots.SellValuePct <= 0 || c.Slots.SellValuePct >= 1 {
 		return fmt.Errorf("content: slots sell_value_pct must be within (0..1)")
+	}
+	if c.Slots.ShieldRechargeESeconds < 15 || c.Slots.ShieldRechargeSSeconds < 15 ||
+		c.Slots.ShieldRechargeESeconds < c.Slots.ShieldRechargeSSeconds ||
+		c.Slots.ShieldRechargeESeconds > 90 {
+		return fmt.Errorf("content: shield recharge must be 15..90 seconds, slowest at E")
+	}
+	if c.Slots.ShieldBurstReturnPct <= 0 || c.Slots.ShieldBurstReturnPct > 1 {
+		return fmt.Errorf("content: shield_burst_return_pct must be within (0..1]")
 	}
 	if len(c.Ships) < 4 {
 		return fmt.Errorf("content: need at least 4 ships, got %d", len(c.Ships))

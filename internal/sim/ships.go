@@ -353,6 +353,7 @@ func activateShip(s *State, c *content.Content, modelID string) {
 	s.Fuel = FuelCapacity(s, c)
 	s.Hull = MaxHull(s, c)
 	RearmJammer(s, c)
+	restoreShipShieldFull(s, c, modelID)
 }
 
 // AcquireShip buys (or buys back) modelID into the hangar and makes it the

@@ -57,7 +57,7 @@ func (a *actor) run() {
 	defer mineTick.Stop()
 
 	for {
-		if a.state.Run != nil || a.state.Scan != nil {
+		if a.state.WorldIdx >= 0 || a.state.Run != nil || a.state.Scan != nil {
 			mineTick.Reset(tickDur)
 		} else {
 			mineTick.Stop()
@@ -81,7 +81,7 @@ func (a *actor) run() {
 }
 
 func (a *actor) tick() {
-	if a.state.Run == nil && a.state.Scan == nil {
+	if a.state.WorldIdx < 0 && a.state.Run == nil && a.state.Scan == nil {
 		return
 	}
 	now := time.Now().Unix()
@@ -93,6 +93,9 @@ func (a *actor) tick() {
 	}
 	if a.state.Scan != nil {
 		sim.TickScan(a.state, dt)
+	}
+	if a.state.Run == nil {
+		sim.TickBelt(a.state, a.mgr.content, dt)
 	}
 	a.dirty = true
 	snap := sim.Snapshot{State: *a.state.Clone()}

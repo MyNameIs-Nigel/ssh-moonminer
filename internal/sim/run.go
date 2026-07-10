@@ -64,7 +64,6 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartHull:            s.Hull,
 		StartFuel:            s.Fuel,
 		StartedAt:            now,
-		ShieldHP:             ShieldMaxHP(s, c),
 	}
 	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
 		inst.JammerCharges--
@@ -477,17 +476,22 @@ func applyHullDamageInstant(s *State, run *ActiveRun, amount float64) {
 
 // applyAttackDamageRate applies continuous pirate-attack damage: the
 // Defense Turret's percentage mitigation reduces the incoming rate, then
-// the Shield's remaining buffer for this run absorbs what's left, and only
+// the active ship's persistent Shield buffer absorbs what's left, and only
 // the remainder reaches the hull.
 func applyAttackDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
 	if ratePerSecond <= 0 || dt <= 0 {
 		return
 	}
 	amount := ratePerSecond * AttackDamageMul(s, c) * dt
-	if run.ShieldHP > 0 {
-		absorbed := math.Min(run.ShieldHP, amount)
-		run.ShieldHP -= absorbed
+	inst := ActiveShip(s)
+	if inst != nil && inst.ShieldHP > 0 {
+		absorbed := math.Min(inst.ShieldHP, amount)
+		inst.ShieldHP -= absorbed
 		amount -= absorbed
+		if inst.ShieldHP <= 0 {
+			inst.ShieldHP = 0
+			inst.ShieldDamaged = true
+		}
 	}
 	applyHullDamageCarry(s, run, amount)
 }
@@ -578,6 +582,9 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 		respawnActiveShip(s, c)
 	} else if kind == OutcomeDeparted {
 		s.Settings.InsuranceUsed = false
+	}
+	if kind != OutcomeShipLost {
+		restoreBurstShieldOnBeltReturn(s, c)
 	}
 
 	s.Run = nil
