@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -93,17 +94,24 @@ func (g *Game) renderEventBadge(st *sim.State, run *sim.ActiveRun) string {
 }
 
 func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Asteroid, name string, tier, value int) string {
+	// "Resource left" tracks whichever cap ends the run sooner — the rock's
+	// own volume, or the ship's cargo hold filling up first — so the bar
+	// always reaches 0% exactly when DEPART goes green.
 	resourcePct := 0.0
 	if ast != nil && ast.Volume > 0 {
-		resourcePct = clampF(100*(1-run.MinedUnits/float64(ast.Volume)), 0, 100)
+		cap_ := math.Min(float64(ast.Volume), sim.CargoCapacityUnits(st, g.content))
+		if cap_ > 0 {
+			resourcePct = clampF(100*(1-run.MinedUnits/cap_), 0, 100)
+		}
 	}
-	depleted := ast == nil || run.MinedUnits >= float64(ast.Volume)
+	depleted := sim.RunDepleted(st, g.content, ast, run)
 
 	title := fmt.Sprintf("%s MINING SITE — %s (%s %s)", theme.Glyph("diamond", st.Settings.ASCIISafe),
 		name, g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier])
 	title = theme.Amber.Render(title)
 
 	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
 	if badge := g.renderEventBadge(st, run); badge != "" {
@@ -117,8 +125,8 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 			theme.TxtStyle.Render(fmt.Sprintf("%3.0f%%", resourcePct))),
 		fmt.Sprintf("%s HULL         %s %s",
 			theme.Glyph("skull", st.Settings.ASCIISafe),
-			theme.HullBar(float64(st.Hull), 26),
-			theme.HullStyle(float64(st.Hull)).Render(fmt.Sprintf("%3d%%", st.Hull))),
+			theme.HullBar(hullPct, 26),
+			theme.HullStyle(hullPct).Render(fmt.Sprintf("%3.0f%%", hullPct))),
 		fmt.Sprintf("%s FUEL         %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
@@ -270,6 +278,7 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 		remaining = 0
 	}
 	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
 	if badge := g.renderEventBadge(st, run); badge != "" {
@@ -283,8 +292,8 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 			theme.DrillStyle(pct).Render(fmt.Sprintf("%3.0f%%", pct)), remaining),
 		fmt.Sprintf("%s HULL          %s %s",
 			theme.Glyph("skull", st.Settings.ASCIISafe),
-			theme.HullBar(float64(st.Hull), 26),
-			theme.HullStyle(float64(st.Hull)).Render(fmt.Sprintf("%3d%%", st.Hull))),
+			theme.HullBar(hullPct, 26),
+			theme.HullStyle(hullPct).Render(fmt.Sprintf("%3.0f%%", hullPct))),
 		fmt.Sprintf("%s FUEL          %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),

@@ -6,9 +6,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// TankSize returns effective fuel tank capacity.
+// TankSize returns the active ship's effective fuel tank capacity.
 func TankSize(s *State, c *content.Content) float64 {
-	return float64(c.Upgrades.BaseTank + s.Upgrades.Tank*c.Upgrades.TankBonus)
+	return FuelCapacity(s, c)
 }
 
 // RefuelCost returns credits to fill the tank.
@@ -20,12 +20,13 @@ func RefuelCost(s *State, c *content.Content) int {
 	return int(math.Round(missing * float64(c.Port.RefuelPerPoint)))
 }
 
-// RepairCost returns credits to repair hull to 100.
+// RepairCost returns credits to repair hull to the active ship's max.
 func RepairCost(s *State, c *content.Content) int {
-	if s.Hull >= 100 {
+	max := MaxHull(s, c)
+	if s.Hull >= max {
 		return 0
 	}
-	missing := 100 - s.Hull
+	missing := max - s.Hull
 	rate := float64(c.Port.RepairPerPoint)
 	if s.Hull == 0 {
 		rate *= c.Port.DrydockSurchargeMul

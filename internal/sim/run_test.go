@@ -57,8 +57,12 @@ func TestDepartAfterDepletion(t *testing.T) {
 	if s.Run.Phase != sim.PhaseMining {
 		t.Skip("pirates arrived before depletion in this scenario; not exercising depart path")
 	}
-	if s.Run.MinedUnits < float64(ast.Volume) {
-		t.Fatalf("expected asteroid depleted, mined %v of %v", s.Run.MinedUnits, ast.Volume)
+	// "Depleted" now means the rock's own volume ran out OR the ship's cargo
+	// hold filled first (gameplay/05) — the starter Skiff's hold is smaller
+	// than this test's asteroid volume, so cargo-full is the expected path.
+	if !sim.RunDepleted(s, c, &ast, s.Run) {
+		t.Fatalf("expected depleted (volume or cargo-full), mined %v of volume %v cargo cap %v",
+			s.Run.MinedUnits, ast.Volume, sim.CargoCapacityUnits(s, c))
 	}
 	if err := sim.BailOrDepart(s, c, 2000); err != nil {
 		t.Fatal(err)
@@ -188,12 +192,11 @@ func TestRefuseTributeStartsAttack(t *testing.T) {
 	t.Skip("no seed in range rolled a tribute demand")
 }
 
-func TestShipLostResetsUpgradesKeepsCredits(t *testing.T) {
+func TestShipLostResetsHangarEntryKeepsCredits(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
+	s.Ships["skiff"].Grades.Thrusters = 3 // direct mutation — must not cost credits
 	s.Credits = 5000
-	s.Upgrades.Drill = 3
-	s.Upgrades.Plating = 2
 	_ = sim.Depart(s, c, 1)
 	ast := s.Belt[0]
 	s.Fuel = 500
@@ -213,14 +216,17 @@ func TestShipLostResetsUpgradesKeepsCredits(t *testing.T) {
 	if s.Run != nil {
 		t.Fatal("run should be cleared")
 	}
-	if s.Upgrades != (sim.Upgrades{}) {
-		t.Fatalf("expected upgrades reset on ship loss, got %+v", s.Upgrades)
+	if !sim.OwnsShip(s, "skiff") {
+		t.Fatal("expected a fresh starter ship to be granted on loss of the only ship")
 	}
-	if s.Hull != c.Pilot.StartHull {
-		t.Fatalf("expected hull respawn to %d, got %d", c.Pilot.StartHull, s.Hull)
+	if sim.TrackGrade(s, "skiff", sim.TrackThrusters) != c.ShipByID("skiff").ThrustersStart {
+		t.Fatalf("expected the respawned skiff's grades reset to stock, got thrusters=%d", sim.TrackGrade(s, "skiff", sim.TrackThrusters))
 	}
-	if s.Fuel != float64(c.Pilot.StartFuel) {
-		t.Fatalf("expected fuel respawn to %d, got %v", c.Pilot.StartFuel, s.Fuel)
+	if s.Hull != sim.MaxHull(s, c) {
+		t.Fatalf("expected hull respawn to max (%d), got %d", sim.MaxHull(s, c), s.Hull)
+	}
+	if s.Fuel != sim.TankSize(s, c) {
+		t.Fatalf("expected fuel respawn to a full tank (%v), got %v", sim.TankSize(s, c), s.Fuel)
 	}
 	if s.Credits != 5000 {
 		t.Fatalf("banked credits must survive ship loss, got %d", s.Credits)
@@ -230,6 +236,45 @@ func TestShipLostResetsUpgradesKeepsCredits(t *testing.T) {
 	}
 	if s.Stats.ShipsLost != 1 {
 		t.Fatalf("expected ship-loss stats incremented, got %+v", s.Stats)
+	}
+}
+
+func TestShipLostFallsBackToBestRemainingOwnedShip(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.AcquireShip(s, c, "cicada"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.SwitchActiveShip(s, c, "cicada"); err != nil {
+		t.Fatal(err)
+	}
+	if s.ActiveShipID != "cicada" {
+		t.Fatalf("expected cicada active, got %s", s.ActiveShipID)
+	}
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.BailOrDepart(s, c, 1000); err != nil {
+		t.Fatal(err)
+	}
+	s.Run.UnderAttack = true
+	s.Hull = 0
+	if _, ended := sim.TickRun(s, c, 0.25, 2000); !ended {
+		t.Fatal("expected the run to resolve")
+	}
+	if sim.OwnsShip(s, "cicada") {
+		t.Fatal("the destroyed cicada should be removed from the hangar")
+	}
+	if s.ActiveShipID != "skiff" {
+		t.Fatalf("expected fallback to the still-owned skiff, got %s", s.ActiveShipID)
+	}
+	if !sim.IsBuyback(s, "cicada") {
+		t.Fatal("expected cicada to now price as a buyback")
 	}
 }
 
@@ -290,15 +335,21 @@ func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 	}
 }
 
-func TestAttackDamagePerSecondRespectsPlatingFloor(t *testing.T) {
+func TestAttackDamagePerSecondRespectsTurretMitigation(t *testing.T) {
 	c := testContent(t)
-	for _, lvl := range []int{0, 1, 2, 3, 4} {
+	for _, grade := range []int{0, 1, 2, 3, 4} {
 		s := sim.New(c, 1, 1000)
+		s.Credits = 100000
+		if err := sim.AcquireShip(s, c, "warden"); err != nil {
+			t.Fatal(err)
+		}
+		if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotWeapon, 0, sim.ItemTurret, grade); err != nil {
+			t.Fatal(err)
+		}
 		_ = sim.Depart(s, c, 1)
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
-		s.Upgrades.Plating = lvl
 		if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 			t.Fatal(err)
 		}
@@ -312,14 +363,14 @@ func TestAttackDamagePerSecondRespectsPlatingFloor(t *testing.T) {
 		}
 		lost := startHull - s.Hull
 
-		reduced := c.Mining.AttackHullDamagePerSecond - float64(lvl*c.Upgrades.PlatingReduction)
-		if reduced < float64(c.Upgrades.PlatingFloor) {
-			reduced = float64(c.Upgrades.PlatingFloor)
-		}
-		want := int(reduced)
+		pct := c.Slots.TurretPctPerGrade * float64(grade+1)
+		want := int(c.Mining.AttackHullDamagePerSecond * (1 - pct))
 		if lost != want {
-			t.Fatalf("plating=%d: expected %d hull lost over 1s at %.1f dmg/s, got %d",
-				lvl, want, c.Mining.AttackHullDamagePerSecond, lost)
+			t.Fatalf("turret grade=%d: expected %d hull lost over 1s at %.1f dmg/s, got %d",
+				grade, want, c.Mining.AttackHullDamagePerSecond, lost)
+		}
+		if grade > 0 && lost >= int(c.Mining.AttackHullDamagePerSecond) {
+			t.Fatalf("turret grade=%d should mitigate some damage, lost as much as unmitigated", grade)
 		}
 	}
 }
@@ -436,12 +487,20 @@ func TestSkillCheckExpiryHasNoEffectOnShip(t *testing.T) {
 	}
 }
 
-func TestPirateETANarrowsWithSurveyor(t *testing.T) {
+func TestPirateETANarrowsWithHighScannerGrade(t *testing.T) {
 	c := testContent(t)
 
-	widthFor := func(surveyor int) float64 {
+	widthFor := func(grade int) float64 {
 		s := sim.New(c, 1, 1000)
-		s.Upgrades.Surveyor = surveyor
+		s.Credits = 200000
+		if err := sim.AcquireShip(s, c, "cicada"); err != nil {
+			t.Fatal(err)
+		}
+		for sim.TrackGrade(s, "cicada", sim.TrackScanner) < grade {
+			if err := sim.BuyShipTrack(s, c, "cicada", sim.TrackScanner); err != nil {
+				t.Fatal(err)
+			}
+		}
 		_ = sim.Depart(s, c, 1)
 		ast := s.Belt[0]
 		s.Fuel = 500
@@ -452,10 +511,10 @@ func TestPirateETANarrowsWithSurveyor(t *testing.T) {
 		return s.Run.PirateETAMax - s.Run.PirateETAMin
 	}
 
-	base := widthFor(0)
-	upgraded := widthFor(4)
+	base := widthFor(3)     // B grade — no ETA bonus yet (only A/S narrow further)
+	upgraded := widthFor(5) // S grade — max ETA bonus
 	if upgraded >= base {
-		t.Fatalf("expected Surveyor upgrades to narrow the pirate ETA range: base=%v upgraded=%v", base, upgraded)
+		t.Fatalf("expected high Scanner grades to narrow the pirate ETA range: base=%v upgraded=%v", base, upgraded)
 	}
 }
 
@@ -495,5 +554,108 @@ func TestLowHullIncreasesEventChance(t *testing.T) {
 	highHullCount := countEvents(100, 150)
 	if lowHullCount <= highHullCount {
 		t.Fatalf("expected low-hull event rate to exceed high-hull rate: low=%d high=%d", lowHullCount, highHullCount)
+	}
+	if highHullCount != 0 {
+		t.Fatalf("expected zero events at/above the hull gate, got %d", highHullCount)
+	}
+}
+
+// TestCargoCapDepletionLeavesRemnant covers a bug where mining stopping
+// early because the cargo hold filled (not because the rock ran out) still
+// hard-deleted the asteroid on Departed, destroying real unmined ore instead
+// of leaving the same kind of remnant a bailed run would.
+func TestCargoCapDepletionLeavesRemnant(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	ast.Volume = 4600 // force it well above the starter skiff's cargo cap
+	s.Belt[0] = ast
+	s.Belt[0].Scanned = true
+	s.Fuel = 500
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	cargoCap := sim.CargoCapacityUnits(s, c)
+	if cargoCap >= float64(ast.Volume) {
+		t.Fatalf("test setup invalid: cargo cap %v must be below asteroid volume %v", cargoCap, ast.Volume)
+	}
+
+	dt := 0.25
+	for i := 0; i < 400 && s.Run != nil && s.Run.Phase == sim.PhaseMining; i++ {
+		sim.TickRun(s, c, dt, 1000+int64(i))
+	}
+	if s.Run == nil || s.Run.Phase != sim.PhaseMining {
+		t.Skip("pirates arrived before the hold filled in this scenario")
+	}
+	if !sim.RunDepleted(s, c, &ast, s.Run) {
+		t.Fatalf("expected cargo-cap depletion, mined %v of cap %v", s.Run.MinedUnits, cargoCap)
+	}
+	minedBeforeResolve := s.Run.MinedUnits
+	if err := sim.BailOrDepart(s, c, 2000); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.Intent != sim.OutcomeDeparted {
+		t.Fatalf("expected departed intent once the hold is full, got %v", s.Run.Intent)
+	}
+	s.Run.EscapeSecondsRequired = 0
+	out, ended := sim.TickRun(s, c, 0.1, 3000)
+	if !ended || out == nil {
+		t.Fatal("expected the escape to resolve")
+	}
+
+	remaining, _ := sim.FindAsteroid(s, ast.ID)
+	if remaining == nil {
+		t.Fatalf("cargo-cap-triggered departure destroyed the whole asteroid — %v units were never mined and should have survived as a remnant", float64(ast.Volume)-minedBeforeResolve)
+	}
+	if remaining.Volume >= ast.Volume {
+		t.Fatalf("expected the remnant to shrink below the original volume, got %d (was %d)", remaining.Volume, ast.Volume)
+	}
+}
+
+// TestSwitchActiveShipRearmsJammer covers a bug where switching to a parked
+// ship carried over its stale (possibly drained) Pirate Jammer charges
+// instead of treating the switch as arriving fresh from a maintained hangar.
+func TestSwitchActiveShipRearmsJammer(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.AcquireShip(s, c, "cicada"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.InstallSlotDevice(s, c, "cicada", sim.SlotInternal, 0, sim.ItemJammer, 4); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.SwitchActiveShip(s, c, "skiff"); err != nil {
+		t.Fatal(err)
+	}
+	// Drain cicada's jammer charges to 0 while it's parked, simulating a
+	// prior trip that used them all up without redocking on cicada.
+	s.Ships["cicada"].JammerCharges = 0
+
+	if err := sim.SwitchActiveShip(s, c, "cicada"); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Ships["cicada"].JammerCharges; got == 0 {
+		t.Fatalf("expected SwitchActiveShip to rearm the jammer like a fresh dock arrival, got %d charges", got)
+	}
+}
+
+// TestJammerGradeCPlusGrantsExtraCharge locks in gameplay/05's documented
+// "grade C+ grants 1 + floor(g/3) uses" — grade C (2) must already show the
+// bonus, not just grade B (3).
+func TestJammerGradeCPlusGrantsExtraCharge(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.AcquireShip(s, c, "cicada"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.InstallSlotDevice(s, c, "cicada", sim.SlotInternal, 0, sim.ItemJammer, 2); err != nil {
+		t.Fatal(err)
+	}
+	sim.RearmJammer(s, c)
+	if got := s.Ships["cicada"].JammerCharges; got < 2 {
+		t.Fatalf("expected grade C (2) to already grant a second charge, got %d", got)
 	}
 }

@@ -34,12 +34,13 @@ func Refuel(s *State, c *content.Content) error {
 	return nil
 }
 
-// Repair restores hull to 100.
+// Repair restores hull to the active ship's max.
 func Repair(s *State, c *content.Content) error {
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
-	if s.Hull >= 100 {
+	max := MaxHull(s, c)
+	if s.Hull >= max {
 		return ErrAlreadyFull
 	}
 	cost := RepairCost(s, c)
@@ -47,7 +48,7 @@ func Repair(s *State, c *content.Content) error {
 		return ErrInsufficientFunds
 	}
 	s.Credits -= cost
-	s.Hull = 100
+	s.Hull = max
 	s.Stats.CreditsSpent += cost
 	return nil
 }

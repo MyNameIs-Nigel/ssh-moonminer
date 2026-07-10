@@ -46,11 +46,11 @@ func (g *Game) helpLines() []string {
 	case scrShipyard:
 		screen = []string{
 			theme.Bright.Render("SHIPYARD"),
-			"↑/↓ select upgrade track",
-			"Enter buy selected upgrade",
-			"Esc return to star chart",
-			"U shipyard · F refuel · H repair",
-			"L ship's log · T tweaks · Q quit",
+			"Tab switch HANGAR/LOADOUT focus",
+			"↑/↓ select ship, track, or slot",
+			"Enter buy ship/track or install/upgrade a slot device",
+			"X or Backspace remove an installed slot device",
+			"Esc or Q return to star chart",
 		}
 	case scrBelt:
 		screen = []string{

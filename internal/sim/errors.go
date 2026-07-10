@@ -19,4 +19,14 @@ var (
 	ErrAlreadyScanned    = errors.New("asteroid already scanned")
 	ErrScanInProgress    = errors.New("scan already in progress")
 	ErrInvalidRunPhase   = errors.New("action not valid in current run phase")
+	ErrOutOfRange        = errors.New("asteroid is beyond scanner range")
+
+	// Fleet/shipyard errors (gameplay/05-fleet-ships-and-shipyard-economy.md).
+	ErrInvalidShip      = errors.New("unknown ship model")
+	ErrAlreadyOwned     = errors.New("ship already owned")
+	ErrNotOwned         = errors.New("ship not owned")
+	ErrItemLocked       = errors.New("item is locked")
+	ErrInvalidSlotItem  = errors.New("item does not fit this slot")
+	ErrInvalidSlotIndex = errors.New("invalid slot index")
+	ErrPowerExceeded    = errors.New("insufficient power capacity")
 )

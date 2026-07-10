@@ -27,7 +27,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := sim.DecodeState(b)
+	got, err := sim.DecodeState(b, c)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,8 +27,8 @@ const (
 	devRowCount
 )
 
-var devJumpScreens = []screen{scrChart, scrBelt, scrMining, scrSummary, scrLog, scrDeath}
-var devJumpLabels = []string{"chart", "belt", "mining", "summary", "shiplog", "death"}
+var devJumpScreens = []screen{scrChart, scrShipyard, scrBelt, scrMining, scrSummary, scrLog, scrDeath}
+var devJumpLabels = []string{"chart", "shipyard", "belt", "mining", "summary", "shiplog", "death"}
 
 const devPanelW = 46
 const devPanelH = 13
@@ -44,7 +44,7 @@ func (g *Game) devLabel(i int) string {
 	case devGodMode:
 		return "GOD MODE"
 	case devMaxUpgrades:
-		return "MAX UPGRADES (enter)"
+		return "MAX SHIP (enter)"
 	case devJumpScreen:
 		return "JUMP TO SCREEN (enter)"
 	default:
@@ -69,7 +69,7 @@ func (g *Game) devValue(i int) string {
 	case devFuel:
 		return fmt.Sprintf("%.0f / %.0f", st.Fuel, sim.TankSize(&st, g.content))
 	case devHull:
-		return fmt.Sprintf("%d%%", st.Hull)
+		return fmt.Sprintf("%d / %d", st.Hull, sim.MaxHull(&st, g.content))
 	case devGodMode:
 		return boolLabel(st.DevGodMode)
 	case devMaxUpgrades:
@@ -101,7 +101,7 @@ func (g *Game) devDelta(delta int) []tea.Cmd {
 		}
 	case devMaxUpgrades:
 		if delta != 0 {
-			snap, err := g.sess.DevMaxUpgrades(g.now)
+			snap, err := g.sess.DevMaxShip(g.now)
 			return g.refreshSnap(snap, err)
 		}
 	case devJumpScreen:

@@ -73,7 +73,7 @@ func TestSettingsPersistThroughEncodeDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := sim.DecodeState(b)
+	out, err := sim.DecodeState(b, c)
 	if err != nil {
 		t.Fatal(err)
 	}

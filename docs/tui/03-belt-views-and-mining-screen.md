@@ -92,7 +92,8 @@ just renders the latest.
   joined alongside it so it doesn't shift any hitbox row math): a fixed
   player anchor (`▲`) and a red pirate blip (`●`) that approaches from a
   per-run cosmetic bearing as `PirateDistance` closes. Above the scope, a
-  fuzzed `PIRATE ETA ~min-maxs` range — narrowed by Surveyor upgrades,
+  fuzzed `PIRATE ETA ~min-maxs` range — narrowed by high Scanner grades
+  (gameplay/05, superseding the old Surveyor track),
   replaced with `CONTACT LOST — NO ETA` while a `radar_blackout` event is
   active. The true distance/arrival time is never rendered as an exact
   number anywhere on this screen.

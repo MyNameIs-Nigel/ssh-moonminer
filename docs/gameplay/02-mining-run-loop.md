@@ -70,8 +70,10 @@ type ActiveRun struct {
 
 `PirateETAMin`/`PirateETAMax` are a deliberately fuzzed arrival range in
 seconds, recomputed every mining tick from the true `PirateDistance`/approach
-rate plus an uncertainty percentage that narrows with Surveyor upgrades
-(floored so it's never exact even fully upgraded) and freezes while a
+rate plus an uncertainty percentage that narrows with the ship's Scanner
+grade at A/S (see gameplay/05, which retires the old Surveyor track this
+narrowing used to come from) (floored so it's never exact even fully
+upgraded) and freezes while a
 `radar_blackout` event is active. The TUI renders only this range plus the
 radar-scope widget's blip position — never the true, exact arrival time.
 
@@ -98,7 +100,8 @@ the pirate timer/event rolls; it is a purely additive mining accelerant.
   - `RemainingUnits = asteroid.Units`;
   - `PirateDistance = 100`;
   - a true pirate arrival time derived from asteroid risk/system risk;
-  - a rough ETA range whose width depends on surveyor/sensor upgrades.
+  - a rough ETA range whose width depends on the ship's Scanner grade
+    (gameplay/05, superseding the old Surveyor track).
 - Failure returns `ErrInsufficientFuel` etc. without mutation.
 
 ### The tick — `TickRun(state, content, dtSeconds float64) (RunOutcome, bool)`
