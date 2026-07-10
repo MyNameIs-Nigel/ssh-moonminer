@@ -21,15 +21,15 @@ const (
 // docs/gameplay/05-fleet-ships-and-shipyard-economy.md. Not content-data
 // driven (like TrackName) since each has a distinct effect formula.
 const (
-	ItemCargo     = "cargo"
-	ItemFuelTank  = "fuel_tank"
-	ItemShield    = "shield"
-	ItemChaff     = "chaff"
-	ItemTurret    = "turret"
-	ItemSeismic   = "seismic_sensors"
-	ItemFuelMiner = "fuel_miner"
-	ItemJammer    = "pirate_jammer"
-	ItemJumpDrive = "jump_drive"
+	ItemCargo       = "cargo"
+	ItemFuelTank    = "fuel_tank"
+	ItemShield      = "shield"
+	ItemEMPLauncher = "emp_launcher"
+	ItemTurret      = "turret"
+	ItemSeismic     = "seismic_sensors"
+	ItemFuelMiner   = "fuel_miner"
+	ItemJammer      = "pirate_jammer"
+	ItemJumpDrive   = "jump_drive"
 )
 
 // SlotItemKind reports which slot kind an item installs into.
@@ -53,8 +53,8 @@ func SlotItemName(itemID string) string {
 		return "FUEL TANK"
 	case ItemShield:
 		return "SHIELD"
-	case ItemChaff:
-		return "CHAFF LAUNCHER"
+	case ItemEMPLauncher:
+		return "EMP LAUNCHER"
 	case ItemTurret:
 		return "DEFENSE TURRET"
 	case ItemSeismic:
@@ -75,7 +75,7 @@ func SlotItemLocked(itemID string) bool { return false }
 
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.
-var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemChaff}
+var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemEMPLauncher}
 var weaponItems = []string{ItemTurret}
 var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemJumpDrive}
 
@@ -100,8 +100,8 @@ func slotItemBasePrice(c *content.Content, itemID string) int {
 		return sc.FuelTankBasePrice
 	case ItemShield:
 		return sc.ShieldBasePrice
-	case ItemChaff:
-		return sc.ChaffBasePrice
+	case ItemEMPLauncher:
+		return sc.EMPLauncherBasePrice
 	case ItemTurret:
 		return sc.TurretBasePrice
 	case ItemSeismic:
@@ -133,8 +133,8 @@ func SlotItemPower(c *content.Content, itemID string, grade int) int {
 	switch itemID {
 	case ItemShield:
 		return int(math.Round(sc.ShieldPowerK * g))
-	case ItemChaff:
-		return int(math.Round(sc.ChaffPowerK * g))
+	case ItemEMPLauncher:
+		return int(math.Round(sc.EMPLauncherPowerK * g))
 	case ItemTurret:
 		return int(math.Round(sc.TurretPowerK * g))
 	case ItemSeismic, ItemFuelMiner, ItemJammer:
@@ -155,8 +155,8 @@ func SlotItemMass(c *content.Content, itemID string, grade int) float64 {
 		return sc.FuelTankMassPerGrade * n
 	case ItemShield:
 		return sc.ShieldMassPerGrade * n
-	case ItemChaff:
-		return sc.ChaffMassPerGrade * n
+	case ItemEMPLauncher:
+		return sc.EMPLauncherMassPerGrade * n
 	case ItemTurret:
 		return sc.TurretMassPerGrade * n
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemJumpDrive:
@@ -468,27 +468,56 @@ func normalizeShipShield(s *State, c *content.Content, shipID string) {
 	inst.ShieldHP = clamp(inst.ShieldHP, 0, maxHP)
 }
 
-// ChaffDurationSeconds returns the active ship's Chaff Launcher suppression
-// window (0 if none installed).
-func ChaffDurationSeconds(s *State, c *content.Content) float64 {
-	inst := ActiveShip(s)
-	if inst == nil {
-		return 0
-	}
-	d := findDevice(inst.Utility, ItemChaff)
-	if d == nil {
-		return 0
-	}
-	return c.Slots.ChaffBaseSeconds + float64(d.Grade)
+// EMPDeploySeconds returns how long an EMP Launcher delays pirates after
+// they arrive. It scales linearly from E through S.
+func EMPDeploySeconds(c *content.Content, grade int) float64 {
+	grade = clampInt(grade, 0, MaxGrade)
+	return c.Slots.EMPLauncherDeployESeconds +
+		(c.Slots.EMPLauncherDeploySSeconds-c.Slots.EMPLauncherDeployESeconds)*float64(grade)/float64(MaxGrade)
 }
 
-// hasChaff reports whether the active ship has a Chaff Launcher installed.
-func hasChaff(s *State) bool {
+// deployEMPLauncher arms the active run with the highest-grade loaded EMP
+// Launcher. Ties retain utility-slot order. Each launcher is spent until the
+// ship returns to dock, and a run may deploy at most one of them.
+func deployEMPLauncher(s *State, c *content.Content, run *ActiveRun, now int64) bool {
+	if run.EMPDeployed {
+		return false
+	}
 	inst := ActiveShip(s)
 	if inst == nil {
 		return false
 	}
-	return findDevice(inst.Utility, ItemChaff) != nil
+	var selected *SlotDevice
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == ItemEMPLauncher && d.EMPArmed &&
+			(selected == nil || d.Grade > selected.Grade) {
+			selected = d
+		}
+	}
+	if selected == nil {
+		return false
+	}
+	selected.EMPArmed = false
+	run.EMPDeployed = true
+	run.EMPActive = true
+	run.EMPRemaining = EMPDeploySeconds(c, selected.Grade)
+	run.EventLog = append(run.EventLog, RunEventRecord{Kind: "emp_deployed", At: now})
+	return true
+}
+
+// RearmEMPLaunchers loads every installed EMP Launcher on the active ship.
+// Docking, activating a parked ship, and installing one all provide this
+// free service.
+func RearmEMPLaunchers(s *State) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == ItemEMPLauncher {
+			d.EMPArmed = true
+		}
+	}
 }
 
 // AttackDamageMul returns the active ship's Defense Turret mitigation
@@ -626,6 +655,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	if itemID == ItemJammer {
 		inst.JammerCharges = jammerMaxCharges(c, grade)
 	}
+	if itemID == ItemEMPLauncher {
+		(*target).EMPArmed = true
+	}
 	return nil
 }
 
@@ -739,6 +771,9 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	}
 	if d.ItemID == ItemJammer {
 		inst.JammerCharges = jammerMaxCharges(c, d.Grade)
+	}
+	if d.ItemID == ItemEMPLauncher {
+		d.EMPArmed = true
 	}
 	return nil
 }

@@ -278,10 +278,11 @@ type SlotsConfig struct {
 	// is serviced at dock.
 	ShieldBurstReturnPct float64 `toml:"shield_burst_return_pct"`
 
-	ChaffBasePrice    int     `toml:"chaff_base_price"`
-	ChaffPowerK       float64 `toml:"chaff_power_k"`
-	ChaffMassPerGrade float64 `toml:"chaff_mass_per_grade"`
-	ChaffBaseSeconds  float64 `toml:"chaff_base_seconds"`
+	EMPLauncherBasePrice      int     `toml:"emp_launcher_base_price"`
+	EMPLauncherPowerK         float64 `toml:"emp_launcher_power_k"`
+	EMPLauncherMassPerGrade   float64 `toml:"emp_launcher_mass_per_grade"`
+	EMPLauncherDeployESeconds float64 `toml:"emp_launcher_deploy_e_seconds"`
+	EMPLauncherDeploySSeconds float64 `toml:"emp_launcher_deploy_s_seconds"`
 
 	TurretBasePrice    int     `toml:"turret_base_price"`
 	TurretPowerK       float64 `toml:"turret_power_k"`
@@ -544,6 +545,9 @@ func (c *Content) validateFleet() error {
 	}
 	if c.Slots.ShieldBurstReturnPct <= 0 || c.Slots.ShieldBurstReturnPct > 1 {
 		return fmt.Errorf("content: shield_burst_return_pct must be within (0..1]")
+	}
+	if c.Slots.EMPLauncherDeployESeconds <= 0 || c.Slots.EMPLauncherDeploySSeconds < c.Slots.EMPLauncherDeployESeconds {
+		return fmt.Errorf("content: EMP launcher deploy seconds must be positive and slowest at S")
 	}
 	if len(c.Ships) < 4 {
 		return fmt.Errorf("content: need at least 4 ships, got %d", len(c.Ships))

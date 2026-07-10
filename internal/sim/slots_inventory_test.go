@@ -86,7 +86,7 @@ func TestInstallSlotDeviceRejectsReplacingAnInstalledModule(t *testing.T) {
 	}
 	creditsBefore := s.Credits
 
-	err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemChaff, 0)
+	err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemEMPLauncher, 0)
 	if err != sim.ErrSlotOccupied {
 		t.Fatalf("expected ErrSlotOccupied, got %v", err)
 	}
@@ -108,13 +108,13 @@ func TestInstallSlotDeviceFromInventoryRejectsReplacingAnInstalledModule(t *test
 	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemShield, 0); err != nil {
 		t.Fatal(err)
 	}
-	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemChaff, Grade: 1}}
+	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemEMPLauncher, Grade: 1, EMPArmed: true}}
 
 	err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotUtility, 0, 0)
 	if err != sim.ErrSlotOccupied {
 		t.Fatalf("expected ErrSlotOccupied, got %v", err)
 	}
-	if len(s.Inventory) != 1 || s.Inventory[0].ItemID != sim.ItemChaff {
+	if len(s.Inventory) != 1 || s.Inventory[0].ItemID != sim.ItemEMPLauncher {
 		t.Fatalf("rejected replacement changed inventory: %+v", s.Inventory)
 	}
 	if d := s.Ships["skiff"].Utility[0]; d == nil || d.ItemID != sim.ItemShield {
@@ -184,7 +184,7 @@ func TestInstallSlotDeviceFromInventoryRejectsWrongKindAndOverPower(t *testing.T
 	// budget, then try to re-equip the stored (now inventory[0]) shield into
 	// the empty slot — free re-installs must respect power headroom exactly
 	// like a paid install does.
-	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 1, sim.ItemChaff, 5); err != nil {
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 1, sim.ItemEMPLauncher, 5); err != nil {
 		t.Fatal(err)
 	}
 	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotUtility, 0, 0); err != sim.ErrPowerExceeded {

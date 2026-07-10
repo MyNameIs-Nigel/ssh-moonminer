@@ -140,8 +140,8 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	return nil
 }
 
-// Dock returns to the star chart and rearms the active ship's Pirate
-// Jammer, if installed — a free, instant service performed only at dock.
+// Dock returns to the star chart and rearms the active ship's consumable
+// countermeasures — a free, instant service performed only at dock.
 func Dock(s *State, c *content.Content) {
 	if s.Run != nil {
 		return
@@ -150,6 +150,7 @@ func Dock(s *State, c *content.Content) {
 	s.Belt = nil
 	s.Scan = nil
 	RearmJammer(s, c)
+	RearmEMPLaunchers(s)
 	restoreShipShieldFull(s, c, s.ActiveShipID)
 }
 

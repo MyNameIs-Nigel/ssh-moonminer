@@ -122,6 +122,9 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	if badge := g.renderEventBadge(st, run); badge != "" {
 		lines = append(lines, badge)
 	}
+	if run.EMPActive {
+		lines = append(lines, theme.Cyan.Render(fmt.Sprintf("EMP LAUNCHER DEPLOYED — PIRATES STALLED %.0fs", run.EMPRemaining)))
+	}
 	lines = append(lines,
 		"",
 		fmt.Sprintf("%s RESOURCE LEFT %s %s",
@@ -204,6 +207,9 @@ func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
 	etaText := fmt.Sprintf("PIRATE ETA ~%.0f-%.0fs", run.PirateETAMin, run.PirateETAMax)
 	if blackout {
 		etaText = "CONTACT LOST — NO ETA"
+	}
+	if run.EMPActive {
+		etaText = fmt.Sprintf("EMP DELAY ~%.0fs", run.EMPRemaining)
 	}
 	etaLine := theme.GaugeStyle(100-run.PirateDistance, true).Render(etaText)
 

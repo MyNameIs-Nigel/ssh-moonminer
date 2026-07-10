@@ -353,6 +353,7 @@ func activateShip(s *State, c *content.Content, modelID string) {
 	s.Fuel = FuelCapacity(s, c)
 	s.Hull = MaxHull(s, c)
 	RearmJammer(s, c)
+	RearmEMPLaunchers(s)
 	restoreShipShieldFull(s, c, modelID)
 }
 

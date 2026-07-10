@@ -99,7 +99,7 @@ func TestPickerBuildEntriesListsCatalogAndMatchingInventoryOnly(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)
 	st.Credits = 100000
-	if err := sim.InstallSlotDevice(st, c, "skiff", sim.SlotUtility, 0, sim.ItemChaff, 1); err != nil {
+	if err := sim.InstallSlotDevice(st, c, "skiff", sim.SlotUtility, 0, sim.ItemEMPLauncher, 1); err != nil {
 		t.Fatal(err)
 	}
 	if err := sim.StoreSlotDevice(st, c, "skiff", sim.SlotUtility, 0); err != nil {
@@ -124,8 +124,8 @@ func TestPickerBuildEntriesListsCatalogAndMatchingInventoryOnly(t *testing.T) {
 	for _, e := range entries {
 		if e.fromInv {
 			invRows++
-			if e.itemID != sim.ItemChaff {
-				t.Fatalf("expected only the stored chaff launcher to appear, got %s", e.itemID)
+			if e.itemID != sim.ItemEMPLauncher {
+				t.Fatalf("expected only the stored EMP launcher to appear, got %s", e.itemID)
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func TestPickerBuildEntriesListsCatalogAndMatchingInventoryOnly(t *testing.T) {
 func TestPickerRendersStorageSection(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)
-	st.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemChaff, Grade: 1}}
+	st.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemEMPLauncher, Grade: 1, EMPArmed: true}}
 	g := newShipyardGame(t, st)
 	g.shipyardPane = shipyardPaneLoadout
 	rows := shipyardRows(c.ShipByID("skiff"))
@@ -152,7 +152,7 @@ func TestPickerRendersStorageSection(t *testing.T) {
 	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
 
 	out := g.renderSlotPickerOverlay()
-	if !strings.Contains(out, "IN STORAGE") || !strings.Contains(out, "CHAFF LAUNCHER") {
+	if !strings.Contains(out, "IN STORAGE") || !strings.Contains(out, "EMP LAUNCHER") {
 		t.Fatalf("expected a visible storage section with the stored module, got:\n%s", out)
 	}
 }
