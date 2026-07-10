@@ -116,17 +116,27 @@ services split — that's the point of giving it its own screen.
   row buys it back at 25% price and makes it active.
 - In LOADOUT: `↑/↓` selects a track or slot row; `Enter`/`→` on a track row
   buys the next grade (present-but-disabled at cap, rendered `MAXED`);
-  `Enter` on a slot row opens an item picker scoped to that slot kind
-  (Utility/Weapon/Internal) showing every item at every grade the player can
-  afford *and* power-fit, with unaffordable/power-exceeding combinations
-  visibly disabled rather than hidden (so the player learns the power ceiling
-  by seeing it, not by guessing). Internal is a single-select swap: choosing
-  a new module uninstalls the current one (no refund — matches "installed
-  upgrades are lost, not banked" tone) unless the current one is unequipped
-  first via an explicit `[X] REMOVE` action, which does refund a fraction TBD
-  by gameplay/05 balance passes (default: no refund, matching ship-track
-  purchases being one-way; revisit only if playtesting shows this feels
-  punitive for simple mind-changes).
+  `Enter` on a slot row opens an item picker overlay scoped to that slot kind
+  (Utility/Weapon/Internal): every catalog item with an adjustable grade
+  cursor (`←/→` changes grade, showing that grade's price/power live), plus
+  a separate "in storage" section listing any device previously removed via
+  `[X] REMOVE`'s **Store** choice (free to re-equip — already paid for).
+  Unaffordable or power-exceeding combinations render visibly disabled
+  rather than hidden, so the player learns the power ceiling by seeing it,
+  not by guessing. Installing over an occupied slot forfeits the old device
+  with no refund (matches "installed upgrades are lost, not banked" tone) —
+  Internal is a single-select swap for exactly this reason, so removing
+  first via `[X] REMOVE` is the only way to not lose it outright.
+- `[X] REMOVE`/`Backspace` on an occupied slot opens a small confirm overlay
+  with two choices: **Store** (moves the device into the pilot's
+  account-wide inventory, free to re-equip on any owned ship later via the
+  item picker above — no refund, no loss either) or **Sell** (refunds 95% of
+  the device's current buy price in credits, gone for good). This replaced
+  the originally-specced "no refund, TBD" default once playtesting the v1
+  cycle-on-Enter behavior showed no-refund removal felt punitive for simple
+  mind-changes; sim implementation is `sim.StoreSlotDevice`/
+  `sim.SellSlotDevice`/`sim.SlotItemSellValue` and the inventory pool is
+  `State.Inventory` (`internal/sim/slots.go`, `internal/sim/state.go`).
 - Mouse: click any row to select it (same as list rows elsewhere), click a
   selected row or double-click to activate/buy, same convention as every
   other screen.

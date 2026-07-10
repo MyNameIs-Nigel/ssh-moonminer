@@ -124,6 +124,10 @@ buyback_price_pct = 0.25
 # Utility/Weapon/Internal slot device catalog. Price = base * fleet's
 # grade_price_curve^grade. Cargo/Fuel Tank have no power_k — they never draw
 # power (the one explicit exception to "every slot costs power").
+# sell_value_pct is the shipyard's remove-and-sell refund: fraction of the
+# device's current buy price paid back in credits (the "store" alternative
+# refunds nothing but keeps the device, re-equippable for free later).
+sell_value_pct = 0.95
 cargo_base_price = 300
 cargo_per_grade = 600
 cargo_mass_per_grade = 6

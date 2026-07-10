@@ -46,6 +46,8 @@ const (
 	ovKicked
 	ovOnboard
 	ovDev
+	ovSlotPicker
+	ovSlotRemove
 )
 
 type (
@@ -87,10 +89,20 @@ type Game struct {
 	shipyardPane      int
 	shipyardHangarSel int
 	shipyardRowSel    int
-	tickCount         int
-	now               int64
-	idleSecs          int64
-	lastInput         int64
+
+	// Slot item picker / remove-confirm overlay state
+	// (internal/tui/shipyard_picker.go). Which slot they act on is always
+	// re-derived from shipyardPane/shipyardHangarSel/shipyardRowSel above
+	// (frozen while an overlay is open), not stored separately.
+	pickerSel          int
+	pickerScroll       int
+	pickerCatalogGrade []int
+	removeConfirmSel   int
+
+	tickCount int
+	now       int64
+	idleSecs  int64
+	lastInput int64
 
 	lastClickID string
 	lastClickAt int64
@@ -242,7 +254,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, g.updateClick(m)...)
 	case tea.MouseWheelMsg:
 		g.lastInput = g.now
-		if g.overlay == ovHelp || g.overlay == ovTweaks || g.overlay == ovDev {
+		if g.overlay == ovHelp || g.overlay == ovTweaks || g.overlay == ovDev || g.overlay == ovSlotPicker {
 			cmds = append(cmds, g.updateOverlayWheel(m)...)
 			break
 		}
@@ -277,6 +289,10 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		return g.updateTweaksOverlay(m.String())
 	case ovDev:
 		return g.updateDevOverlay(m.String())
+	case ovSlotPicker:
+		return g.updateSlotPickerOverlay(m.String())
+	case ovSlotRemove:
+		return g.updateSlotRemoveOverlay(m.String())
 	}
 	return nil
 }

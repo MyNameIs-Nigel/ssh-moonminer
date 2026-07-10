@@ -499,11 +499,78 @@ func devicePower(c *content.Content, d *SlotDevice) int {
 	return SlotItemPower(c, d.ItemID, d.Grade)
 }
 
-// RemoveSlotDevice clears an installed device with no refund, freeing its
-// power/mass immediately. Docked-only.
-func RemoveSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+// SlotItemSellValue returns the credit refund for selling itemID at grade
+// back to the shipyard: c.Slots.SellValuePct of its current buy price
+// (data/balance.toml, default 95%), rounded to the nearest credit.
+func SlotItemSellValue(c *content.Content, itemID string, grade int) int {
+	return int(math.Round(float64(SlotItemPrice(c, itemID, grade)) * c.Slots.SellValuePct))
+}
+
+// StoreSlotDevice removes an installed device from shipID's slot and adds
+// it to the pilot's account-wide inventory, freeing its power/mass
+// immediately with no credit refund — it can be re-equipped for free later
+// via InstallSlotDeviceFromInventory. Docked-only.
+func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
+	if err != nil {
+		return err
+	}
+	s.Inventory = append(s.Inventory, *target)
+	*target = nil
+	return nil
+}
+
+// SellSlotDevice removes an installed device from shipID's slot and
+// refunds SlotItemSellValue (c.Slots.SellValuePct of its buy price) in
+// credits. Docked-only.
+func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
+	if err != nil {
+		return err
+	}
+	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
+	*target = nil
+	return nil
+}
+
+// resolveOccupiedSlot is the shared docked/owned/occupied validation for
+// StoreSlotDevice and SellSlotDevice.
+func resolveOccupiedSlot(s *State, shipID string, kind SlotKind, index int) (*ShipInstance, **SlotDevice, error) {
+	if !s.IsDocked() {
+		return nil, nil, ErrInBelt
+	}
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return nil, nil, ErrNotOwned
+	}
+	target, err := deviceSlot(inst, kind, index)
+	if err != nil {
+		return nil, nil, err
+	}
+	if *target == nil {
+		return nil, nil, ErrSlotEmpty
+	}
+	return inst, target, nil
+}
+
+// InstallSlotDeviceFromInventory moves a previously-stored device out of
+// the pilot's inventory and into shipID's slot at index, for free (it was
+// already paid for). Requires docked, ownership, a valid inventory index
+// matching kind, and power headroom; replacing an occupied slot forfeits
+// the old device with no refund, matching InstallSlotDevice.
+func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string, kind SlotKind, index, invIndex int) error {
 	if !s.IsDocked() {
 		return ErrInBelt
+	}
+	if invIndex < 0 || invIndex >= len(s.Inventory) || s.Inventory[invIndex] == nil {
+		return ErrInvalidInventory
+	}
+	d := s.Inventory[invIndex]
+	if SlotItemKind(d.ItemID) != kind {
+		return ErrInvalidSlotItem
+	}
+	if SlotItemLocked(d.ItemID) {
+		return ErrItemLocked
 	}
 	inst := s.Ships[shipID]
 	if inst == nil {
@@ -513,6 +580,20 @@ func RemoveSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind
 	if err != nil {
 		return err
 	}
-	*target = nil
+
+	capacity := PowerCapacityFor(s, c, shipID)
+	powerWithout := InstalledPower(s, c, shipID) - devicePower(c, *target)
+	if powerWithout+SlotItemPower(c, d.ItemID, d.Grade) > capacity {
+		return ErrPowerExceeded
+	}
+
+	*target = d
+	last := len(s.Inventory) - 1
+	copy(s.Inventory[invIndex:], s.Inventory[invIndex+1:])
+	s.Inventory[last] = nil // drop the moved pointer so the vacated backing-array slot doesn't keep it alive
+	s.Inventory = s.Inventory[:last]
+	if d.ItemID == ItemJammer {
+		inst.JammerCharges = jammerMaxCharges(c, d.Grade)
+	}
 	return nil
 }
