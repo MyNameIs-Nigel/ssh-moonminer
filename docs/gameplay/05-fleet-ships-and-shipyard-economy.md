@@ -241,7 +241,7 @@ Every ship has three slot *kinds*. Utility and Weapon slot **counts** are
 per-ship (table above); Internal is always exactly **one** slot on every ship
 — it holds a single swappable core module.
 
-- **Utility slot** — Extra Cargo, Extra Fuel Tank, Shield, Chaff Launcher.
+- **Utility slot** — Extra Cargo, Extra Fuel Tank, Shield, EMP Launcher.
 - **Weapon slot** — Defense Turret (only item today; not every ship has this
   slot at all).
 - **Internal slot** — exactly one of: Seismic Sensors, Jump Drive,
@@ -264,7 +264,7 @@ powerCost(deviceType, grade) = round(k[deviceType] * (grade+1)^1.5)
 | Device | k | Power cost by grade (E,D,C,B,A,S) |
 | --- | --- | --- |
 | Shield | 2.7 | 3, 8, 14, 22, 30, 40 |
-| Chaff Launcher | 0.6 | 1, 2, 3, 5, 7, 9 |
+| EMP Launcher | 0.6 | 1, 2, 3, 5, 7, 9 |
 | Defense Turret | 1.6 | 2, 5, 8, 13, 18, 24 |
 | Seismic Sensors / Fuel Miner / Pirate Jammer | 1.0 | 1, 3, 5, 8, 11, 15 |
 | Extra Cargo / Extra Fuel Tank | — | 0 at every grade |
@@ -290,7 +290,7 @@ mass(deviceType, grade) = massPerGrade[deviceType] * (grade + 1)
 | Extra Fuel Tank | 5 |
 | Defense Turret | 7 |
 | Internal modules | 4 |
-| Chaff Launcher | 2 |
+| EMP Launcher | 2 |
 
 Total ship mass = Base Mass (ship table) + sum of installed device mass. Let
 `r = totalMass / baseMass` (always ≥ 1). Mass increases fuel burn and escape
@@ -317,7 +317,7 @@ round(itemBase * 2.2^grade)`.
 | **Extra Cargo** | Utility | 300 | Cargo capacity `+15*(g+1)` |
 | **Extra Fuel Tank** | Utility | 350 | Fuel capacity `+10*(g+1)` |
 | **Shield** | Utility | 900 | Absorbs `20*(g+1)` pirate-attack damage before hull itself takes damage. Its blue charge overlays the hull bar and recharges in the belt between runs: E takes 90s from empty, S takes 15s (linear between grades). A shield that fully bursts returns with only a 25% emergency charge and `DAMAGED` status until dock service restores it to 100%. |
-| **Chaff Launcher** | Utility | 250 | Auto-fires on the first attack tick, suppressing pirate fire for `2+g` seconds; one use per run, resets fresh at the start of the next one |
+| **EMP Launcher** | Utility | 250 | Auto-deploys when pirates arrive, delaying their action while mining continues. E delays them 1 second and S 10 seconds (linearly between grades). Each launcher is spent after deployment until docked; only one launcher may deploy per asteroid run, choosing the highest-grade armed launcher first. |
 | **Defense Turret** | Weapon | 700 | Reduces `AttackHullDamagePerSecond` by `8%*(g+1)` (cumulative multiplier `1 - 0.08*(g+1)`) |
 | **Seismic Sensors** | Internal | 600 | 3 random *in-range* belt asteroids (respects the ship's own Scanner lock — this is a free convenience pre-scan, not a way to see past it) arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
 | **Fuel Miner** | Internal | 750 | Mining a Rare+ asteroid refunds fuel equal to `(0.25 + 0.15*g)` of that asteroid's `FuelCost` |

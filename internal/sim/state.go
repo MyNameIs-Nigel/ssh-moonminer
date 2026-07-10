@@ -7,9 +7,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Version 4 adds systems,
-// route permits, and cargo that must be sold at dock.
-const StateVersion = 4
+// StateVersion is the current save schema version. Version 5 renames the
+// Chaff Launcher to EMP Launcher and persists its armed state.
+const StateVersion = 5
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -43,8 +43,9 @@ type TrackGrades struct {
 // SlotDevice is one installed Utility/Weapon/Internal item and its grade
 // (0..5, E..S).
 type SlotDevice struct {
-	ItemID string `json:"item_id"`
-	Grade  int    `json:"grade"`
+	ItemID   string `json:"item_id"`
+	Grade    int    `json:"grade"`
+	EMPArmed bool   `json:"emp_armed,omitempty"`
 }
 
 // ShipInstance is one owned, persistent hangar ship: its model, its own
@@ -241,10 +242,11 @@ type ActiveRun struct {
 	StartFuel float64 `json:"start_fuel"`
 	StartedAt int64   `json:"started_at"`
 
-	// ChaffActive/ChaffRemaining track the one auto-triggered Chaff Launcher
-	// suppression window per run, started the instant pirates attack.
-	ChaffActive    bool    `json:"chaff_active"`
-	ChaffRemaining float64 `json:"chaff_remaining"`
+	// EMPDeployed limits a run to one EMP Launcher. EMPActive/EMPRemaining
+	// delay pirate action while the pilot keeps mining after contact.
+	EMPDeployed  bool    `json:"emp_deployed"`
+	EMPActive    bool    `json:"emp_active"`
+	EMPRemaining float64 `json:"emp_remaining"`
 	// PirateImmune is set at Lock time when a Pirate Jammer charge was
 	// consumed for this asteroid — pirates never approach for the run.
 	PirateImmune bool `json:"pirate_immune"`
@@ -427,7 +429,36 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 			}
 		}
 	}
+	if savedVersion < 5 {
+		migrateEMPLaunchers(&s)
+	}
 	return &s, nil
+}
+
+// migrateEMPLaunchers preserves old Chaff Launcher purchases as loaded EMP
+// Launchers. It handles installed devices and shipyard storage alike.
+func migrateEMPLaunchers(s *State) {
+	migrateDevice := func(d *SlotDevice) {
+		if d != nil && d.ItemID == "chaff" {
+			d.ItemID = ItemEMPLauncher
+			d.EMPArmed = true
+		}
+	}
+	for _, ship := range s.Ships {
+		if ship == nil {
+			continue
+		}
+		for _, d := range ship.Utility {
+			migrateDevice(d)
+		}
+		for _, d := range ship.Weapon {
+			migrateDevice(d)
+		}
+		migrateDevice(ship.Internal)
+	}
+	for _, d := range s.Inventory {
+		migrateDevice(d)
+	}
 }
 
 // IsDocked reports whether the pilot is at the star chart.

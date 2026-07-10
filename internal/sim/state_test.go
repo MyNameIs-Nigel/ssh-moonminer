@@ -39,6 +39,28 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestVersionFourChaffMigratesToArmedEMPLauncher(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 42, 1000)
+	s.Version = 4
+	s.Ships["skiff"].Utility[0] = &sim.SlotDevice{ItemID: "chaff", Grade: 2}
+	s.Inventory = []*sim.SlotDevice{{ItemID: "chaff", Grade: 4}}
+
+	b, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := sim.DecodeState(b, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []*sim.SlotDevice{got.Ships["skiff"].Utility[0], got.Inventory[0]} {
+		if d.ItemID != sim.ItemEMPLauncher || !d.EMPArmed {
+			t.Fatalf("legacy chaff was not migrated to an armed EMP launcher: %+v", d)
+		}
+	}
+}
+
 func TestGenerateBeltDeterministic(t *testing.T) {
 	c := testContent(t)
 	a := sim.New(c, 99, 0)

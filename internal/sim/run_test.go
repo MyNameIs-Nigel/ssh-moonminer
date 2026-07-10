@@ -105,6 +105,63 @@ func forcePirateArrival(s *sim.State) {
 	s.Run.PirateDistance = 0
 }
 
+func TestEMPLauncherDelaysPiratesAndSpendsHighestGradeFirst(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	s.Fuel = 500
+	s.Belt[0].Scanned = true
+	// Direct setup intentionally bypasses the starter ship's power budget:
+	// this test is about selection and consumption of two fitted launchers.
+	s.Ships["skiff"].Utility[0] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: 0, EMPArmed: true}
+	s.Ships["skiff"].Utility[1] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: sim.MaxGrade, EMPArmed: true}
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	forcePirateArrival(s)
+	if _, ended := sim.TickRun(s, c, 0, 1000); ended {
+		t.Fatal("EMP deployment must keep the run mining")
+	}
+	if !s.Run.EMPActive || s.Run.EMPRemaining != 10 || s.Run.Phase != sim.PhaseMining {
+		t.Fatalf("expected S-grade EMP delay while mining, got %+v", s.Run)
+	}
+	if s.Ships["skiff"].Utility[1].EMPArmed || !s.Ships["skiff"].Utility[0].EMPArmed {
+		t.Fatalf("expected the highest grade launcher, and only it, to be spent: %+v", s.Ships["skiff"].Utility)
+	}
+	minedBefore := s.Run.MinedUnits
+	sim.TickRun(s, c, 1, 1001)
+	if s.Run.Phase != sim.PhaseMining || s.Run.MinedUnits <= minedBefore {
+		t.Fatalf("mining should continue during EMP delay: %+v", s.Run)
+	}
+
+	// Once its timer expires, the same asteroid cannot trigger the lower-grade
+	// launcher. Make the pirate action deterministic so the resulting escape
+	// is unambiguous.
+	c.Worlds[s.WorldIdx].PiratesAlwaysAttack = true
+	sim.TickRun(s, c, 9, 1010)
+	if s.Run.Phase != sim.PhaseEscaping || !s.Run.EMPDeployed {
+		t.Fatalf("expected pirates to act after the delay, got %+v", s.Run)
+	}
+	if !s.Ships["skiff"].Utility[0].EMPArmed {
+		t.Fatal("a second EMP launcher must remain armed during the same asteroid run")
+	}
+}
+
+func TestDockRearamsSpentEMPLaunchers(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Ships["skiff"].Utility[0] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: 0}
+	s.Ships["skiff"].Utility[1] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: sim.MaxGrade}
+	_ = sim.Depart(s, c, 1)
+	sim.Dock(s, c)
+	for _, d := range s.Ships["skiff"].Utility {
+		if !d.EMPArmed {
+			t.Fatalf("dock must rearm every installed EMP launcher: %+v", d)
+		}
+	}
+}
+
 func TestPirateActionRolledDeterministically(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)

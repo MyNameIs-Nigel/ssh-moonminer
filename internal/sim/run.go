@@ -234,12 +234,6 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	run.EscapeSecondsRequired = run.BaseEscapeSecondsRequired
 	run.EscapeSecondsElapsed = 0
 
-	// A Chaff Launcher auto-fires the instant pirates open fire, suppressing
-	// damage for its full duration — one use per run.
-	if underAttack && hasChaff(s) {
-		run.ChaffActive = true
-		run.ChaffRemaining = ChaffDurationSeconds(s, c)
-	}
 }
 
 // TickRun advances the mining run by dt seconds.
@@ -263,7 +257,10 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	switch run.Phase {
 	case PhaseMining:
 		tickMining(s, c, run, ast, dt)
-		if run.PirateDistance <= 0 {
+		if run.PirateDistance <= 0 && !run.EMPActive {
+			if deployEMPLauncher(s, c, run, now) {
+				break
+			}
 			rollPirateAction(s, c, run, ast, now)
 		}
 	case PhaseTribute:
@@ -294,6 +291,13 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 }
 
 func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt float64) {
+	if run.EMPActive {
+		run.EMPRemaining -= dt
+		if run.EMPRemaining <= 0 {
+			run.EMPRemaining = 0
+			run.EMPActive = false
+		}
+	}
 	outage := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventPowerOutage
 	if !outage {
 		// Mining stops at the ship's cargo capacity exactly like depletion —
@@ -372,13 +376,7 @@ func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid
 
 func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	run.EscapeSecondsElapsed += dt
-	if run.ChaffActive {
-		run.ChaffRemaining -= dt
-		if run.ChaffRemaining <= 0 {
-			run.ChaffActive = false
-		}
-	}
-	if run.UnderAttack && !run.ChaffActive {
+	if run.UnderAttack {
 		applyAttackDamageRate(s, c, run, attackHullDamagePerSecond(s, c), dt)
 	}
 	fuelDrain := c.Mining.EscapeFuelDrainPerSec * FuelDrainMul(s, c)
