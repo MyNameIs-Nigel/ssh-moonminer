@@ -110,7 +110,9 @@ func (g *Game) renderChart() string {
 			}
 			lock := sim.RouteLockReason(&st, g.content, i)
 			fuel := fmt.Sprintf("%s %d", theme.Glyph("fuel", st.Settings.ASCIISafe), w.TravelFuel)
-			if lock != "" {
+			if sim.RemainingCargoCapacity(&st, g.content) <= 0 {
+				fuel = theme.Red.Render("HOLD FULL — SELL CARGO")
+			} else if lock != "" {
 				fuel = theme.Red.Render("LOCK " + lock)
 			} else if !sim.CanDepart(&st, g.content, i) {
 				fuel = theme.Red.Render(fuel)
@@ -132,7 +134,7 @@ func (g *Game) renderChart() string {
 	repairCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RepairCost(&st, g.content))
 	fuelPct := st.Fuel / sim.TankSize(&st, g.content) * 100
 	hullPct := sim.HullPct(&st, g.content)
-	fuelLabel := "FUEL " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f%%", fuelPct))
+	fuelLabel := "FUEL " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f/%.0f  %.0f%%", st.Fuel, sim.TankSize(&st, g.content), fuelPct))
 	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
 	shieldLabel := g.renderShieldStatus(&st, 8)
 

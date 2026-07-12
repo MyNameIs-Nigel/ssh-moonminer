@@ -310,10 +310,15 @@ func (g *Game) renderBelt() string {
 			} else {
 				fuelStr = theme.White.Render(fuelStr)
 			}
+			lockEnabled := sim.RemainingCargoCapacity(&st, g.content) > 0
+			lockReason := ""
+			if !lockEnabled {
+				lockReason = theme.Red.Render("HOLD FULL — SELL CARGO AT PORT")
+			}
 			lines = append(lines, "",
 				fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
 					theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
-				theme.Button("ENTER", "LOCK & FLY", "", true, theme.HueGold),
+				theme.Button("ENTER", "LOCK & FLY", "", lockEnabled, theme.HueGold), lockReason,
 				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
 		case sim.IsOutOfRange(&st, g.content, &rock):
 			lockKm := sim.ScannerLockKm(&st, g.content)

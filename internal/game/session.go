@@ -219,6 +219,14 @@ func (s *Session) SellSlotDevice(now int64, shipID string, kind sim.SlotKind, in
 	})
 }
 
+// ReplaceSlotDeviceWithPurchase sells an installed module and buys its
+// catalog replacement as one validated shipyard action.
+func (s *Session) ReplaceSlotDeviceWithPurchase(now int64, shipID string, kind sim.SlotKind, index int, itemID string, grade int) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.ReplaceSlotDeviceWithPurchase(st, s.actor.content(), shipID, kind, index, itemID, grade)
+	})
+}
+
 // InstallSlotDeviceFromInventory moves a stored device out of inventory and
 // into an owned ship's slot for free.
 func (s *Session) InstallSlotDeviceFromInventory(now int64, shipID string, kind sim.SlotKind, index, invIndex int) (Snapshot, error) {

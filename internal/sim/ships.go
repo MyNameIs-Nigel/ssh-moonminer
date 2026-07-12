@@ -401,6 +401,9 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 	if modelID == s.ActiveShipID {
 		return nil
 	}
+	if s.CargoUnits > CargoCapacityUnitsFor(s, c, modelID) {
+		return ErrCargoDoesNotFit
+	}
 	activateShip(s, c, modelID)
 	return nil
 }

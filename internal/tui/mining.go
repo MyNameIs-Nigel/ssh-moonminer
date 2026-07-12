@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -104,7 +103,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	// always reaches 0% exactly when DEPART goes green.
 	resourcePct := 0.0
 	if ast != nil && ast.Volume > 0 {
-		cap_ := math.Min(float64(ast.Volume), sim.CargoCapacityUnits(st, g.content))
+		cap_ := sim.MiningRunCapacity(st, g.content, ast)
 		if cap_ > 0 {
 			resourcePct = clampF(100*(1-run.MinedUnits/cap_), 0, 100)
 		}

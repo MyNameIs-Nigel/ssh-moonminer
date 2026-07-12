@@ -124,6 +124,9 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	if s.Run != nil {
 		return ErrActiveRun
 	}
+	if RemainingCargoCapacity(s, c) <= 0 {
+		return ErrCargoFull
+	}
 	w := c.Worlds[worldIdx]
 	if reason := RouteLockReason(s, c, worldIdx); reason != "" {
 		return ErrRouteLocked
@@ -224,7 +227,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 // IsOutOfRange reports whether an asteroid is beyond the active ship's
 // Scanner lock distance — it cannot be scanned or targeted.
 func IsOutOfRange(s *State, c *content.Content, ast *Asteroid) bool {
-	return ast.Distance >= ScannerLockKm(s, c)
+	return ast.Distance > ScannerLockKm(s, c)
 }
 
 // FindAsteroid returns asteroid by ID.

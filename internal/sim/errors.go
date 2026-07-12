@@ -24,6 +24,8 @@ var (
 	ErrInvalidSystem     = errors.New("invalid system")
 	ErrAlreadyUnlocked   = errors.New("route already unlocked")
 	ErrCargoEmpty        = errors.New("cargo hold is empty")
+	ErrCargoFull         = errors.New("cargo hold is full — sell cargo before departing")
+	ErrCargoDoesNotFit   = errors.New("cargo does not fit in the selected ship or loadout")
 
 	// Fleet/shipyard errors (gameplay/05-fleet-ships-and-shipyard-economy.md).
 	ErrInvalidShip      = errors.New("unknown ship model")
@@ -36,4 +38,5 @@ var (
 	ErrSlotEmpty        = errors.New("slot is empty")
 	ErrSlotOccupied     = errors.New("slot already has a module — store or sell it first")
 	ErrInvalidInventory = errors.New("invalid inventory item")
+	ErrDuplicateItem    = errors.New("that module is already installed on this ship")
 )

@@ -52,6 +52,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if !ast.Scanned {
 		return ErrNotScanned
 	}
+	if RemainingCargoCapacity(s, c) <= 0 {
+		return ErrCargoFull
+	}
 	if s.Fuel < float64(ast.FuelCost) {
 		return ErrInsufficientFuel
 	}
@@ -302,7 +305,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	if !outage {
 		// Mining stops at the ship's cargo capacity exactly like depletion —
 		// RunDepleted treats "hold full" and "rock exhausted" the same way.
-		cargoCap := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
+		cargoCap := MiningRunCapacity(s, c, ast)
 		remaining := cargoCap - run.MinedUnits
 		if remaining > 0 && s.Fuel > 0 && ast.DrillSec > 0 {
 			mineRate := float64(ast.Volume) / ast.DrillSec
@@ -353,7 +356,7 @@ func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bo
 	if ast == nil {
 		return true
 	}
-	cap_ := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
+	cap_ := MiningRunCapacity(s, c, ast)
 	return run.MinedUnits >= cap_
 }
 

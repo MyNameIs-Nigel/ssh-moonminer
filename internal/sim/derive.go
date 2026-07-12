@@ -41,7 +41,25 @@ func CanDepart(s *State, c *content.Content, worldIdx int) bool {
 	if s.Hull <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
 		return false
 	}
-	return RouteLockReason(s, c, worldIdx) == "" && s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+	return RemainingCargoCapacity(s, c) > 0 &&
+		RouteLockReason(s, c, worldIdx) == "" && s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+}
+
+// RemainingCargoCapacity reports the unused volume in the active ship's
+// physical hold. Cargo carried between runs already occupies that hold;
+// in-progress run cargo is accounted for by MiningRunCapacity.
+func RemainingCargoCapacity(s *State, c *content.Content) float64 {
+	return math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits)
+}
+
+// MiningRunCapacity is the maximum volume that the current run can extract
+// before either the asteroid is exhausted or the active hold is full. Keeping
+// it here makes the simulation and the mining HUD use one capacity rule.
+func MiningRunCapacity(s *State, c *content.Content, ast *Asteroid) float64 {
+	if ast == nil {
+		return 0
+	}
+	return math.Min(float64(ast.Volume), RemainingCargoCapacity(s, c))
 }
 
 // RouteLockReason returns player-facing route gate text. An empty string
