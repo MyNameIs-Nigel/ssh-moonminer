@@ -62,6 +62,43 @@ func MiningRunCapacity(s *State, c *content.Content, ast *Asteroid) float64 {
 	return math.Min(float64(ast.Volume), RemainingCargoCapacity(s, c))
 }
 
+// RunMiningCapacity is the resource cap currently shown for an active run.
+// It includes what the run has already extracted plus the hold space it can
+// still occupy, so the resource meter reaches zero exactly with RunDepleted.
+func RunMiningCapacity(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) float64 {
+	if ast == nil {
+		return 0
+	}
+	extracted := RunExtractedUnits(run)
+	held := RunHeldUnits(run)
+	free := math.Max(0, RemainingCargoCapacity(s, c)-held)
+	return math.Min(float64(ast.Volume), extracted+free)
+}
+
+// RunHeldUnits returns current-run cargo still aboard. It understands the
+// short-lived pre-accounting MinedUnits field so rendering fixtures and dev
+// tools remain readable while all real simulation paths use HeldUnits.
+func RunHeldUnits(run *ActiveRun) float64 {
+	if run == nil {
+		return 0
+	}
+	if run.HeldUnits == 0 && run.ExtractedUnits == 0 && run.MinedUnits > 0 {
+		return run.MinedUnits
+	}
+	return run.HeldUnits
+}
+
+// RunExtractedUnits returns volume removed from the asteroid.
+func RunExtractedUnits(run *ActiveRun) float64 {
+	if run == nil {
+		return 0
+	}
+	if run.ExtractedUnits == 0 && run.HeldUnits == 0 && run.MinedUnits > 0 {
+		return run.MinedUnits
+	}
+	return run.ExtractedUnits
+}
+
 // RouteLockReason returns player-facing route gate text. An empty string
 // means the destination is unlocked and compatible with the active ship.
 func RouteLockReason(s *State, c *content.Content, worldIdx int) string {

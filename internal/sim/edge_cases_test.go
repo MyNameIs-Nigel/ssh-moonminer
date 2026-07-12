@@ -143,3 +143,87 @@ func TestScannerRangeIncludesExactBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestTributeUsesAllCargoWithoutRestoringAsteroidOre(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 16, 0)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
+	ast := s.Belt[0]
+	ast.Volume = 1000
+	ast.Value = 1000
+	ast.DrillSec = 100
+	ast.Scanned = true
+	s.Belt[0] = ast
+	if err := sim.Lock(s, c, ast.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	// This cargo came from earlier rocks. The active run holds a smaller
+	// amount from the current asteroid, which makes the old loophole obvious.
+	s.CargoUnits, s.CargoValue = 600, 600
+	s.Run.Phase = sim.PhaseTribute
+	s.Run.ExtractedUnits, s.Run.HeldUnits = 400, 400
+	s.Run.MinedUnits = 400 // compatibility mirror must not drive remnants
+	s.Run.CargoValue = 400
+
+	totalBefore := s.CargoValue + s.Run.CargoValue
+	demand := int(math.Round(float64(totalBefore) * c.Mining.TributeDemandPct))
+	if err := sim.AcceptTribute(s, c, 2); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.CargoValue + s.Run.CargoValue; got != totalBefore-demand {
+		t.Fatalf("tribute retained %d cargo value, want %d", got, totalBefore-demand)
+	}
+	if s.CargoValue >= 600 {
+		t.Fatalf("tribute ignored previously held cargo: state cargo value %d", s.CargoValue)
+	}
+	if s.Run.ExtractedUnits != 400 {
+		t.Fatalf("tribute changed extracted volume to %.0f; want 400", s.Run.ExtractedUnits)
+	}
+	if s.Run.HeldUnits >= 400 || s.Run.JettisonedUnits <= 0 {
+		t.Fatalf("tribute did not separate current held/jettisoned cargo: %+v", s.Run)
+	}
+	if s.Run.TributeDemand != demand || s.Run.TributeCargoRetained != totalBefore-demand {
+		t.Fatalf("tribute record = demand %d retained %d, want %d/%d", s.Run.TributeDemand, s.Run.TributeCargoRetained, demand, totalBefore-demand)
+	}
+
+	s.Run.BaseEscapeSecondsRequired = 0
+	s.Run.EscapeSecondsRequired = 0
+	if _, ended := sim.TickRun(s, c, 0, 3); !ended {
+		t.Fatal("expected tribute escape to resolve")
+	}
+	remnant, _ := sim.FindAsteroid(s, ast.ID)
+	if remnant == nil || remnant.Volume != 600 || remnant.Value != 600 {
+		t.Fatalf("remnant after 400 extracted = %+v, want volume/value 600", remnant)
+	}
+	if s.CargoValue != totalBefore-demand {
+		t.Fatalf("resolved cargo value = %d, want %d", s.CargoValue, totalBefore-demand)
+	}
+	if len(s.RunLog) == 0 || s.RunLog[0].CargoValueJettisoned != demand {
+		t.Fatalf("tribute loss missing from run log: %+v", s.RunLog)
+	}
+}
+
+func TestTributeCannotBecomeFreeWithOnlyPriorCargo(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 17, 0)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
+	ast := s.Belt[0]
+	ast.Scanned = true
+	s.Belt[0] = ast
+	if err := sim.Lock(s, c, ast.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	s.CargoUnits, s.CargoValue = 100, 900
+	s.Run.Phase = sim.PhaseTribute
+	before := s.CargoValue
+	if err := sim.AcceptTribute(s, c, 2); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.TributeDemand <= 0 || s.CargoValue >= before {
+		t.Fatalf("prior cargo should pay tribute: demand=%d value %d -> %d", s.Run.TributeDemand, before, s.CargoValue)
+	}
+}

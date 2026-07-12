@@ -35,7 +35,7 @@ func tickSkillCheck(s *State, c *content.Content, run *ActiveRun, ast *Asteroid,
 	}
 	// Don't spawn a check once the rock is nearly depleted — BAIL/DEPART is
 	// about to be the only thing that matters.
-	remainRatio := 1 - run.MinedUnits/float64(ast.Volume)
+	remainRatio := 1 - RunExtractedUnits(run)/float64(ast.Volume)
 	if remainRatio < 0.05 {
 		return
 	}
@@ -63,6 +63,7 @@ func AttemptSkillCheck(s *State, c *content.Content, now int64) error {
 	if run.Phase != PhaseMining || run.SkillCheck == nil {
 		return nil
 	}
+	normalizeRunAccounting(run)
 	run.SkillCheck = nil
 	rollNextSkillCheckIn(s, c, run)
 
@@ -70,13 +71,15 @@ func AttemptSkillCheck(s *State, c *content.Content, now int64) error {
 	if ast == nil || ast.Volume <= 0 {
 		return nil
 	}
-	capacityRemaining := math.Max(0, MiningRunCapacity(s, c, ast)-run.MinedUnits)
-	remaining := math.Min(float64(ast.Volume)-run.MinedUnits, capacityRemaining)
+	capacityRemaining := math.Max(0, RemainingCargoCapacity(s, c)-run.HeldUnits)
+	remaining := math.Min(float64(ast.Volume)-run.ExtractedUnits, capacityRemaining)
 	bonus := remaining * c.Mining.SkillCheckBonusPct
 	if bonus > 0 {
-		run.MinedUnits += bonus
+		run.ExtractedUnits += bonus
+		run.HeldUnits += bonus
+		run.MinedUnits = run.HeldUnits // compatibility mirror
 		if ast.Volume > 0 {
-			run.CargoValue = int(math.Round(float64(ast.Value) * run.MinedUnits / float64(ast.Volume)))
+			run.CargoValue = int(math.Round(float64(ast.Value) * run.HeldUnits / float64(ast.Volume)))
 		}
 		run.EventLog = append(run.EventLog, RunEventRecord{Kind: "skill_check_hit", At: now})
 	}

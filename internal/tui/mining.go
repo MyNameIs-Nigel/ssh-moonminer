@@ -103,9 +103,9 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	// always reaches 0% exactly when DEPART goes green.
 	resourcePct := 0.0
 	if ast != nil && ast.Volume > 0 {
-		cap_ := sim.MiningRunCapacity(st, g.content, ast)
+		cap_ := sim.RunMiningCapacity(st, g.content, ast, run)
 		if cap_ > 0 {
-			resourcePct = clampF(100*(1-run.MinedUnits/cap_), 0, 100)
+			resourcePct = clampF(100*(1-sim.RunExtractedUnits(run)/cap_), 0, 100)
 		}
 	}
 	depleted := sim.RunDepleted(st, g.content, ast, run)
@@ -238,7 +238,11 @@ func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
 
 func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tier, value int) string {
 	title := theme.Red.Render(theme.Glyph("skull", st.Settings.ASCIISafe) + " PIRATE TRANSMISSION")
-	demand := int(float64(run.CargoValue) * g.content.Mining.TributeDemandPct)
+	totalCargo := st.CargoValue + run.CargoValue
+	demand := int(float64(totalCargo) * g.content.Mining.TributeDemandPct)
+	if demand > totalCargo {
+		demand = totalCargo
+	}
 	remaining := g.content.Mining.TributeDecisionSeconds - run.TributeSecondsElapsed
 	if remaining < 0 {
 		remaining = 0
@@ -246,11 +250,12 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 	lines := []string{
 		title,
 		"",
-		theme.TxtStyle.Render(fmt.Sprintf(`"Drop %s %d from this rock or we open your hull."`,
+		theme.TxtStyle.Render(fmt.Sprintf(`"Drop %s %d from all cargo aboard or we open your hull."`,
 			theme.Glyph("credit", st.Settings.ASCIISafe), demand)),
 		"",
 		fmt.Sprintf("ASTEROID  %s (%s %s)", theme.Gold.Render(name), g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier]),
-		fmt.Sprintf("CARGO ABOARD  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), run.CargoValue),
+		fmt.Sprintf("CARGO ABOARD  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo),
+		fmt.Sprintf("RETAIN AFTER DROP  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo-demand),
 		theme.DimStyle.Render(fmt.Sprintf("decision timeout: %.0fs", remaining)),
 		"",
 	}

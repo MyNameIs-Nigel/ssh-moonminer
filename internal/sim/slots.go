@@ -294,8 +294,8 @@ func FuelCapacity(s *State, c *content.Content) float64 {
 
 // CargoCapacityUnits returns the active ship's mining-hold capacity in
 // asteroid-volume units: the model's base cargo plus every installed Extra
-// Cargo device's bonus. Mining an asteroid stops (as if depleted) once
-// MinedUnits reaches min(asteroid.Volume, this).
+// Cargo device's bonus. Mining stops when the held current-run cargo plus
+// already-boarded cargo reaches this physical capacity.
 func CargoCapacityUnits(s *State, c *content.Content) float64 {
 	return CargoCapacityUnitsFor(s, c, s.ActiveShipID)
 }

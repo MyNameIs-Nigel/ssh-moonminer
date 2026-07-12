@@ -94,18 +94,19 @@ type Stats struct {
 
 // RunRecord is one ship's-log entry.
 type RunRecord struct {
-	When                int64    `json:"when"`
-	World               string   `json:"world"`
-	Asteroid            string   `json:"asteroid"`
-	Tier                int      `json:"tier"`
-	Outcome             string   `json:"outcome"`
-	CargoValueRecovered int      `json:"cargo_value_recovered"`
-	CargoValueLost      int      `json:"cargo_value_lost"`
-	HullDelta           int      `json:"hull_delta"`
-	FuelDelta           float64  `json:"fuel_delta"`
-	Depleted            bool     `json:"depleted"`
-	CargoValueSold      int      `json:"cargo_value_sold"`
-	Events              []string `json:"events,omitempty"`
+	When                 int64    `json:"when"`
+	World                string   `json:"world"`
+	Asteroid             string   `json:"asteroid"`
+	Tier                 int      `json:"tier"`
+	Outcome              string   `json:"outcome"`
+	CargoValueRecovered  int      `json:"cargo_value_recovered"`
+	CargoValueLost       int      `json:"cargo_value_lost"`
+	CargoValueJettisoned int      `json:"cargo_value_jettisoned,omitempty"`
+	HullDelta            int      `json:"hull_delta"`
+	FuelDelta            float64  `json:"fuel_delta"`
+	Depleted             bool     `json:"depleted"`
+	CargoValueSold       int      `json:"cargo_value_sold"`
+	Events               []string `json:"events,omitempty"`
 }
 
 // Asteroid is one belt contact.
@@ -199,8 +200,23 @@ type ActiveRun struct {
 	AsteroidID int      `json:"asteroid_id"`
 	Phase      RunPhase `json:"phase"`
 
-	MinedUnits float64 `json:"mined_units"`
-	CargoValue int     `json:"cargo_value"`
+	// ExtractedUnits is permanently removed from the asteroid. HeldUnits is
+	// the portion still aboard this ship; tribute may reduce it, but never
+	// changes extraction/remnant accounting. JettisonedUnits records the
+	// current asteroid's extracted cargo surrendered to pirates.
+	ExtractedUnits  float64 `json:"extracted_units"`
+	HeldUnits       float64 `json:"held_units"`
+	JettisonedUnits float64 `json:"jettisoned_units"`
+	CargoValue      int     `json:"cargo_value"`
+
+	// MinedUnits is retained only for transient test/dev compatibility with
+	// pre-accounting callers. Simulation code mirrors it to HeldUnits and
+	// always uses ExtractedUnits/HeldUnits for authoritative behavior.
+	MinedUnits float64 `json:"mined_units,omitempty"`
+
+	TributeCargoBefore   int `json:"tribute_cargo_before,omitempty"`
+	TributeDemand        int `json:"tribute_demand,omitempty"`
+	TributeCargoRetained int `json:"tribute_cargo_retained,omitempty"`
 
 	PirateDistance float64      `json:"pirate_distance"`
 	PirateAction   PirateAction `json:"pirate_action"`
