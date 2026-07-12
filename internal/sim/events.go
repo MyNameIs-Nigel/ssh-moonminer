@@ -95,7 +95,7 @@ func startEvent(s *State, c *content.Content, run *ActiveRun, kind EventKind, no
 		ev.HUDTreatment = HUDAmberGlow
 		rng := runRNG(s, run, 5000+run.TickCount)
 		if rng.Float64() < ec.ReactorSurgeHullHitChance {
-			applyHullDamageInstant(s, run, float64(ec.ReactorSurgeHullHitAmount))
+			applyHullDamageInstant(s, c, run, float64(ec.ReactorSurgeHullHitAmount))
 		}
 	}
 	run.ActiveEvent = ev

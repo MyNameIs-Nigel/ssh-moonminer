@@ -32,7 +32,7 @@ func (g *Game) tweakLabel(i int) string {
 	case tweakBeltView:
 		return "BELT VIEW"
 	case tweakPirateAgg:
-		return "PIRATE AGGRESSION"
+		return "PIRATE THREAT ASSIST"
 	case tweakHighContrast:
 		return "HIGH CONTRAST"
 	case tweakASCII:
@@ -122,7 +122,10 @@ func pirateAggIndex(v float64) int {
 func (g *Game) renderTweaksOverlay() string {
 	st := g.snap.State
 	hc := st.Settings.HighContrast
-	lines := []string{theme.LabelStyle(hc).Render("Arrow keys change values · T, Q, or Esc close"), ""}
+	lines := []string{
+		theme.LabelStyle(hc).Render("Arrow keys change values · T, Q, or Esc close"),
+		theme.DimStyle.Render("Pirate speed only. Rewards unchanged."),
+	}
 	for i := 0; i < tweakCount; i++ {
 		marker := "  "
 		sel := i == g.tweaksSel

@@ -15,22 +15,23 @@ func TankSize(s *State, c *content.Content) float64 {
 
 // RefuelCost returns credits to fill the tank.
 func RefuelCost(s *State, c *content.Content) int {
-	missing := TankSize(s, c) - s.Fuel
-	if missing <= 0 {
+	missingWhole := int(math.Floor(TankSize(s, c) - FuelAmount(s, c) + 0.000001))
+	if missingWhole <= 0 {
 		return 0
 	}
-	return int(math.Round(missing * float64(c.Port.RefuelPerPoint)))
+	return missingWhole * c.Port.RefuelPerPoint
 }
 
 // RepairCost returns credits to repair hull to the active ship's max.
 func RepairCost(s *State, c *content.Content) int {
 	max := MaxHull(s, c)
-	if s.Hull >= max {
+	hull := ShipHull(s, s.ActiveShipID)
+	if hull >= max {
 		return 0
 	}
-	missing := max - s.Hull
+	missing := max - hull
 	rate := float64(c.Port.RepairPerPoint)
-	if s.Hull == 0 {
+	if hull == 0 {
 		rate *= c.Port.DrydockSurchargeMul
 	}
 	return int(math.Round(float64(missing) * rate))
@@ -38,10 +39,65 @@ func RepairCost(s *State, c *content.Content) int {
 
 // CanDepart reports whether the pilot can afford travel to worldIdx.
 func CanDepart(s *State, c *content.Content, worldIdx int) bool {
-	if s.Hull <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
+	if ShipHull(s, s.ActiveShipID) <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
 		return false
 	}
-	return RouteLockReason(s, c, worldIdx) == "" && s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+	return RemainingCargoCapacity(s, c) > 0 &&
+		RouteLockReason(s, c, worldIdx) == "" && FuelAmount(s, c) >= float64(c.Worlds[worldIdx].TravelFuel)
+}
+
+// RemainingCargoCapacity reports the unused volume in the active ship's
+// physical hold. Cargo carried between runs already occupies that hold;
+// in-progress run cargo is accounted for by MiningRunCapacity.
+func RemainingCargoCapacity(s *State, c *content.Content) float64 {
+	return math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits)
+}
+
+// MiningRunCapacity is the maximum volume that the current run can extract
+// before either the asteroid is exhausted or the active hold is full. Keeping
+// it here makes the simulation and the mining HUD use one capacity rule.
+func MiningRunCapacity(s *State, c *content.Content, ast *Asteroid) float64 {
+	if ast == nil {
+		return 0
+	}
+	return math.Min(float64(ast.Volume), RemainingCargoCapacity(s, c))
+}
+
+// RunMiningCapacity is the resource cap currently shown for an active run.
+// It includes what the run has already extracted plus the hold space it can
+// still occupy, so the resource meter reaches zero exactly with RunDepleted.
+func RunMiningCapacity(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) float64 {
+	if ast == nil {
+		return 0
+	}
+	extracted := RunExtractedUnits(run)
+	held := RunHeldUnits(run)
+	free := math.Max(0, RemainingCargoCapacity(s, c)-held)
+	return math.Min(float64(ast.Volume), extracted+free)
+}
+
+// RunHeldUnits returns current-run cargo still aboard. It understands the
+// short-lived pre-accounting MinedUnits field so rendering fixtures and dev
+// tools remain readable while all real simulation paths use HeldUnits.
+func RunHeldUnits(run *ActiveRun) float64 {
+	if run == nil {
+		return 0
+	}
+	if run.HeldUnits == 0 && run.ExtractedUnits == 0 && run.MinedUnits > 0 {
+		return run.MinedUnits
+	}
+	return run.HeldUnits
+}
+
+// RunExtractedUnits returns volume removed from the asteroid.
+func RunExtractedUnits(run *ActiveRun) float64 {
+	if run == nil {
+		return 0
+	}
+	if run.ExtractedUnits == 0 && run.HeldUnits == 0 && run.MinedUnits > 0 {
+		return run.MinedUnits
+	}
+	return run.ExtractedUnits
 }
 
 // RouteLockReason returns player-facing route gate text. An empty string
@@ -55,14 +111,20 @@ func RouteLockReason(s *State, c *content.Content, worldIdx int) string {
 	if system == nil {
 		return "INVALID SYSTEM"
 	}
-	if system.RequiredShipClass != "" {
-		model := c.ShipByID(s.ActiveShipID)
-		if model == nil || model.Class != system.RequiredShipClass {
-			return "NEED " + strings.ToUpper(system.RequiredShipClass) + "-CLASS SHIP"
+	source := c.SystemByID(s.SystemID)
+	if source == nil {
+		return "INVALID CURRENT SYSTEM"
+	}
+	if source.ID != system.ID {
+		if !systemsLinked(source, system.ID) {
+			return "NO OUTBOUND LINK TO " + strings.ToUpper(system.Name)
+		}
+		if reason := systemRequirementReason(s, c, source, " TO LEAVE "+strings.ToUpper(source.Name)); reason != "" {
+			return reason
 		}
 	}
-	if system.RequiredItemID != "" && !HasActiveSlotItem(s, system.RequiredItemID) {
-		return "NEED " + strings.ToUpper(strings.ReplaceAll(system.RequiredItemID, "_", " "))
+	if reason := systemRequirementReason(s, c, system, ""); reason != "" {
+		return reason
 	}
 	if !system.StartsUnlocked && !s.SystemPermits[system.ID] {
 		return fmt.Sprintf("BUY TRANSFER %d cr", system.TransferFee)
@@ -82,10 +144,40 @@ func RouteLockReason(s *State, c *content.Content, worldIdx int) string {
 	return ""
 }
 
+func systemsLinked(system *content.System, destinationID string) bool {
+	if system == nil {
+		return false
+	}
+	for _, id := range system.Links {
+		if id == destinationID {
+			return true
+		}
+	}
+	return false
+}
+
+func systemRequirementReason(s *State, c *content.Content, system *content.System, suffix string) string {
+	if system.RequiredShipClass != "" {
+		model := c.ShipByID(s.ActiveShipID)
+		if model == nil || model.Class != system.RequiredShipClass {
+			return "NEED " + strings.ToUpper(system.RequiredShipClass) + "-CLASS SHIP" + suffix
+		}
+	}
+	if system.RequiredItemID != "" && !HasActiveSlotItem(s, system.RequiredItemID) {
+		return "NEED " + strings.ToUpper(strings.ReplaceAll(system.RequiredItemID, "_", " ")) + suffix
+	}
+	return ""
+}
+
 // HasActiveSlotItem reports whether the active ship has the given device
 // installed in any of its slots.
 func HasActiveSlotItem(s *State, itemID string) bool {
-	inst := ActiveShip(s)
+	return ShipHasSlotItem(s, s.ActiveShipID, itemID)
+}
+
+// ShipHasSlotItem reports whether a named owned hull has a device installed.
+func ShipHasSlotItem(s *State, shipID, itemID string) bool {
+	inst := s.Ships[shipID]
 	if inst == nil {
 		return false
 	}
@@ -107,8 +199,18 @@ func InsuranceEligible(s *State, c *content.Content) bool {
 	if !s.IsDocked() || s.Settings.InsuranceUsed {
 		return false
 	}
+	// The advance is a softlock escape hatch, not a fleet subsidy. A pilot
+	// must be on the lone starter hull, carrying no sellable cargo, unable to
+	// fuel even the cheapest trip, and below the published recovery threshold.
+	if s.ActiveShipID != content.StarterShipID || len(s.Ships) != 1 || !OwnsShip(s, content.StarterShipID) {
+		return false
+	}
+	if s.CargoUnits > 0 || s.CargoValue > 0 {
+		return false
+	}
 	return s.Credits < c.Port.InsuranceCreditThreshold &&
-		int(s.Fuel) < c.Port.InsuranceFuelThreshold
+		FuelAmount(s, c) < float64(MinTravelFuel(c)) &&
+		int(FuelAmount(s, c)) < c.Port.InsuranceFuelThreshold
 }
 
 // MinTravelFuel returns cheapest world travel cost.

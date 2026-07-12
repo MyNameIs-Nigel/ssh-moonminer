@@ -46,6 +46,9 @@ func TestRouteGatesAndPermits(t *testing.T) {
 	if err := sim.AcquireShip(s, c, "warden"); err != nil {
 		t.Fatal(err)
 	}
+	if err := sim.SwitchActiveShip(s, c, "warden"); err != nil {
+		t.Fatal(err)
+	}
 	if got := sim.RouteLockReason(s, c, 3); got != "NEED FUEL CAPACITY 120" {
 		t.Fatalf("Titan post-fighter lock = %q", got)
 	}

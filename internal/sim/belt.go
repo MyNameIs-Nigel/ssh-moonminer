@@ -115,6 +115,7 @@ func rollTier(rng *rand.Rand, weights []float64) int {
 
 // Depart travels to a world and generates a belt.
 func Depart(s *State, c *content.Content, worldIdx int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if worldIdx < 0 || worldIdx >= len(c.Worlds) {
 		return ErrInvalidWorld
 	}
@@ -124,6 +125,9 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	if s.Run != nil {
 		return ErrActiveRun
 	}
+	if RemainingCargoCapacity(s, c) <= 0 {
+		return ErrCargoFull
+	}
 	w := c.Worlds[worldIdx]
 	if reason := RouteLockReason(s, c, worldIdx); reason != "" {
 		return ErrRouteLocked
@@ -132,7 +136,7 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	if s.Fuel < travel {
 		return ErrInsufficientFuel
 	}
-	s.Fuel -= travel
+	ConsumeFuel(s, c, travel)
 	s.WorldIdx = worldIdx
 	s.SystemID = w.SystemID
 	s.Belt = GenerateBelt(s, c, worldIdx)
@@ -143,6 +147,7 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 // Dock returns to the star chart and rearms the active ship's consumable
 // countermeasures — a free, instant service performed only at dock.
 func Dock(s *State, c *content.Content) {
+	syncActiveConditionFromLegacy(s, c)
 	if s.Run != nil {
 		return
 	}
@@ -224,7 +229,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 // IsOutOfRange reports whether an asteroid is beyond the active ship's
 // Scanner lock distance — it cannot be scanned or targeted.
 func IsOutOfRange(s *State, c *content.Content, ast *Asteroid) bool {
-	return ast.Distance >= ScannerLockKm(s, c)
+	return ast.Distance > ScannerLockKm(s, c)
 }
 
 // FindAsteroid returns asteroid by ID.

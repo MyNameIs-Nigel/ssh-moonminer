@@ -407,14 +407,15 @@ func (g *Game) screenAccent() string {
 
 func (g *Game) renderChrome() string {
 	st := g.snap.State
-	fuelPct := st.Fuel / sim.TankSize(&st, g.content) * 100
+	fuelAmount := sim.FuelAmount(&st, g.content)
+	fuelPct := fuelAmount / sim.TankSize(&st, g.content) * 100
 	accent := g.screenAccent()
 	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
 
 	title := theme.Cyan.Render("MOON MINER")
 	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
 	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
-	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
+	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f/%.0f %.0f%%", fuelAmount, sim.TankSize(&st, g.content), fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
 	hullPct := sim.HullPct(&st, g.content)
 	hull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL %.0f%%", hullPct))
 	shield := g.renderShieldStatus(&st, 0)

@@ -215,22 +215,209 @@ func BuyShipTrack(s *State, c *content.Content, shipID string, t Track) error {
 // hull — ships in the hangar are otherwise kept fully maintained, but a
 // Hull upgrade on the ship you're actively flying is not a free repair.
 func MaxHull(s *State, c *content.Content) int {
-	inst := ActiveShip(s)
+	return MaxHullFor(s, c, s.ActiveShipID)
+}
+
+// MaxHullFor returns an owned ship's maximum hull from its own Hull grade.
+func MaxHullFor(s *State, c *content.Content, shipID string) int {
+	inst := s.Ships[shipID]
 	if inst == nil {
 		return c.Pilot.StartHull
 	}
 	return c.Pilot.StartHull + c.Fleet.HullPoolPerGrade*inst.Grades.Hull
 }
 
+// FuelTankCapacity returns the physical capacity of an Extra Fuel Tank.
+func FuelTankCapacity(c *content.Content, d *SlotDevice) float64 {
+	if d == nil || d.ItemID != ItemFuelTank {
+		return 0
+	}
+	return c.Slots.FuelTankPerGrade * float64(d.Grade+1)
+}
+
+func fuelAmountFor(s *State, c *content.Content, shipID string) float64 {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return 0
+	}
+	total := clamp(inst.BaseFuel, 0, float64(c.Pilot.StartFuel))
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == ItemFuelTank {
+			total += clamp(d.Fuel, 0, FuelTankCapacity(c, d))
+		}
+	}
+	return total
+}
+
+// FuelAmount returns fuel physically aboard the active ship: detachable
+// tanks first, followed by the hull's base reserve.
+func FuelAmount(s *State, c *content.Content) float64 {
+	return fuelAmountFor(s, c, s.ActiveShipID)
+}
+
+// ShipFuelAmount returns fuel physically carried by a named owned ship.
+func ShipFuelAmount(s *State, c *content.Content, shipID string) float64 {
+	return fuelAmountFor(s, c, shipID)
+}
+
+// ShipFuelCapacity returns the total base-plus-tank capacity of a named ship.
+func ShipFuelCapacity(s *State, c *content.Content, shipID string) float64 {
+	return fuelCapacityFor(s, c, shipID)
+}
+
+// ShipHull returns the named hull's current physical condition.
+func ShipHull(s *State, shipID string) int {
+	if inst := s.Ships[shipID]; inst != nil {
+		return inst.Hull
+	}
+	return 0
+}
+
+func fuelCapacityFor(s *State, c *content.Content, shipID string) float64 {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return float64(c.Pilot.StartFuel)
+	}
+	capacity := float64(c.Pilot.StartFuel)
+	for _, d := range inst.Utility {
+		capacity += FuelTankCapacity(c, d)
+	}
+	return capacity
+}
+
+// setFuelAmountFor fills detachable tanks first, preserving the hull's base
+// reserve until every installed tank is full. It is used only for migrations
+// and explicit dev/legacy assignments; normal burn/refuel operations preserve
+// each tank's own condition through ConsumeFuel/AddFuel.
+func setFuelAmountFor(s *State, c *content.Content, shipID string, amount float64) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	remaining := clamp(amount, 0, fuelCapacityFor(s, c, shipID))
+	for _, d := range inst.Utility {
+		if d == nil || d.ItemID != ItemFuelTank {
+			continue
+		}
+		cap := FuelTankCapacity(c, d)
+		d.Fuel = math.Min(cap, remaining)
+		remaining -= d.Fuel
+	}
+	inst.BaseFuel = clamp(remaining, 0, float64(c.Pilot.StartFuel))
+}
+
+// syncActiveConditionFromLegacy imports direct assignments to the retained
+// State mirrors (used by deterministic tests/dev controls), then restores the
+// mirrors from the now-authoritative active ShipInstance.
+func syncActiveConditionFromLegacy(s *State, c *content.Content) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	if current := FuelAmount(s, c); math.Abs(s.Fuel-current) > 0.000001 {
+		setFuelAmountFor(s, c, s.ActiveShipID, s.Fuel)
+	}
+	if s.Hull != inst.Hull {
+		inst.Hull = clampInt(s.Hull, 0, MaxHull(s, c))
+	}
+	syncActiveConditionMirror(s, c)
+}
+
+// syncActiveConditionMirror copies the authoritative active hull condition
+// into the legacy cache before rendering or persistence.
+func syncActiveConditionMirror(s *State, c *content.Content) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	inst.BaseFuel = clamp(inst.BaseFuel, 0, float64(c.Pilot.StartFuel))
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == ItemFuelTank {
+			d.Fuel = clamp(d.Fuel, 0, FuelTankCapacity(c, d))
+		}
+	}
+	inst.Hull = clampInt(inst.Hull, 0, MaxHull(s, c))
+	s.Fuel = FuelAmount(s, c)
+	s.Hull = inst.Hull
+}
+
+// ConsumeFuel drains installed tanks in utility-slot order before the active
+// hull's base reserve. It returns the amount actually consumed.
+func ConsumeFuel(s *State, c *content.Content, amount float64) float64 {
+	if amount <= 0 || math.IsNaN(amount) {
+		return 0
+	}
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
+	remaining := amount
+	for _, d := range inst.Utility {
+		if d == nil || d.ItemID != ItemFuelTank || remaining <= 0 {
+			continue
+		}
+		used := math.Min(d.Fuel, remaining)
+		d.Fuel -= used
+		remaining -= used
+	}
+	used := math.Min(inst.BaseFuel, remaining)
+	inst.BaseFuel -= used
+	remaining -= used
+	syncActiveConditionMirror(s, c)
+	return amount - remaining
+}
+
+// AddFuel fills installed tanks before the hull's base reserve and returns
+// the accepted amount. Stored tanks are unaffected because they are not part
+// of the active loadout.
+func AddFuel(s *State, c *content.Content, amount float64) float64 {
+	if amount <= 0 || math.IsNaN(amount) {
+		return 0
+	}
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
+	remaining := amount
+	for _, d := range inst.Utility {
+		if d == nil || d.ItemID != ItemFuelTank || remaining <= 0 {
+			continue
+		}
+		space := FuelTankCapacity(c, d) - d.Fuel
+		added := math.Min(math.Max(0, space), remaining)
+		d.Fuel += added
+		remaining -= added
+	}
+	space := float64(c.Pilot.StartFuel) - inst.BaseFuel
+	added := math.Min(math.Max(0, space), remaining)
+	inst.BaseFuel += added
+	remaining -= added
+	syncActiveConditionMirror(s, c)
+	return amount - remaining
+}
+
+func setActiveHull(s *State, c *content.Content, hull int) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	inst.Hull = clampInt(hull, 0, MaxHull(s, c))
+	syncActiveConditionMirror(s, c)
+}
+
 // HullPct returns the active ship's current hull as a 0..100 percentage of
 // its max hull pool (mirrors how fuel has always been shown as a percentage
 // of a variable tank size).
 func HullPct(s *State, c *content.Content) float64 {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
 	max := MaxHull(s, c)
 	if max <= 0 {
 		return 0
 	}
-	return clamp(float64(s.Hull)/float64(max)*100, 0, 100)
+	return clamp(float64(inst.Hull)/float64(max)*100, 0, 100)
 }
 
 // thrusterMul returns the active ship's Thrusters-track escape multiplier
@@ -298,6 +485,8 @@ func freshShipInstance(c *content.Content, modelID string) *ShipInstance {
 			Scanner:   model.ScannerStart,
 		},
 	}
+	inst.Hull = c.Pilot.StartHull + c.Fleet.HullPoolPerGrade*inst.Grades.Hull
+	inst.BaseFuel = float64(c.Pilot.StartFuel)
 	if model.UtilitySlots > 0 {
 		inst.Utility = make([]*SlotDevice, model.UtilitySlots)
 	}
@@ -343,22 +532,17 @@ func IsBuyback(s *State, modelID string) bool {
 	return !OwnsShip(s, modelID) && s.ShipsUnlocked != nil && s.ShipsUnlocked[modelID]
 }
 
-// activateShip makes modelID (already present in s.Ships) the active ship,
-// arriving fully fueled, repaired, and jammer-rearmed — hangar ships are
-// assumed maintained while parked, so every path that changes which ship is
-// active (purchase, switch, respawn) must apply this same reset, not just
-// the fuel/hull half of it.
+// activateShip makes modelID (already present in s.Ships) active without any
+// service. Switching ships is a crew transfer, not a refuel/repair exploit.
 func activateShip(s *State, c *content.Content, modelID string) {
+	syncActiveConditionFromLegacy(s, c)
 	s.ActiveShipID = modelID
-	s.Fuel = FuelCapacity(s, c)
-	s.Hull = MaxHull(s, c)
-	RearmJammer(s, c)
-	RearmEMPLaunchers(s)
-	restoreShipShieldFull(s, c, modelID)
+	syncActiveConditionMirror(s, c)
 }
 
-// AcquireShip buys (or buys back) modelID into the hangar and makes it the
-// active ship. Requires docked, not already owned, affordable.
+// AcquireShip buys (or buys back) a fully serviced model into the hangar.
+// It deliberately does not activate the ship; the pilot explicitly chooses
+// whether to transfer into it afterwards.
 func AcquireShip(s *State, c *content.Content, modelID string) error {
 	if !s.IsDocked() {
 		return ErrInBelt
@@ -385,7 +569,9 @@ func AcquireShip(s *State, c *content.Content, modelID string) error {
 	}
 	s.Ships[modelID] = freshShipInstance(c, modelID)
 	s.ShipsUnlocked[modelID] = true
-	activateShip(s, c, modelID)
+	if price > 0 {
+		s.Settings.InsuranceUsed = false
+	}
 	return nil
 }
 
@@ -401,6 +587,13 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 	if modelID == s.ActiveShipID {
 		return nil
 	}
+	if system := c.SystemByID(s.SystemID); system != nil && system.RequiredItemID != "" &&
+		!ShipHasSlotItem(s, modelID, system.RequiredItemID) {
+		return ErrRouteKeyRequired
+	}
+	if s.CargoUnits > CargoCapacityUnitsFor(s, c, modelID) {
+		return ErrCargoDoesNotFit
+	}
 	activateShip(s, c, modelID)
 	return nil
 }
@@ -415,15 +608,28 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 func respawnActiveShip(s *State, c *content.Content) {
 	delete(s.Ships, s.ActiveShipID)
 	s.Stats.ShipsLost++
-	next := bestRemainingShipID(s, c)
+	next := recoveryShipID(s, c)
 	if next == "" {
 		grantStarterShip(s, c)
+		// grantStarterShip made a fresh active hull; hydrate the legacy cache
+		// before activateShip's compatibility import can see stale zero hull.
+		syncActiveConditionMirror(s, c)
 	}
 	activateShip(s, c, cmp.Or(next, s.ActiveShipID))
 	s.WorldIdx = -1
 	s.SystemID = "sol"
 	s.Belt = nil
 	s.Scan = nil
+}
+
+// recoveryShipID chooses the documented recovery default: an existing Skiff
+// if one survives, otherwise the best remaining hull. It never services the
+// chosen backup as part of selection.
+func recoveryShipID(s *State, c *content.Content) string {
+	if OwnsShip(s, content.StarterShipID) {
+		return content.StarterShipID
+	}
+	return bestRemainingShipID(s, c)
 }
 
 func bestRemainingShipID(s *State, c *content.Content) string {

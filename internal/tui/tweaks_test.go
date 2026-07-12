@@ -25,7 +25,7 @@ func TestTweaksOverlayRendersAllSettings(t *testing.T) {
 	}
 	out := g.renderTweaksOverlay()
 	for _, want := range []string{
-		"BELT VIEW", "PIRATE AGGRESSION", "HIGH CONTRAST",
+		"BELT VIEW", "PIRATE THREAT ASSIST", "Rewards unchanged.", "HIGH CONTRAST",
 		"ASCII SAFE MODE", "REDUCED MOTION", "tiles", "1.0",
 	} {
 		if !strings.Contains(out, want) {

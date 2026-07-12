@@ -279,25 +279,22 @@ func EscapeMul(s *State, c *content.Content) float64 {
 // tank (content.Pilot.StartFuel) plus every installed Extra Fuel Tank
 // device's bonus.
 func FuelCapacity(s *State, c *content.Content) float64 {
-	base := float64(c.Pilot.StartFuel)
-	inst := ActiveShip(s)
-	if inst == nil {
-		return base
-	}
-	for _, d := range inst.Utility {
-		if d != nil && d.ItemID == ItemFuelTank {
-			base += c.Slots.FuelTankPerGrade * float64(d.Grade+1)
-		}
-	}
-	return base
+	return fuelCapacityFor(s, c, s.ActiveShipID)
 }
 
 // CargoCapacityUnits returns the active ship's mining-hold capacity in
 // asteroid-volume units: the model's base cargo plus every installed Extra
-// Cargo device's bonus. Mining an asteroid stops (as if depleted) once
-// MinedUnits reaches min(asteroid.Volume, this).
+// Cargo device's bonus. Mining stops when the held current-run cargo plus
+// already-boarded cargo reaches this physical capacity.
 func CargoCapacityUnits(s *State, c *content.Content) float64 {
-	inst := ActiveShip(s)
+	return CargoCapacityUnitsFor(s, c, s.ActiveShipID)
+}
+
+// CargoCapacityUnitsFor returns the hold capacity of any owned ship. It is
+// used before docked fleet/loadout actions so cargo can never be left in a
+// ship that cannot physically contain it.
+func CargoCapacityUnitsFor(s *State, c *content.Content, shipID string) float64 {
+	inst := s.Ships[shipID]
 	if inst == nil {
 		return math.MaxFloat64
 	}
@@ -312,6 +309,31 @@ func CargoCapacityUnits(s *State, c *content.Content) float64 {
 		}
 	}
 	return cap_
+}
+
+func hasOtherDevice(inst *ShipInstance, kind SlotKind, exclude int, itemID string) bool {
+	if inst == nil {
+		return false
+	}
+	devices := deviceSlice(inst, kind)
+	for i, d := range devices {
+		if i != exclude && d != nil && d.ItemID == itemID {
+			return true
+		}
+	}
+	return false
+}
+
+// SlotItemIsUnique declares categories that may be installed only once per
+// ship. Extra cargo/fuel and EMP launchers deliberately stack; turrets stack
+// their mitigation in AttackDamageMul.
+func SlotItemIsUnique(itemID string) bool { return itemID == ItemShield }
+
+func validateUniqueSlotItem(inst *ShipInstance, kind SlotKind, index int, itemID string) error {
+	if SlotItemIsUnique(itemID) && hasOtherDevice(inst, kind, index, itemID) {
+		return ErrDuplicateItem
+	}
+	return nil
 }
 
 func findDevice(devices []*SlotDevice, itemID string) *SlotDevice {
@@ -528,15 +550,17 @@ func AttackDamageMul(s *State, c *content.Content) float64 {
 	if inst == nil {
 		return 1
 	}
-	d := findDevice(inst.Weapon, ItemTurret)
-	if d == nil {
-		return 1
+	mul := 1.0
+	for _, d := range inst.Weapon {
+		if d == nil || d.ItemID != ItemTurret {
+			continue
+		}
+		pct := clamp(c.Slots.TurretPctPerGrade*float64(d.Grade+1), 0, 1)
+		mul *= 1 - pct
 	}
-	pct := c.Slots.TurretPctPerGrade * float64(d.Grade+1)
-	if pct > 1 {
-		pct = 1
-	}
-	return 1 - pct
+	// Stacking turrets is useful, but no loadout may negate every point of
+	// incoming hull damage. The cap keeps high-grade WARDEN builds legible.
+	return math.Max(0.1, mul)
 }
 
 // FuelMinerRefundPct returns the fraction of a mined Rare+ asteroid's
@@ -612,6 +636,7 @@ func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, err
 // SellSlotDevice first when changing a loadout, so a module can never be
 // silently destroyed by an install.
 func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int, itemID string, grade int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -635,6 +660,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	if *target != nil {
 		return ErrSlotOccupied
 	}
+	if err := validateUniqueSlotItem(inst, kind, index, itemID); err != nil {
+		return err
+	}
 
 	price := SlotItemPrice(c, itemID, grade)
 	if s.Credits < price {
@@ -649,14 +677,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	s.Credits -= price
 	s.Stats.CreditsSpent += price
 	*target = &SlotDevice{ItemID: itemID, Grade: grade}
-	if itemID == ItemShield {
-		restoreShipShieldFull(s, c, shipID)
-	}
-	if itemID == ItemJammer {
-		inst.JammerCharges = jammerMaxCharges(c, grade)
-	}
-	if itemID == ItemEMPLauncher {
-		(*target).EMPArmed = true
+	finishDeviceInstallation(s, c, shipID, *target)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
 	}
 	return nil
 }
@@ -680,13 +703,23 @@ func SlotItemSellValue(c *content.Content, itemID string, grade int) int {
 // immediately with no credit refund — it can be re-equipped for free later
 // via InstallSlotDeviceFromInventory. Docked-only.
 func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	syncActiveConditionFromLegacy(s, c)
 	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
 	if err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
 		return err
 	}
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -694,13 +727,140 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 // refunds SlotItemSellValue (c.Slots.SellValuePct of its buy price) in
 // credits. Docked-only.
 func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	syncActiveConditionFromLegacy(s, c)
 	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
 	if err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
 		return err
 	}
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
+	return nil
+}
+
+func validateDeviceRemovalCargo(s *State, c *content.Content, shipID string, d *SlotDevice) error {
+	if shipID != s.ActiveShipID {
+		return nil
+	}
+	capacityAfterRemoval := cargoCapacityAfterChange(s, c, shipID, d, nil)
+	if s.CargoUnits > capacityAfterRemoval {
+		return ErrCargoDoesNotFit
+	}
+	return nil
+}
+
+func validateDeviceRemovalRouteKey(s *State, c *content.Content, shipID string, old, replacement *SlotDevice) error {
+	if shipID != s.ActiveShipID || old == nil {
+		return nil
+	}
+	system := c.SystemByID(s.SystemID)
+	if system == nil || system.RequiredItemID == "" || old.ItemID != system.RequiredItemID {
+		return nil
+	}
+	if replacement != nil && replacement.ItemID == system.RequiredItemID {
+		return nil
+	}
+	return ErrRouteKeyRequired
+}
+
+// cargoCapacityAfterChange calculates a ship's capacity with old removed and
+// replacement installed. It is side-effect free so rejected shipyard actions
+// leave the pilot's physical cargo state untouched.
+func cargoCapacityAfterChange(s *State, c *content.Content, shipID string, old, replacement *SlotDevice) float64 {
+	capacity := CargoCapacityUnitsFor(s, c, shipID)
+	if old != nil && old.ItemID == ItemCargo {
+		capacity -= c.Slots.CargoPerGrade * float64(old.Grade+1)
+	}
+	if replacement != nil && replacement.ItemID == ItemCargo {
+		capacity += c.Slots.CargoPerGrade * float64(replacement.Grade+1)
+	}
+	return capacity
+}
+
+func validateCargoAfterReplacement(s *State, c *content.Content, shipID string, old, replacement *SlotDevice) error {
+	if shipID == s.ActiveShipID && s.CargoUnits > cargoCapacityAfterChange(s, c, shipID, old, replacement) {
+		return ErrCargoDoesNotFit
+	}
+	return nil
+}
+
+func finishDeviceInstallation(s *State, c *content.Content, shipID string, d *SlotDevice) {
+	if d == nil {
+		return
+	}
+	inst := s.Ships[shipID]
+	switch d.ItemID {
+	case ItemShield:
+		restoreShipShieldFull(s, c, shipID)
+	case ItemJammer:
+		if inst != nil {
+			inst.JammerCharges = jammerMaxCharges(c, d.Grade)
+		}
+	case ItemEMPLauncher:
+		d.EMPArmed = true
+	}
+}
+
+// ReplaceSlotDeviceWithPurchase atomically sells the occupied target slot and
+// buys a catalog replacement. The old module's refund is available to this
+// transaction, but all validation happens before any credits or loadout state
+// change.
+func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, kind SlotKind, index int, itemID string, grade int) error {
+	syncActiveConditionFromLegacy(s, c)
+	if !s.IsDocked() {
+		return ErrInBelt
+	}
+	if SlotItemLocked(itemID) || SlotItemKind(itemID) != kind || grade < 0 || grade > MaxGrade {
+		return ErrInvalidSlotItem
+	}
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return ErrNotOwned
+	}
+	target, err := deviceSlot(inst, kind, index)
+	if err != nil {
+		return err
+	}
+	if *target == nil {
+		return ErrSlotEmpty
+	}
+	old := *target
+	if err := validateUniqueSlotItem(inst, kind, index, itemID); err != nil {
+		return err
+	}
+	replacement := &SlotDevice{ItemID: itemID, Grade: grade}
+	if err := validateCargoAfterReplacement(s, c, shipID, old, replacement); err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, old, replacement); err != nil {
+		return err
+	}
+	powerWithout := InstalledPower(s, c, shipID) - devicePower(c, old)
+	if powerWithout+SlotItemPower(c, itemID, grade) > PowerCapacityFor(s, c, shipID) {
+		return ErrPowerExceeded
+	}
+	price := SlotItemPrice(c, itemID, grade)
+	refund := SlotItemSellValue(c, old.ItemID, old.Grade)
+	if s.Credits+refund < price {
+		return ErrInsufficientFunds
+	}
+	s.Credits += refund - price
+	s.Stats.CreditsSpent += price
+	*target = replacement
+	finishDeviceInstallation(s, c, shipID, replacement)
+	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -730,6 +890,7 @@ func resolveOccupiedSlot(s *State, shipID string, kind SlotKind, index int) (*Sh
 // matching kind, power headroom, and an empty target slot. Call
 // StoreSlotDevice or SellSlotDevice first when changing a loadout.
 func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string, kind SlotKind, index, invIndex int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -754,6 +915,9 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	if *target != nil {
 		return ErrSlotOccupied
 	}
+	if err := validateUniqueSlotItem(inst, kind, index, d.ItemID); err != nil {
+		return err
+	}
 
 	capacity := PowerCapacityFor(s, c, shipID)
 	powerWithout := InstalledPower(s, c, shipID) - devicePower(c, *target)
@@ -766,14 +930,9 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	copy(s.Inventory[invIndex:], s.Inventory[invIndex+1:])
 	s.Inventory[last] = nil // drop the moved pointer so the vacated backing-array slot doesn't keep it alive
 	s.Inventory = s.Inventory[:last]
-	if d.ItemID == ItemShield {
-		restoreShipShieldFull(s, c, shipID)
-	}
-	if d.ItemID == ItemJammer {
-		inst.JammerCharges = jammerMaxCharges(c, d.Grade)
-	}
-	if d.ItemID == ItemEMPLauncher {
-		d.EMPArmed = true
+	finishDeviceInstallation(s, c, shipID, d)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
 	}
 	return nil
 }

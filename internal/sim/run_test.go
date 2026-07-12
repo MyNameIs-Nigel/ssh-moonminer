@@ -403,6 +403,9 @@ func TestAttackDamagePerSecondRespectsTurretMitigation(t *testing.T) {
 		if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotWeapon, 0, sim.ItemTurret, grade); err != nil {
 			t.Fatal(err)
 		}
+		if err := sim.SwitchActiveShip(s, c, "warden"); err != nil {
+			t.Fatal(err)
+		}
 		_ = sim.Depart(s, c, 1)
 		ast := s.Belt[0]
 		s.Fuel = 500
@@ -558,6 +561,9 @@ func TestPirateETANarrowsWithHighScannerGrade(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		if err := sim.SwitchActiveShip(s, c, "cicada"); err != nil {
+			t.Fatal(err)
+		}
 		_ = sim.Depart(s, c, 1)
 		ast := s.Belt[0]
 		s.Fuel = 500
@@ -670,10 +676,9 @@ func TestCargoCapDepletionLeavesRemnant(t *testing.T) {
 	}
 }
 
-// TestSwitchActiveShipRearmsJammer covers a bug where switching to a parked
-// ship carried over its stale (possibly drained) Pirate Jammer charges
-// instead of treating the switch as arriving fresh from a maintained hangar.
-func TestSwitchActiveShipRearmsJammer(t *testing.T) {
+// TestSwitchActiveShipPreservesJammerCharges ensures a hangar switch is not a
+// hidden dock service; only Dock may rearm the active ship's countermeasures.
+func TestSwitchActiveShipPreservesJammerCharges(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
 	s.Credits = 100000
@@ -693,8 +698,12 @@ func TestSwitchActiveShipRearmsJammer(t *testing.T) {
 	if err := sim.SwitchActiveShip(s, c, "cicada"); err != nil {
 		t.Fatal(err)
 	}
+	if got := s.Ships["cicada"].JammerCharges; got != 0 {
+		t.Fatalf("switching should preserve depleted jammer charges, got %d", got)
+	}
+	sim.Dock(s, c)
 	if got := s.Ships["cicada"].JammerCharges; got == 0 {
-		t.Fatalf("expected SwitchActiveShip to rearm the jammer like a fresh dock arrival, got %d charges", got)
+		t.Fatal("docking should rearm the active jammer")
 	}
 }
 

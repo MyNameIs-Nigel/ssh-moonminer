@@ -18,6 +18,9 @@ func BuySystemPermit(s *State, c *content.Content, systemID string) error {
 	if system.StartsUnlocked || s.SystemPermits[systemID] {
 		return ErrAlreadyUnlocked
 	}
+	if source := c.SystemByID(s.SystemID); source == nil || (source.ID != system.ID && !systemsLinked(source, system.ID)) {
+		return ErrRouteLocked
+	}
 	model := c.ShipByID(s.ActiveShipID)
 	if system.RequiredShipClass != "" && (model == nil || model.Class != system.RequiredShipClass) {
 		return ErrRouteLocked
@@ -77,6 +80,10 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	s.CargoUnits = 0
 	s.Stats.CreditsEarned += value
 	s.Stats.CargoValueSold += value
+	// Selling recovered cargo is a documented recovery milestone: the pilot
+	// has converted a viable escape route, so a future real softlock may use
+	// the safety net again.
+	s.Settings.InsuranceUsed = false
 	systemName := s.SystemID
 	if system := c.SystemByID(s.SystemID); system != nil {
 		systemName = system.Name
@@ -85,8 +92,10 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	return value, nil
 }
 
-// Refuel fills fuel tank as much as credits allow.
+// Refuel buys whole fuel points at the port's whole-credit rate, filling
+// detachable tanks before the hull reserve.
 func Refuel(s *State, c *content.Content) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -97,24 +106,24 @@ func Refuel(s *State, c *content.Content) error {
 	if s.Credits <= 0 {
 		return ErrInsufficientFunds
 	}
-	missing := tank - s.Fuel
-	fullCost := int(math.Round(missing * float64(c.Port.RefuelPerPoint)))
-	if s.Credits >= fullCost {
-		s.Credits -= fullCost
-		s.Stats.CreditsSpent += fullCost
-		s.Fuel = tank
-	} else {
-		pts := float64(s.Credits) / float64(c.Port.RefuelPerPoint)
-		spent := s.Credits
-		s.Credits = 0
-		s.Stats.CreditsSpent += spent
-		s.Fuel += pts
+	missingWhole := int(math.Floor(tank - s.Fuel + 0.000001))
+	if missingWhole <= 0 {
+		return ErrAlreadyFull
 	}
+	points := min(s.Credits/c.Port.RefuelPerPoint, missingWhole)
+	if points <= 0 {
+		return ErrInsufficientFunds
+	}
+	spent := points * c.Port.RefuelPerPoint
+	s.Credits -= spent
+	s.Stats.CreditsSpent += spent
+	AddFuel(s, c, float64(points))
 	return nil
 }
 
 // Repair restores hull to the active ship's max.
 func Repair(s *State, c *content.Content) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -127,7 +136,7 @@ func Repair(s *State, c *content.Content) error {
 		return ErrInsufficientFunds
 	}
 	s.Credits -= cost
-	s.Hull = max
+	setActiveHull(s, c, max)
 	s.Stats.CreditsSpent += cost
 	return nil
 }

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -104,9 +103,9 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	// always reaches 0% exactly when DEPART goes green.
 	resourcePct := 0.0
 	if ast != nil && ast.Volume > 0 {
-		cap_ := math.Min(float64(ast.Volume), sim.CargoCapacityUnits(st, g.content))
+		cap_ := sim.RunMiningCapacity(st, g.content, ast, run)
 		if cap_ > 0 {
-			resourcePct = clampF(100*(1-run.MinedUnits/cap_), 0, 100)
+			resourcePct = clampF(100*(1-sim.RunExtractedUnits(run)/cap_), 0, 100)
 		}
 	}
 	depleted := sim.RunDepleted(st, g.content, ast, run)
@@ -115,7 +114,8 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		name, g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier])
 	title = theme.Amber.Render(title)
 
-	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	fuelAmount := sim.FuelAmount(st, g.content)
+	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
@@ -135,7 +135,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		fmt.Sprintf("%s FUEL         %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
-			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
+			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f %3.0f%%", fuelAmount, sim.TankSize(st, g.content), fuelPct))),
 		"",
 		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s of %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue)),
@@ -239,7 +239,11 @@ func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
 
 func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tier, value int) string {
 	title := theme.Red.Render(theme.Glyph("skull", st.Settings.ASCIISafe) + " PIRATE TRANSMISSION")
-	demand := int(float64(run.CargoValue) * g.content.Mining.TributeDemandPct)
+	totalCargo := st.CargoValue + run.CargoValue
+	demand := int(float64(totalCargo) * g.content.Mining.TributeDemandPct)
+	if demand > totalCargo {
+		demand = totalCargo
+	}
 	remaining := g.content.Mining.TributeDecisionSeconds - run.TributeSecondsElapsed
 	if remaining < 0 {
 		remaining = 0
@@ -247,11 +251,12 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 	lines := []string{
 		title,
 		"",
-		theme.TxtStyle.Render(fmt.Sprintf(`"Drop %s %d from this rock or we open your hull."`,
+		theme.TxtStyle.Render(fmt.Sprintf(`"Drop %s %d from all cargo aboard or we open your hull."`,
 			theme.Glyph("credit", st.Settings.ASCIISafe), demand)),
 		"",
 		fmt.Sprintf("ASTEROID  %s (%s %s)", theme.Gold.Render(name), g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier]),
-		fmt.Sprintf("CARGO ABOARD  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), run.CargoValue),
+		fmt.Sprintf("CARGO ABOARD  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo),
+		fmt.Sprintf("RETAIN AFTER DROP  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo-demand),
 		theme.DimStyle.Render(fmt.Sprintf("decision timeout: %.0fs", remaining)),
 		"",
 	}
@@ -285,7 +290,8 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 	if remaining < 0 {
 		remaining = 0
 	}
-	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	fuelAmount := sim.FuelAmount(st, g.content)
+	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
@@ -302,7 +308,7 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 		fmt.Sprintf("%s FUEL          %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
-			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
+			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f %3.0f%%", fuelAmount, sim.TankSize(st, g.content), fuelPct))),
 		"",
 		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue))),

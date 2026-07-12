@@ -1,11 +1,33 @@
 package sim
 
 import (
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
+
+// normalizeRunAccounting upgrades transient pre-accounting fixtures to the
+// explicit extracted/held model. Active runs are never persisted, but this
+// keeps deterministic tests and dev tooling written against MinedUnits from
+// silently changing their meaning during the transition.
+func normalizeRunAccounting(run *ActiveRun) {
+	if run == nil {
+		return
+	}
+	if run.ExtractedUnits == 0 && run.HeldUnits == 0 && run.MinedUnits > 0 {
+		run.ExtractedUnits = run.MinedUnits
+		run.HeldUnits = run.MinedUnits
+	}
+	if run.ExtractedUnits < run.HeldUnits {
+		run.ExtractedUnits = run.HeldUnits
+	}
+	run.ExtractedUnits = math.Max(0, run.ExtractedUnits)
+	run.HeldUnits = clamp(run.HeldUnits, 0, run.ExtractedUnits)
+	run.JettisonedUnits = math.Max(0, run.JettisonedUnits)
+	run.MinedUnits = run.HeldUnits
+}
 
 // OutcomeKind identifies run resolution type.
 type OutcomeKind string
@@ -36,6 +58,7 @@ var outcomeMeta = map[OutcomeKind]struct{ Label, Desc string }{
 
 // Lock begins a mining run on the selected asteroid.
 func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
+	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {
 		return ErrNotDocked
 	}
@@ -52,10 +75,13 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if !ast.Scanned {
 		return ErrNotScanned
 	}
+	if RemainingCargoCapacity(s, c) <= 0 {
+		return ErrCargoFull
+	}
 	if s.Fuel < float64(ast.FuelCost) {
 		return ErrInsufficientFuel
 	}
-	s.Fuel -= float64(ast.FuelCost)
+	ConsumeFuel(s, c, float64(ast.FuelCost))
 	pirateStartDistance := 100.0
 	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateStartDistance > 0 {
 		pirateStartDistance = w.PirateStartDistance
@@ -84,6 +110,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 // GenerateBelt, its flight fuel cost — but the scan itself only costs the
 // flat content.Belt.ScanFuelCost. Completion is driven by TickScan.
 func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
+	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {
 		return ErrNotDocked
 	}
@@ -107,7 +134,7 @@ func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 	if s.Fuel < cost {
 		return ErrInsufficientFuel
 	}
-	s.Fuel -= cost
+	ConsumeFuel(s, c, cost)
 	s.Scan = &ActiveScan{
 		AsteroidID: asteroidID,
 		Duration:   ast.Distance * c.Belt.ScanSecPerKm,
@@ -147,6 +174,7 @@ func BailOrDepart(s *State, c *content.Content, now int64) error {
 	if run.Phase != PhaseMining {
 		return ErrInvalidRunPhase
 	}
+	normalizeRunAccounting(run)
 	ast, _ := FindAsteroid(s, run.AsteroidID)
 	if ast == nil {
 		s.Run = nil
@@ -167,24 +195,50 @@ func AcceptTribute(s *State, c *content.Content, now int64) error {
 	if run.Phase != PhaseTribute {
 		return ErrInvalidRunPhase
 	}
+	normalizeRunAccounting(run)
 	ast, _ := FindAsteroid(s, run.AsteroidID)
 	if ast == nil {
 		s.Run = nil
 		return nil
 	}
-	demand := int(math.Round(float64(run.CargoValue) * c.Mining.TributeDemandPct))
-	if demand > run.CargoValue {
-		demand = run.CargoValue
+	totalCargo := s.CargoValue + run.CargoValue
+	demand := int(math.Round(float64(totalCargo) * c.Mining.TributeDemandPct))
+	demand = clampInt(demand, 0, totalCargo)
+	fromStored := proportionalCargoLoss(demand, s.CargoValue, totalCargo)
+	fromRun := demand - fromStored
+	if fromRun > run.CargoValue {
+		fromStored += fromRun - run.CargoValue
+		fromRun = run.CargoValue
 	}
-	if ast.Value > 0 {
-		lostUnits := float64(demand) / float64(ast.Value) * float64(ast.Volume)
-		run.MinedUnits = math.Max(0, run.MinedUnits-lostUnits)
-	}
-	run.CargoValue -= demand
+	storedUnitsLost := cargoUnitsForValueLoss(s.CargoUnits, s.CargoValue, fromStored)
+	runUnitsLost := cargoUnitsForValueLoss(run.HeldUnits, run.CargoValue, fromRun)
+	s.CargoValue -= fromStored
+	s.CargoUnits = math.Max(0, s.CargoUnits-storedUnitsLost)
+	run.CargoValue -= fromRun
+	run.HeldUnits = math.Max(0, run.HeldUnits-runUnitsLost)
+	run.JettisonedUnits += runUnitsLost
+	run.MinedUnits = run.HeldUnits // compatibility mirror; never remnant accounting
+	run.TributeCargoBefore = totalCargo
+	run.TributeDemand = demand
+	run.TributeCargoRetained = s.CargoValue + run.CargoValue
 	run.TributePaid = true
-	run.EventLog = append(run.EventLog, RunEventRecord{Kind: "tribute_paid", At: now})
+	run.EventLog = append(run.EventLog, RunEventRecord{Kind: EventKind(fmt.Sprintf("tribute paid: total %d, demand %d, retained %d", totalCargo, demand, run.TributeCargoRetained)), At: now})
 	startEscape(s, c, ast, false)
 	return nil
+}
+
+func proportionalCargoLoss(demand, portion, total int) int {
+	if demand <= 0 || portion <= 0 || total <= 0 {
+		return 0
+	}
+	return clampInt(int(math.Round(float64(demand)*float64(portion)/float64(total))), 0, min(demand, portion))
+}
+
+func cargoUnitsForValueLoss(units float64, value, loss int) float64 {
+	if units <= 0 || value <= 0 || loss <= 0 {
+		return 0
+	}
+	return clamp(units*float64(loss)/float64(value), 0, units)
 }
 
 // RefuseTribute rejects the pirates' demand and starts a fight-for-your-life
@@ -209,6 +263,7 @@ func RefuseTribute(s *State, c *content.Content, now int64) error {
 
 func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) {
 	run := s.Run
+	normalizeRunAccounting(run)
 	run.Phase = PhaseEscaping
 	if underAttack {
 		run.UnderAttack = true
@@ -222,7 +277,7 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	}
 	cargoLoadRatio := 0.0
 	if cap_ := CargoCapacityUnits(s, c); cap_ > 0 {
-		cargoLoadRatio = clamp((s.CargoUnits+run.MinedUnits)/cap_, 0, 1)
+		cargoLoadRatio = clamp((s.CargoUnits+run.HeldUnits)/cap_, 0, 1)
 	}
 	mc := c.Mining
 	req := mc.BaseEscapeSeconds + math.Pow(cargoLoadRatio, mc.EscapeCargoExponent)*mc.CargoEscapePenaltySeconds
@@ -242,6 +297,9 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	if run == nil {
 		return nil, false
 	}
+	syncActiveConditionFromLegacy(s, c)
+	defer syncActiveConditionMirror(s, c)
+	normalizeRunAccounting(run)
 	if dt < 0 || math.IsNaN(dt) {
 		dt = 0
 	}
@@ -302,13 +360,16 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	if !outage {
 		// Mining stops at the ship's cargo capacity exactly like depletion —
 		// RunDepleted treats "hold full" and "rock exhausted" the same way.
-		cargoCap := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
-		remaining := cargoCap - run.MinedUnits
+		extractionRemaining := math.Max(0, float64(ast.Volume)-run.ExtractedUnits)
+		holdRemaining := math.Max(0, RemainingCargoCapacity(s, c)-run.HeldUnits)
+		remaining := math.Min(extractionRemaining, holdRemaining)
 		if remaining > 0 && s.Fuel > 0 && ast.DrillSec > 0 {
 			mineRate := float64(ast.Volume) / ast.DrillSec
 			mined := math.Min(remaining, mineRate*dt)
 			if mined > 0 {
-				run.MinedUnits += mined
+				run.ExtractedUnits += mined
+				run.HeldUnits += mined
+				run.MinedUnits = run.HeldUnits // compatibility mirror
 			}
 			fuelDrain := (c.Mining.FuelDrainBase + float64(ast.Tier)*c.Mining.FuelDrainPerTier) * FuelDrainMul(s, c)
 			if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
@@ -323,17 +384,17 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 					burn = math.Max(0, burn-refund)
 				}
 			}
-			s.Fuel = math.Max(0, s.Fuel-burn)
-			s.Stats.FuelBurned += math.Min(burn, s.Fuel+burn)
+			consumed := ConsumeFuel(s, c, burn)
+			s.Stats.FuelBurned += consumed
 		}
 		if ast.Volume > 0 {
-			run.CargoValue = int(math.Round(float64(ast.Value) * run.MinedUnits / float64(ast.Volume)))
+			run.CargoValue = int(math.Round(float64(ast.Value) * run.HeldUnits / float64(ast.Volume)))
 		}
 		tickSkillCheck(s, c, run, ast, dt)
 	}
 
 	if run.LifeSupportBreached {
-		applyHullDamageRate(s, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
+		applyHullDamageRate(s, c, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
 	}
 
 	// A Pirate Jammer charge (consumed at Lock) keeps pirates from ever
@@ -353,8 +414,8 @@ func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bo
 	if ast == nil {
 		return true
 	}
-	cap_ := math.Min(float64(ast.Volume), math.Max(0, CargoCapacityUnits(s, c)-s.CargoUnits))
-	return run.MinedUnits >= cap_
+	normalizeRunAccounting(run)
+	return run.ExtractedUnits >= float64(ast.Volume) || run.HeldUnits >= RemainingCargoCapacity(s, c)
 }
 
 // updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
@@ -383,7 +444,7 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 		fuelDrain *= c.Events.ReactorSurgeFuelMul
 	}
-	s.Fuel = math.Max(0, s.Fuel-fuelDrain*dt)
+	ConsumeFuel(s, c, fuelDrain*dt)
 	if s.Fuel <= 0 {
 		run.FuelOutSeconds += dt
 	}
@@ -474,20 +535,20 @@ func attackHullDamagePerSecond(s *State, c *content.Content) float64 {
 // applyHullDamageRate applies continuous, tick-scaled non-combat damage
 // (life-support bleed) straight to the hull. Shield/Turret only defend
 // against pirate attacks specifically — see applyAttackDamageRate.
-func applyHullDamageRate(s *State, run *ActiveRun, ratePerSecond, dt float64) {
+func applyHullDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
 	if ratePerSecond <= 0 || dt <= 0 {
 		return
 	}
-	applyHullDamageCarry(s, run, ratePerSecond*dt)
+	applyHullDamageCarry(s, c, run, ratePerSecond*dt)
 }
 
 // applyHullDamageInstant applies a single lump non-combat hit (e.g. reactor
 // surge) straight to the hull, same reasoning as applyHullDamageRate.
-func applyHullDamageInstant(s *State, run *ActiveRun, amount float64) {
+func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount float64) {
 	if amount <= 0 {
 		return
 	}
-	applyHullDamageCarry(s, run, amount)
+	applyHullDamageCarry(s, c, run, amount)
 }
 
 // applyAttackDamageRate applies continuous pirate-attack damage: the
@@ -509,17 +570,17 @@ func applyAttackDamageRate(s *State, c *content.Content, run *ActiveRun, ratePer
 			inst.ShieldDamaged = true
 		}
 	}
-	applyHullDamageCarry(s, run, amount)
+	applyHullDamageCarry(s, c, run, amount)
 }
 
-func applyHullDamageCarry(s *State, run *ActiveRun, reduced float64) {
+func applyHullDamageCarry(s *State, c *content.Content, run *ActiveRun, reduced float64) {
 	if reduced <= 0 || s.DevGodMode {
 		return
 	}
 	run.HullDamageCarry += reduced
 	whole := int(run.HullDamageCarry)
 	if whole > 0 {
-		s.Hull = max(0, s.Hull-whole)
+		setActiveHull(s, c, max(0, s.Hull-whole))
 		run.HullDamageCarry -= float64(whole)
 	}
 }
@@ -529,6 +590,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	if run == nil {
 		return nil
 	}
+	normalizeRunAccounting(run)
 	ast, _ := FindAsteroid(s, run.AsteroidID)
 	astName, astTier, astVolume := "", 0, 0
 	if ast != nil {
@@ -544,7 +606,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	default:
 		recovered = run.CargoValue
 		s.CargoValue += recovered
-		s.CargoUnits += run.MinedUnits
+		s.CargoUnits += run.HeldUnits
 	}
 
 	hullDelta := s.Hull - run.StartHull
@@ -555,7 +617,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	// gameplay/05). Only true volume exhaustion removes the asteroid
 	// outright on Departed — a cargo-capped Departed leaves real ore behind
 	// and must go through the same remnant-preservation path as a bail.
-	volumeExhausted := astVolume > 0 && run.MinedUnits >= float64(astVolume)
+	volumeExhausted := astVolume > 0 && run.ExtractedUnits >= float64(astVolume)
 
 	if ast != nil {
 		switch {
@@ -566,12 +628,12 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 		default:
 			remainRatio := 1.0
 			if astVolume > 0 {
-				remainRatio = 1 - run.MinedUnits/float64(astVolume)
+				remainRatio = 1 - run.ExtractedUnits/float64(astVolume)
 			}
 			if remainRatio < c.Mining.RemnantKeepThreshold {
 				RemoveAsteroid(s, run.AsteroidID)
 			} else {
-				applyMinedRemnant(s, run.AsteroidID, run.MinedUnits)
+				applyMinedRemnant(s, run.AsteroidID, run.ExtractedUnits)
 			}
 		}
 	}
@@ -589,7 +651,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	meta := outcomeMeta[kind]
 	rec := RunRecord{
 		When: now, World: worldName, Asteroid: astName, Tier: astTier,
-		Outcome: string(kind), CargoValueRecovered: recovered, CargoValueLost: lost,
+		Outcome: string(kind), CargoValueRecovered: recovered, CargoValueLost: lost, CargoValueJettisoned: run.TributeDemand,
 		HullDelta: hullDelta, FuelDelta: fuelDelta, Depleted: depleted, Events: events,
 	}
 	appendRunLog(s, rec)
@@ -597,8 +659,6 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 
 	if kind == OutcomeShipLost {
 		respawnActiveShip(s, c)
-	} else if kind == OutcomeDeparted {
-		s.Settings.InsuranceUsed = false
 	}
 	if kind != OutcomeShipLost {
 		restoreBurstShieldOnBeltReturn(s, c)

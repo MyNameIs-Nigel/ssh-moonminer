@@ -13,12 +13,13 @@ import (
 
 // System is one large travel region on the star chart.
 type System struct {
-	ID                string `toml:"id"`
-	Name              string `toml:"name"`
-	StartsUnlocked    bool   `toml:"starts_unlocked"`
-	TransferFee       int    `toml:"transfer_fee"`
-	RequiredShipClass string `toml:"required_ship_class"`
-	RequiredItemID    string `toml:"required_item_id"`
+	ID                string   `toml:"id"`
+	Name              string   `toml:"name"`
+	Links             []string `toml:"links"`
+	StartsUnlocked    bool     `toml:"starts_unlocked"`
+	TransferFee       int      `toml:"transfer_fee"`
+	RequiredShipClass string   `toml:"required_ship_class"`
+	RequiredItemID    string   `toml:"required_item_id"`
 }
 
 // World is one mineable destination on the star chart. The retained Go name
@@ -414,6 +415,20 @@ func (c *Content) validate() error {
 		}
 		systems[system.ID] = true
 	}
+	for _, system := range c.Systems {
+		if len(system.Links) == 0 {
+			return fmt.Errorf("content: system %q must have at least one outbound link", system.ID)
+		}
+		for _, linkedID := range system.Links {
+			if linkedID == system.ID || !systems[linkedID] {
+				return fmt.Errorf("content: system %q has invalid outbound link %q", system.ID, linkedID)
+			}
+			linked := c.SystemByID(linkedID)
+			if linked == nil || !containsString(linked.Links, system.ID) {
+				return fmt.Errorf("content: system link %q -> %q must be reciprocal", system.ID, linkedID)
+			}
+		}
+	}
 	if len(c.Worlds) < 4 {
 		return fmt.Errorf("content: need at least 4 worlds, got %d", len(c.Worlds))
 	}
@@ -499,6 +514,15 @@ func (c *Content) validate() error {
 		return err
 	}
 	return nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 // SystemByID returns a system by its stable content ID.

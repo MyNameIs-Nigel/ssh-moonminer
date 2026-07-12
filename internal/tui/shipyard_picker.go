@@ -32,18 +32,20 @@ const (
 // item at a caller-adjustable grade (buyable) or a specific stored device
 // from inventory (free to re-equip).
 type pickerEntry struct {
-	itemID   string
-	grade    int
-	locked   bool
-	fromInv  bool
-	invIndex int
-	price    int
-	afford   bool
-	powerFit bool
+	itemID        string
+	grade         int
+	locked        bool
+	fromInv       bool
+	invIndex      int
+	price         int
+	afford        bool
+	saleAfford    bool
+	powerFit      bool
+	uniqueBlocked bool
 }
 
 func (e pickerEntry) enabled() bool {
-	return !e.locked && e.powerFit && (e.fromInv || e.afford)
+	return !e.locked && e.powerFit && !e.uniqueBlocked && (e.fromInv || e.afford || e.saleAfford)
 }
 
 // pickerRowLabel names the LOADOUT row the picker/remove overlay is acting
@@ -96,12 +98,17 @@ func inventoryCountForKind(inv []*sim.SlotDevice, kind sim.SlotKind) int {
 // followed by every stored inventory device matching kind, each annotated
 // with whether picking it right now is affordable and power-fits — the
 // picker renders disabled rows instead of hiding them (tui/05 spec).
-func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKind, current *sim.SlotDevice) []pickerEntry {
+func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKind, current *sim.SlotDevice, indexes ...int) []pickerEntry {
+	index := 0
+	if len(indexes) > 0 {
+		index = indexes[0]
+	}
 	items := sim.SlotItemsFor(kind)
 	entries := make([]pickerEntry, 0, len(items))
 
 	capacity := sim.PowerCapacityFor(st, g.content, shipID)
 	powerWithout := g.pickerPowerWithout(st, shipID, current)
+	inst := st.Ships[shipID]
 
 	for i, id := range items {
 		grade := 0
@@ -110,13 +117,16 @@ func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKin
 		}
 		price := sim.SlotItemPrice(g.content, id, grade)
 		power := sim.SlotItemPower(g.content, id, grade)
+		uniqueBlocked := sim.SlotItemIsUnique(id) && pickerHasOtherItem(inst, kind, index, id)
 		entries = append(entries, pickerEntry{
-			itemID:   id,
-			grade:    grade,
-			locked:   sim.SlotItemLocked(id),
-			price:    price,
-			afford:   st.Credits >= price,
-			powerFit: powerWithout+power <= capacity,
+			itemID:        id,
+			grade:         grade,
+			locked:        sim.SlotItemLocked(id),
+			price:         price,
+			afford:        st.Credits >= price,
+			saleAfford:    current != nil && st.Credits+sim.SlotItemSellValue(g.content, current.ItemID, current.Grade) >= price,
+			powerFit:      powerWithout+power <= capacity,
+			uniqueBlocked: uniqueBlocked,
 		})
 	}
 	for idx, d := range st.Inventory {
@@ -124,15 +134,38 @@ func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKin
 			continue
 		}
 		power := sim.SlotItemPower(g.content, d.ItemID, d.Grade)
+		uniqueBlocked := sim.SlotItemIsUnique(d.ItemID) && pickerHasOtherItem(inst, kind, index, d.ItemID)
 		entries = append(entries, pickerEntry{
-			itemID:   d.ItemID,
-			grade:    d.Grade,
-			fromInv:  true,
-			invIndex: idx,
-			powerFit: powerWithout+power <= capacity,
+			itemID:        d.ItemID,
+			grade:         d.Grade,
+			fromInv:       true,
+			invIndex:      idx,
+			powerFit:      powerWithout+power <= capacity,
+			uniqueBlocked: uniqueBlocked,
 		})
 	}
 	return entries
+}
+
+func pickerHasOtherItem(inst *sim.ShipInstance, kind sim.SlotKind, index int, itemID string) bool {
+	if inst == nil {
+		return false
+	}
+	var devices []*sim.SlotDevice
+	switch kind {
+	case sim.SlotUtility:
+		devices = inst.Utility
+	case sim.SlotWeapon:
+		devices = inst.Weapon
+	default:
+		return false
+	}
+	for i, d := range devices {
+		if i != index && d != nil && d.ItemID == itemID {
+			return true
+		}
+	}
+	return false
 }
 
 // pickerPowerWithout returns shipID's installed power with current's draw
@@ -180,7 +213,7 @@ func (g *Game) pickerContext() (model *content.ShipModel, row shipyardRow, entri
 	}
 	st := g.snap.State
 	current := slotDeviceAt(st.Ships[model.ID], row)
-	entries = g.pickerBuildEntries(&st, model.ID, row.slotKind(), current)
+	entries = g.pickerBuildEntries(&st, model.ID, row.slotKind(), current, row.index)
 	return model, row, entries, true
 }
 
@@ -269,7 +302,10 @@ func (g *Game) pickerConfirm(model *content.ShipModel, row shipyardRow, entries 
 		capacity := sim.PowerCapacityFor(&st, g.content, model.ID)
 		g.setFlash(fmt.Sprintf("INSUFFICIENT POWER — %d/%d USED", wouldUse, capacity))
 		return nil
-	case !e.fromInv && !e.afford:
+	case e.uniqueBlocked:
+		g.setFlash("ONLY ONE OF THAT MODULE FITS THIS SHIP")
+		return nil
+	case !e.fromInv && !e.afford && !e.saleAfford:
 		g.setFlash("INSUFFICIENT CREDITS")
 		return nil
 	}
@@ -279,9 +315,8 @@ func (g *Game) pickerConfirm(model *content.ShipModel, row shipyardRow, entries 
 			g.setFlash("MODULE ALREADY INSTALLED")
 			return nil
 		}
-		// Never replace an occupied slot directly: retain the selected module,
-		// then use the normal Store/Sell confirmation for the installed one.
-		// The selected module is installed only after that choice completes.
+		// Retain the selected module, then offer either a cash purchase after
+		// storing it or an atomic sale-plus-purchase transaction.
 		g.pendingSlotInstall = &e
 		g.removeConfirmSel = removeConfirmStore
 		g.overlay = ovSlotRemove
@@ -340,6 +375,12 @@ func (g *Game) renderSlotPickerOverlay() string {
 			right = "LOCKED"
 		case e.fromInv:
 			right = "FREE"
+		case e.uniqueBlocked:
+			right = "UNIQUE"
+		case e.afford:
+			right = fmt.Sprintf("CASH %d", e.price)
+		case e.saleAfford:
+			right = fmt.Sprintf("SELL+BUY %d", e.price)
 		default:
 			right = fmt.Sprintf("%d cr", e.price)
 		}
@@ -389,7 +430,7 @@ const (
 
 const (
 	removePanelW = 46
-	removePanelH = 9
+	removePanelH = 10
 )
 
 func (g *Game) updateSlotRemoveOverlay(k string) []tea.Cmd {
@@ -424,6 +465,15 @@ func (g *Game) updateSlotRemoveOverlay(k string) []tea.Cmd {
 func (g *Game) removeConfirm(model *content.ShipModel, row shipyardRow) []tea.Cmd {
 	var snap sim.Snapshot
 	var err error
+	if g.pendingSlotInstall != nil && !g.pendingSlotInstall.fromInv && g.removeConfirmSel == removeConfirmSell {
+		e := *g.pendingSlotInstall
+		snap, err = g.sess.ReplaceSlotDeviceWithPurchase(g.now, model.ID, row.slotKind(), row.index, e.itemID, e.grade)
+		if err == nil {
+			g.pendingSlotInstall = nil
+			g.overlay = ovNone
+		}
+		return g.refreshSnap(snap, err)
+	}
 	if g.removeConfirmSel == removeConfirmSell {
 		snap, err = g.sess.SellSlotDevice(g.now, model.ID, row.slotKind(), row.index)
 	} else {
@@ -480,6 +530,9 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	} else {
 		lines = append(lines, "")
 	}
+	if d.ItemID == sim.ItemFuelTank {
+		lines = append(lines, theme.Amber.Render(fmt.Sprintf("SELL TANK — %.0f/%.0f FUEL WILL BE LOST", d.Fuel, sim.FuelTankCapacity(g.content, d))))
+	}
 	storeStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmStore, st.Settings.HighContrast)
 	sellStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmSell, st.Settings.HighContrast)
 	storeMarker, sellMarker := "  ", "  "
@@ -490,10 +543,15 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	}
 	sellPct := g.content.Slots.SellValuePct * 100
 	storeLine := storeStyle.Render(storeMarker + "[S] STORE — keep it, install free later")
-	sellLine := sellStyle.Render(sellMarker + fmt.Sprintf("[V] SELL — %d cr (%.0f%% value)", sellValue, sellPct))
+	sellText := fmt.Sprintf("[V] SELL — %d cr (%.0f%% value)", sellValue, sellPct)
+	if g.pendingSlotInstall != nil && !g.pendingSlotInstall.fromInv {
+		sellText = fmt.Sprintf("[V] SELL + BUY — net %d cr", g.pendingSlotInstall.price-sellValue)
+	}
+	sellLine := sellStyle.Render(sellMarker + sellText)
+	actionStart := len(lines)
 	lines = append(lines, storeLine, sellLine, "", theme.DimStyle.Render("↑/↓ choose · Enter confirm · Esc cancel"))
-	g.removeHitLine(3, storeLine, removeConfirmStore)
-	g.removeHitLine(4, sellLine, removeConfirmSell)
+	g.removeHitLine(actionStart, storeLine, removeConfirmStore)
+	g.removeHitLine(actionStart+1, sellLine, removeConfirmSell)
 
 	body := strings.Join(lines, "\n")
 	return theme.Panel("REMOVE MODULE", removePanelW, removePanelH, body, theme.Accent(theme.HueViolet))

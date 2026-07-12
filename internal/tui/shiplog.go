@@ -60,6 +60,9 @@ func (g *Game) renderLog() string {
 			theme.DimStyle.Render(r.World), theme.TxtStyle.Render(r.Asteroid),
 			outcome, sign, amount)
 		runs = append(runs, line)
+		if r.CargoValueJettisoned > 0 {
+			runs = append(runs, theme.Amber.Render(fmt.Sprintf("  TRIBUTE — dropped %d, retained %d", r.CargoValueJettisoned, r.CargoValueRecovered)))
+		}
 		if len(runs) > 8 {
 			break
 		}

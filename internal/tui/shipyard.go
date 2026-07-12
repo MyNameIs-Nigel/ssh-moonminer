@@ -188,6 +188,9 @@ func (g *Game) shipyardActivate() []tea.Cmd {
 	if g.shipyardPane == shipyardPaneHangar {
 		if !sim.OwnsShip(&st, model.ID) {
 			snap, err := g.sess.AcquireShip(g.now, model.ID)
+			if err == nil {
+				g.setFlash("BOUGHT FULLY SERVICED — ENTER TO ACTIVATE")
+			}
 			return g.refreshSnap(snap, err)
 		}
 		if model.ID != st.ActiveShipID {
@@ -361,6 +364,8 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			theme.Violet.Render("◇ ACQUIRE"),
 			"",
 			theme.Button("ENTER", label, fmt.Sprintf("%d cr", price), st.Credits >= price, theme.HueViolet),
+			theme.DimStyle.Render("New hull starts fully serviced."),
+			theme.DimStyle.Render("Purchase does not switch ships."),
 			"",
 			fmt.Sprintf("SLOTS  U%d  W%d  I1", model.UtilitySlots, model.WeaponSlots),
 		}, "\n")
@@ -432,6 +437,9 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	}
 	const statusBarW = 18
 	statusLines := []string{
+		fmt.Sprintf("HULL %d/%d", sim.ShipHull(st, model.ID), sim.MaxHullFor(st, g.content, model.ID)),
+		fmt.Sprintf("FUEL %.0f/%.0f", sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
+		"",
 		fmt.Sprintf("PWR %d/%d", power, capacity),
 		theme.RampBar(powerPct, statusBarW, true),
 		"",
