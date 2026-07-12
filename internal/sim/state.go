@@ -7,9 +7,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Version 5 renames the
-// Chaff Launcher to EMP Launcher and persists its armed state.
-const StateVersion = 5
+// StateVersion is the current save schema version. Version 6 moves hull and
+// fuel condition onto individual ships and fuel tanks.
+const StateVersion = 6
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -46,6 +46,9 @@ type SlotDevice struct {
 	ItemID   string `json:"item_id"`
 	Grade    int    `json:"grade"`
 	EMPArmed bool   `json:"emp_armed,omitempty"`
+	// Fuel belongs to an Extra Fuel Tank, never to a generic pilot pool.
+	// It is ignored for all other device types.
+	Fuel float64 `json:"fuel,omitempty"`
 }
 
 // ShipInstance is one owned, persistent hangar ship: its model, its own
@@ -54,6 +57,10 @@ type SlotDevice struct {
 // slots; Internal is always exactly one slot per ship.
 type ShipInstance struct {
 	ModelID string `json:"model_id"`
+	// Hull and BaseFuel are physical condition on this specific hull. Extra
+	// Fuel Tank reserves are carried by their individual SlotDevices.
+	Hull     int     `json:"hull"`
+	BaseFuel float64 `json:"base_fuel"`
 
 	Grades   TrackGrades   `json:"grades"`
 	Utility  []*SlotDevice `json:"utility,omitempty"`
@@ -277,14 +284,17 @@ type ActiveScan struct {
 
 // State is the full authoritative save.
 type State struct {
-	Version   int        `json:"version"`
-	Seed      uint64     `json:"seed"`
-	BeltCount uint64     `json:"belt_count"`
-	Credits   int        `json:"credits"`
-	Fuel      float64    `json:"fuel"`
-	Hull      int        `json:"hull"`
-	WorldIdx  int        `json:"world_idx"`
-	Belt      []Asteroid `json:"belt,omitempty"`
+	Version   int    `json:"version"`
+	Seed      uint64 `json:"seed"`
+	BeltCount uint64 `json:"belt_count"`
+	Credits   int    `json:"credits"`
+	// Fuel/Hull are legacy active-ship mirrors retained for v5 migration and
+	// compatibility with dev/test callers. ShipInstance owns the authoritative
+	// condition and Encode synchronizes these values before persistence.
+	Fuel     float64    `json:"fuel"`
+	Hull     int        `json:"hull"`
+	WorldIdx int        `json:"world_idx"`
+	Belt     []Asteroid `json:"belt,omitempty"`
 
 	// SystemID is the dock/belt system the pilot currently occupies. The
 	// permit maps only record purchases; content-defined starter routes need
@@ -296,9 +306,8 @@ type State struct {
 	CargoValue         int             `json:"cargo_value,omitempty"`
 
 	// Ships is the pilot's hangar: owned ship models keyed by ModelID, each
-	// with its own persistent grades and loadout. ActiveShipID selects
-	// which one is currently flown (its Hull/Fuel condition is State.Hull/
-	// State.Fuel above — hangar ships otherwise sit fully maintained).
+	// with its own persistent grades, loadout, hull and fuel condition.
+	// ActiveShipID selects which one is currently flown.
 	// ShipsUnlocked records every model ever owned, so re-acquiring one
 	// after losing it prices as a 25% buyback forever after, not a
 	// time-limited window. See
@@ -350,16 +359,32 @@ func New(c *content.Content, seed uint64, now int64) *State {
 	grantStarterShip(s, c)
 	s.Fuel = FuelCapacity(s, c)
 	s.Hull = MaxHull(s, c)
+	syncActiveConditionFromLegacy(s, c)
 	return s
 }
 
 // Encode serializes state for storage. Run is cleared before encode.
 func (s *State) Encode() ([]byte, error) {
 	copy := s.Clone()
+	syncActiveConditionMirrorForEncode(copy)
 	copy.Run = nil
 	copy.Scan = nil
 	copy.DevGodMode = false
 	return json.Marshal(copy)
+}
+
+func syncActiveConditionMirrorForEncode(s *State) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return
+	}
+	s.Hull = inst.Hull
+	s.Fuel = inst.BaseFuel
+	for _, d := range inst.Utility {
+		if d != nil && d.ItemID == ItemFuelTank {
+			s.Fuel += d.Fuel
+		}
+	}
 }
 
 // Clone returns a deep copy of the state.
@@ -448,7 +473,43 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 	if savedVersion < 5 {
 		migrateEMPLaunchers(&s)
 	}
+	if savedVersion < 6 {
+		migrateShipConditions(&s, c)
+	} else {
+		for shipID := range s.Ships {
+			normalizeShipCondition(&s, c, shipID)
+		}
+		syncActiveConditionMirror(&s, c)
+	}
 	return &s, nil
+}
+
+// migrateShipConditions assigns the old active aggregate fuel/hull to its
+// active hull, distributing fuel into detachable tanks first. Pre-v6 saves
+// modeled parked ships as fully maintained, so their condition is initialized
+// full rather than silently damaged or empty.
+func migrateShipConditions(s *State, c *content.Content) {
+	for shipID := range s.Ships {
+		if shipID == s.ActiveShipID {
+			inst := s.Ships[shipID]
+			inst.Hull = clampInt(s.Hull, 0, MaxHullFor(s, c, shipID))
+			setFuelAmountFor(s, c, shipID, s.Fuel)
+			continue
+		}
+		inst := s.Ships[shipID]
+		inst.Hull = MaxHullFor(s, c, shipID)
+		setFuelAmountFor(s, c, shipID, fuelCapacityFor(s, c, shipID))
+	}
+	syncActiveConditionMirror(s, c)
+}
+
+func normalizeShipCondition(s *State, c *content.Content, shipID string) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	inst.Hull = clampInt(inst.Hull, 0, MaxHullFor(s, c, shipID))
+	setFuelAmountFor(s, c, shipID, fuelAmountFor(s, c, shipID))
 }
 
 // migrateEMPLaunchers preserves old Chaff Launcher purchases as loaded EMP

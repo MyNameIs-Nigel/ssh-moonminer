@@ -15,22 +15,23 @@ func TankSize(s *State, c *content.Content) float64 {
 
 // RefuelCost returns credits to fill the tank.
 func RefuelCost(s *State, c *content.Content) int {
-	missing := TankSize(s, c) - s.Fuel
-	if missing <= 0 {
+	missingWhole := int(math.Floor(TankSize(s, c) - FuelAmount(s, c) + 0.000001))
+	if missingWhole <= 0 {
 		return 0
 	}
-	return int(math.Round(missing * float64(c.Port.RefuelPerPoint)))
+	return missingWhole * c.Port.RefuelPerPoint
 }
 
 // RepairCost returns credits to repair hull to the active ship's max.
 func RepairCost(s *State, c *content.Content) int {
 	max := MaxHull(s, c)
-	if s.Hull >= max {
+	hull := ShipHull(s, s.ActiveShipID)
+	if hull >= max {
 		return 0
 	}
-	missing := max - s.Hull
+	missing := max - hull
 	rate := float64(c.Port.RepairPerPoint)
-	if s.Hull == 0 {
+	if hull == 0 {
 		rate *= c.Port.DrydockSurchargeMul
 	}
 	return int(math.Round(float64(missing) * rate))
@@ -38,11 +39,11 @@ func RepairCost(s *State, c *content.Content) int {
 
 // CanDepart reports whether the pilot can afford travel to worldIdx.
 func CanDepart(s *State, c *content.Content, worldIdx int) bool {
-	if s.Hull <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
+	if ShipHull(s, s.ActiveShipID) <= 0 || worldIdx < 0 || worldIdx >= len(c.Worlds) {
 		return false
 	}
 	return RemainingCargoCapacity(s, c) > 0 &&
-		RouteLockReason(s, c, worldIdx) == "" && s.Fuel >= float64(c.Worlds[worldIdx].TravelFuel)
+		RouteLockReason(s, c, worldIdx) == "" && FuelAmount(s, c) >= float64(c.Worlds[worldIdx].TravelFuel)
 }
 
 // RemainingCargoCapacity reports the unused volume in the active ship's

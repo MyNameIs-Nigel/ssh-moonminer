@@ -304,8 +304,9 @@ func (g *Game) renderBelt() string {
 				fmt.Sprintf("SCANNING %s  %s  %.1fs remaining", theme.Gold.Render(rock.Name), theme.RampBar(pct, 24, false), remaining),
 				theme.DimStyle.Render("[Q] DOCK"))
 		case rock.Scanned:
+			fuelAmount := sim.FuelAmount(&st, g.content)
 			fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
-			if float64(rock.FuelCost) > st.Fuel {
+			if float64(rock.FuelCost) > fuelAmount {
 				fuelStr = theme.Red.Render(fuelStr)
 			} else {
 				fuelStr = theme.White.Render(fuelStr)
@@ -329,7 +330,7 @@ func (g *Game) renderBelt() string {
 				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
 		default:
 			scanFuelStr := fmt.Sprintf("%.0f fuel", g.content.Belt.ScanFuelCost)
-			if g.content.Belt.ScanFuelCost > st.Fuel {
+			if g.content.Belt.ScanFuelCost > sim.FuelAmount(&st, g.content) {
 				scanFuelStr = theme.Red.Render(scanFuelStr)
 			} else {
 				scanFuelStr = theme.White.Render(scanFuelStr)

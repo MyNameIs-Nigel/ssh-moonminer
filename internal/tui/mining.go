@@ -114,7 +114,8 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		name, g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier])
 	title = theme.Amber.Render(title)
 
-	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	fuelAmount := sim.FuelAmount(st, g.content)
+	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
@@ -134,7 +135,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		fmt.Sprintf("%s FUEL         %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
-			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
+			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f %3.0f%%", fuelAmount, sim.TankSize(st, g.content), fuelPct))),
 		"",
 		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s of %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue)),
@@ -289,7 +290,8 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 	if remaining < 0 {
 		remaining = 0
 	}
-	fuelPct := st.Fuel / sim.TankSize(st, g.content) * 100
+	fuelAmount := sim.FuelAmount(st, g.content)
+	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
 	lines := []string{title}
@@ -306,7 +308,7 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 		fmt.Sprintf("%s FUEL          %s %s",
 			theme.Glyph("fuel", st.Settings.ASCIISafe),
 			theme.FuelBar(fuelPct, 26),
-			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%3.0f%%", fuelPct))),
+			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f %3.0f%%", fuelAmount, sim.TankSize(st, g.content), fuelPct))),
 		"",
 		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue))),

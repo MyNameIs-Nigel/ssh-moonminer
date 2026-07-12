@@ -81,7 +81,9 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 		theme.Green.Render("KEPT: ") + theme.TxtStyle.Render("banked credits, route permits, settings"),
 		theme.Gold.Render(fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
 		"",
-		theme.TxtStyle.Render("A starter Salvage Skiff is waiting at the Sol dock."),
+		theme.TxtStyle.Render(fmt.Sprintf("RECOVERY HULL: %s — HULL %d/%d  FUEL %.0f/%.0f",
+			strings.ToUpper(st.ActiveShipID), sim.ShipHull(&st, st.ActiveShipID), sim.MaxHull(&st, g.content),
+			sim.FuelAmount(&st, g.content), sim.TankSize(&st, g.content))),
 	}
 	dockBtn := theme.Button("ENTER", "RESPAWN AT DOCK", "", true, theme.HueGold)
 	body = append(body, "", dockBtn)

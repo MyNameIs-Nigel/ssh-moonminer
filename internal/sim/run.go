@@ -58,6 +58,7 @@ var outcomeMeta = map[OutcomeKind]struct{ Label, Desc string }{
 
 // Lock begins a mining run on the selected asteroid.
 func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
+	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {
 		return ErrNotDocked
 	}
@@ -80,7 +81,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if s.Fuel < float64(ast.FuelCost) {
 		return ErrInsufficientFuel
 	}
-	s.Fuel -= float64(ast.FuelCost)
+	ConsumeFuel(s, c, float64(ast.FuelCost))
 	pirateStartDistance := 100.0
 	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateStartDistance > 0 {
 		pirateStartDistance = w.PirateStartDistance
@@ -109,6 +110,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 // GenerateBelt, its flight fuel cost — but the scan itself only costs the
 // flat content.Belt.ScanFuelCost. Completion is driven by TickScan.
 func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
+	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {
 		return ErrNotDocked
 	}
@@ -132,7 +134,7 @@ func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 	if s.Fuel < cost {
 		return ErrInsufficientFuel
 	}
-	s.Fuel -= cost
+	ConsumeFuel(s, c, cost)
 	s.Scan = &ActiveScan{
 		AsteroidID: asteroidID,
 		Duration:   ast.Distance * c.Belt.ScanSecPerKm,
@@ -295,6 +297,8 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	if run == nil {
 		return nil, false
 	}
+	syncActiveConditionFromLegacy(s, c)
+	defer syncActiveConditionMirror(s, c)
 	normalizeRunAccounting(run)
 	if dt < 0 || math.IsNaN(dt) {
 		dt = 0
@@ -380,8 +384,8 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 					burn = math.Max(0, burn-refund)
 				}
 			}
-			s.Fuel = math.Max(0, s.Fuel-burn)
-			s.Stats.FuelBurned += math.Min(burn, s.Fuel+burn)
+			consumed := ConsumeFuel(s, c, burn)
+			s.Stats.FuelBurned += consumed
 		}
 		if ast.Volume > 0 {
 			run.CargoValue = int(math.Round(float64(ast.Value) * run.HeldUnits / float64(ast.Volume)))
@@ -390,7 +394,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	}
 
 	if run.LifeSupportBreached {
-		applyHullDamageRate(s, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
+		applyHullDamageRate(s, c, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
 	}
 
 	// A Pirate Jammer charge (consumed at Lock) keeps pirates from ever
@@ -440,7 +444,7 @@ func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 		fuelDrain *= c.Events.ReactorSurgeFuelMul
 	}
-	s.Fuel = math.Max(0, s.Fuel-fuelDrain*dt)
+	ConsumeFuel(s, c, fuelDrain*dt)
 	if s.Fuel <= 0 {
 		run.FuelOutSeconds += dt
 	}
@@ -531,20 +535,20 @@ func attackHullDamagePerSecond(s *State, c *content.Content) float64 {
 // applyHullDamageRate applies continuous, tick-scaled non-combat damage
 // (life-support bleed) straight to the hull. Shield/Turret only defend
 // against pirate attacks specifically — see applyAttackDamageRate.
-func applyHullDamageRate(s *State, run *ActiveRun, ratePerSecond, dt float64) {
+func applyHullDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
 	if ratePerSecond <= 0 || dt <= 0 {
 		return
 	}
-	applyHullDamageCarry(s, run, ratePerSecond*dt)
+	applyHullDamageCarry(s, c, run, ratePerSecond*dt)
 }
 
 // applyHullDamageInstant applies a single lump non-combat hit (e.g. reactor
 // surge) straight to the hull, same reasoning as applyHullDamageRate.
-func applyHullDamageInstant(s *State, run *ActiveRun, amount float64) {
+func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount float64) {
 	if amount <= 0 {
 		return
 	}
-	applyHullDamageCarry(s, run, amount)
+	applyHullDamageCarry(s, c, run, amount)
 }
 
 // applyAttackDamageRate applies continuous pirate-attack damage: the
@@ -566,17 +570,17 @@ func applyAttackDamageRate(s *State, c *content.Content, run *ActiveRun, ratePer
 			inst.ShieldDamaged = true
 		}
 	}
-	applyHullDamageCarry(s, run, amount)
+	applyHullDamageCarry(s, c, run, amount)
 }
 
-func applyHullDamageCarry(s *State, run *ActiveRun, reduced float64) {
+func applyHullDamageCarry(s *State, c *content.Content, run *ActiveRun, reduced float64) {
 	if reduced <= 0 || s.DevGodMode {
 		return
 	}
 	run.HullDamageCarry += reduced
 	whole := int(run.HullDamageCarry)
 	if whole > 0 {
-		s.Hull = max(0, s.Hull-whole)
+		setActiveHull(s, c, max(0, s.Hull-whole))
 		run.HullDamageCarry -= float64(whole)
 	}
 }

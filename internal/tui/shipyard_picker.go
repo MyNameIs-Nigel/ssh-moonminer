@@ -430,7 +430,7 @@ const (
 
 const (
 	removePanelW = 46
-	removePanelH = 9
+	removePanelH = 10
 )
 
 func (g *Game) updateSlotRemoveOverlay(k string) []tea.Cmd {
@@ -530,6 +530,9 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	} else {
 		lines = append(lines, "")
 	}
+	if d.ItemID == sim.ItemFuelTank {
+		lines = append(lines, theme.Amber.Render(fmt.Sprintf("SELL TANK — %.0f/%.0f FUEL WILL BE LOST", d.Fuel, sim.FuelTankCapacity(g.content, d))))
+	}
 	storeStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmStore, st.Settings.HighContrast)
 	sellStyle := theme.OptionHC(theme.HueViolet, g.removeConfirmSel == removeConfirmSell, st.Settings.HighContrast)
 	storeMarker, sellMarker := "  ", "  "
@@ -545,9 +548,10 @@ func (g *Game) renderSlotRemoveOverlay() string {
 		sellText = fmt.Sprintf("[V] SELL + BUY — net %d cr", g.pendingSlotInstall.price-sellValue)
 	}
 	sellLine := sellStyle.Render(sellMarker + sellText)
+	actionStart := len(lines)
 	lines = append(lines, storeLine, sellLine, "", theme.DimStyle.Render("↑/↓ choose · Enter confirm · Esc cancel"))
-	g.removeHitLine(3, storeLine, removeConfirmStore)
-	g.removeHitLine(4, sellLine, removeConfirmSell)
+	g.removeHitLine(actionStart, storeLine, removeConfirmStore)
+	g.removeHitLine(actionStart+1, sellLine, removeConfirmSell)
 
 	body := strings.Join(lines, "\n")
 	return theme.Panel("REMOVE MODULE", removePanelW, removePanelH, body, theme.Accent(theme.HueViolet))

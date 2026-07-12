@@ -279,17 +279,7 @@ func EscapeMul(s *State, c *content.Content) float64 {
 // tank (content.Pilot.StartFuel) plus every installed Extra Fuel Tank
 // device's bonus.
 func FuelCapacity(s *State, c *content.Content) float64 {
-	base := float64(c.Pilot.StartFuel)
-	inst := ActiveShip(s)
-	if inst == nil {
-		return base
-	}
-	for _, d := range inst.Utility {
-		if d != nil && d.ItemID == ItemFuelTank {
-			base += c.Slots.FuelTankPerGrade * float64(d.Grade+1)
-		}
-	}
-	return base
+	return fuelCapacityFor(s, c, s.ActiveShipID)
 }
 
 // CargoCapacityUnits returns the active ship's mining-hold capacity in
@@ -646,6 +636,7 @@ func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, err
 // SellSlotDevice first when changing a loadout, so a module can never be
 // silently destroyed by an install.
 func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int, itemID string, grade int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -687,6 +678,9 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	s.Stats.CreditsSpent += price
 	*target = &SlotDevice{ItemID: itemID, Grade: grade}
 	finishDeviceInstallation(s, c, shipID, *target)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -709,6 +703,7 @@ func SlotItemSellValue(c *content.Content, itemID string, grade int) int {
 // immediately with no credit refund — it can be re-equipped for free later
 // via InstallSlotDeviceFromInventory. Docked-only.
 func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	syncActiveConditionFromLegacy(s, c)
 	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
 	if err != nil {
 		return err
@@ -719,6 +714,9 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -726,6 +724,7 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 // refunds SlotItemSellValue (c.Slots.SellValuePct of its buy price) in
 // credits. Docked-only.
 func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, index int) error {
+	syncActiveConditionFromLegacy(s, c)
 	_, target, err := resolveOccupiedSlot(s, shipID, kind, index)
 	if err != nil {
 		return err
@@ -736,6 +735,9 @@ func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, 
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -793,6 +795,7 @@ func finishDeviceInstallation(s *State, c *content.Content, shipID string, d *Sl
 // transaction, but all validation happens before any credits or loadout state
 // change.
 func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, kind SlotKind, index int, itemID string, grade int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -832,6 +835,9 @@ func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, 
 	*target = replacement
 	finishDeviceInstallation(s, c, shipID, replacement)
 	normalizeShipShield(s, c, shipID)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }
 
@@ -861,6 +867,7 @@ func resolveOccupiedSlot(s *State, shipID string, kind SlotKind, index int) (*Sh
 // matching kind, power headroom, and an empty target slot. Call
 // StoreSlotDevice or SellSlotDevice first when changing a loadout.
 func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string, kind SlotKind, index, invIndex int) error {
+	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
@@ -901,5 +908,8 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	s.Inventory[last] = nil // drop the moved pointer so the vacated backing-array slot doesn't keep it alive
 	s.Inventory = s.Inventory[:last]
 	finishDeviceInstallation(s, c, shipID, d)
+	if shipID == s.ActiveShipID {
+		syncActiveConditionMirror(s, c)
+	}
 	return nil
 }

@@ -23,7 +23,8 @@ func DevSetFuel(s *State, c *content.Content, v float64) {
 	if v > tank {
 		v = tank
 	}
-	s.Fuel = v
+	setFuelAmountFor(s, c, s.ActiveShipID, v)
+	syncActiveConditionMirror(s, c)
 }
 
 // DevSetHull sets hull directly, clamped to [0, active ship's max].
@@ -35,7 +36,7 @@ func DevSetHull(s *State, c *content.Content, v int) {
 	if v > max {
 		v = max
 	}
-	s.Hull = v
+	setActiveHull(s, c, v)
 }
 
 // DevSetGodMode toggles hull-damage immunity.
