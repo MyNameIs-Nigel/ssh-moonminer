@@ -711,6 +711,9 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
 		return err
 	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
+		return err
+	}
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
@@ -732,6 +735,9 @@ func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, 
 	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
 		return err
 	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
+		return err
+	}
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
@@ -750,6 +756,20 @@ func validateDeviceRemovalCargo(s *State, c *content.Content, shipID string, d *
 		return ErrCargoDoesNotFit
 	}
 	return nil
+}
+
+func validateDeviceRemovalRouteKey(s *State, c *content.Content, shipID string, old, replacement *SlotDevice) error {
+	if shipID != s.ActiveShipID || old == nil {
+		return nil
+	}
+	system := c.SystemByID(s.SystemID)
+	if system == nil || system.RequiredItemID == "" || old.ItemID != system.RequiredItemID {
+		return nil
+	}
+	if replacement != nil && replacement.ItemID == system.RequiredItemID {
+		return nil
+	}
+	return ErrRouteKeyRequired
 }
 
 // cargoCapacityAfterChange calculates a ship's capacity with old removed and
@@ -819,6 +839,9 @@ func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, 
 	}
 	replacement := &SlotDevice{ItemID: itemID, Grade: grade}
 	if err := validateCargoAfterReplacement(s, c, shipID, old, replacement); err != nil {
+		return err
+	}
+	if err := validateDeviceRemovalRouteKey(s, c, shipID, old, replacement); err != nil {
 		return err
 	}
 	powerWithout := InstalledPower(s, c, shipID) - devicePower(c, old)

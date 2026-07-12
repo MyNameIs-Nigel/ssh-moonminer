@@ -18,6 +18,9 @@ func BuySystemPermit(s *State, c *content.Content, systemID string) error {
 	if system.StartsUnlocked || s.SystemPermits[systemID] {
 		return ErrAlreadyUnlocked
 	}
+	if source := c.SystemByID(s.SystemID); source == nil || (source.ID != system.ID && !systemsLinked(source, system.ID)) {
+		return ErrRouteLocked
+	}
 	model := c.ShipByID(s.ActiveShipID)
 	if system.RequiredShipClass != "" && (model == nil || model.Class != system.RequiredShipClass) {
 		return ErrRouteLocked
@@ -77,6 +80,10 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	s.CargoUnits = 0
 	s.Stats.CreditsEarned += value
 	s.Stats.CargoValueSold += value
+	// Selling recovered cargo is a documented recovery milestone: the pilot
+	// has converted a viable escape route, so a future real softlock may use
+	// the safety net again.
+	s.Settings.InsuranceUsed = false
 	systemName := s.SystemID
 	if system := c.SystemByID(s.SystemID); system != nil {
 		systemName = system.Name

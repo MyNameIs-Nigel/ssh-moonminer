@@ -20,7 +20,9 @@ const (
 	BeltViewRadar
 )
 
-// Settings are player tweak preferences persisted in the save.
+// Settings are player tweak preferences persisted in the save. PirateAggression
+// is retained as a stable save key but is presented as an accessibility-style
+// Pirate Threat Assist; it changes pirate approach speed only, never rewards.
 type Settings struct {
 	BeltView         BeltViewMode `json:"belt_view"`
 	PirateAggression float64      `json:"pirate_aggression"`

@@ -1,12 +1,14 @@
 [[systems]]
 id = "sol"
 name = "SOL"
+links = ["eridani"]
 starts_unlocked = true
 transfer_fee = 0
 
 [[systems]]
 id = "eridani"
 name = "ERIDANI DRIFT"
+links = ["sol"]
 starts_unlocked = true
 required_item_id = "jump_drive"
 

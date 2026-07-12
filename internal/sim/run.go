@@ -659,8 +659,6 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 
 	if kind == OutcomeShipLost {
 		respawnActiveShip(s, c)
-	} else if kind == OutcomeDeparted {
-		s.Settings.InsuranceUsed = false
 	}
 	if kind != OutcomeShipLost {
 		restoreBurstShieldOnBeltReturn(s, c)

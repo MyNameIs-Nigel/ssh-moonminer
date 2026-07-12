@@ -569,6 +569,9 @@ func AcquireShip(s *State, c *content.Content, modelID string) error {
 	}
 	s.Ships[modelID] = freshShipInstance(c, modelID)
 	s.ShipsUnlocked[modelID] = true
+	if price > 0 {
+		s.Settings.InsuranceUsed = false
+	}
 	return nil
 }
 
@@ -583,6 +586,10 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 	}
 	if modelID == s.ActiveShipID {
 		return nil
+	}
+	if system := c.SystemByID(s.SystemID); system != nil && system.RequiredItemID != "" &&
+		!ShipHasSlotItem(s, modelID, system.RequiredItemID) {
+		return ErrRouteKeyRequired
 	}
 	if s.CargoUnits > CargoCapacityUnitsFor(s, c, modelID) {
 		return ErrCargoDoesNotFit

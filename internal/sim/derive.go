@@ -111,14 +111,20 @@ func RouteLockReason(s *State, c *content.Content, worldIdx int) string {
 	if system == nil {
 		return "INVALID SYSTEM"
 	}
-	if system.RequiredShipClass != "" {
-		model := c.ShipByID(s.ActiveShipID)
-		if model == nil || model.Class != system.RequiredShipClass {
-			return "NEED " + strings.ToUpper(system.RequiredShipClass) + "-CLASS SHIP"
+	source := c.SystemByID(s.SystemID)
+	if source == nil {
+		return "INVALID CURRENT SYSTEM"
+	}
+	if source.ID != system.ID {
+		if !systemsLinked(source, system.ID) {
+			return "NO OUTBOUND LINK TO " + strings.ToUpper(system.Name)
+		}
+		if reason := systemRequirementReason(s, c, source, " TO LEAVE "+strings.ToUpper(source.Name)); reason != "" {
+			return reason
 		}
 	}
-	if system.RequiredItemID != "" && !HasActiveSlotItem(s, system.RequiredItemID) {
-		return "NEED " + strings.ToUpper(strings.ReplaceAll(system.RequiredItemID, "_", " "))
+	if reason := systemRequirementReason(s, c, system, ""); reason != "" {
+		return reason
 	}
 	if !system.StartsUnlocked && !s.SystemPermits[system.ID] {
 		return fmt.Sprintf("BUY TRANSFER %d cr", system.TransferFee)
@@ -138,10 +144,40 @@ func RouteLockReason(s *State, c *content.Content, worldIdx int) string {
 	return ""
 }
 
+func systemsLinked(system *content.System, destinationID string) bool {
+	if system == nil {
+		return false
+	}
+	for _, id := range system.Links {
+		if id == destinationID {
+			return true
+		}
+	}
+	return false
+}
+
+func systemRequirementReason(s *State, c *content.Content, system *content.System, suffix string) string {
+	if system.RequiredShipClass != "" {
+		model := c.ShipByID(s.ActiveShipID)
+		if model == nil || model.Class != system.RequiredShipClass {
+			return "NEED " + strings.ToUpper(system.RequiredShipClass) + "-CLASS SHIP" + suffix
+		}
+	}
+	if system.RequiredItemID != "" && !HasActiveSlotItem(s, system.RequiredItemID) {
+		return "NEED " + strings.ToUpper(strings.ReplaceAll(system.RequiredItemID, "_", " ")) + suffix
+	}
+	return ""
+}
+
 // HasActiveSlotItem reports whether the active ship has the given device
 // installed in any of its slots.
 func HasActiveSlotItem(s *State, itemID string) bool {
-	inst := ActiveShip(s)
+	return ShipHasSlotItem(s, s.ActiveShipID, itemID)
+}
+
+// ShipHasSlotItem reports whether a named owned hull has a device installed.
+func ShipHasSlotItem(s *State, shipID, itemID string) bool {
+	inst := s.Ships[shipID]
 	if inst == nil {
 		return false
 	}
@@ -163,8 +199,18 @@ func InsuranceEligible(s *State, c *content.Content) bool {
 	if !s.IsDocked() || s.Settings.InsuranceUsed {
 		return false
 	}
+	// The advance is a softlock escape hatch, not a fleet subsidy. A pilot
+	// must be on the lone starter hull, carrying no sellable cargo, unable to
+	// fuel even the cheapest trip, and below the published recovery threshold.
+	if s.ActiveShipID != content.StarterShipID || len(s.Ships) != 1 || !OwnsShip(s, content.StarterShipID) {
+		return false
+	}
+	if s.CargoUnits > 0 || s.CargoValue > 0 {
+		return false
+	}
 	return s.Credits < c.Port.InsuranceCreditThreshold &&
-		int(s.Fuel) < c.Port.InsuranceFuelThreshold
+		FuelAmount(s, c) < float64(MinTravelFuel(c)) &&
+		int(FuelAmount(s, c)) < c.Port.InsuranceFuelThreshold
 }
 
 // MinTravelFuel returns cheapest world travel cost.
