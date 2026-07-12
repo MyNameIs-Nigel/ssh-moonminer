@@ -113,6 +113,10 @@ Phase 4 (parallel):    framework/04  gameplay/04  tests/01..03
 Phase 5 (live, single-doc-pair): gameplay/05 + tui/05 (fleet ships, slots,
   shipyard economy — replaces the single-track upgrade system and the
   chart-overlay Shipyard; not parallel with anything else in this phase)
+
+Post-Phase 5 (design review): gameplay/06 (full-loop gameplay edge-case audit
+and resolution plan; sequence its implementation work after explicit product
+decisions on route topology, recovery, and difficulty)
 ```
 
 Dependencies are listed per-task; the summary:
@@ -195,6 +199,7 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 | [gameplay/03-economy-worlds-and-balance.md](gameplay/03-economy-worlds-and-balance.md) | Credits, port services, travel, balance TOML |
 | [gameplay/04-progression-and-ship-log.md](gameplay/04-progression-and-ship-log.md) | Lifetime stats, ship upgrades (ships/upgrades sections superseded by gameplay/05), run history |
 | [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md) | 4-ship hangar, brands/classes, stat grades, Utility/Weapon/Internal slots, power/mass, buyback, scanner distance lock, hull-gated events |
+| [gameplay/06-gameplay-edge-case-audit.md](gameplay/06-gameplay-edge-case-audit.md) | Full-loop edge cases, gameplay-logic decisions, implementation order, and test plan |
 | [tui/01-app-shell-input-and-mouse.md](tui/01-app-shell-input-and-mouse.md) | Root model, screen router, keyboard + mouse input, resize/idle |
 | [tui/02-star-chart-and-run-summary.md](tui/02-star-chart-and-run-summary.md) | Star Chart screen, port services panel, Run Summary screen |
 | [tui/03-belt-views-and-mining-screen.md](tui/03-belt-views-and-mining-screen.md) | Belt screen (3 view modes), target lock, live Mining screen |
