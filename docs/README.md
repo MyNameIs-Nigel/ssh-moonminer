@@ -189,7 +189,7 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 | Doc | Task |
 | --- | --- |
 | [01-concept-and-story.md](01-concept-and-story.md) | Story, loop, screens, visual direction (read-only context) |
-| [02-danger-economy-and-progression.md](02-danger-economy-and-progression.md) | Roguelite death/ship-loss, locked planets/systems, stations, events, open design questions |
+| [02-danger-economy-and-progression.md](02-danger-economy-and-progression.md) | Roguelite death/ship-loss, locked planets/systems, stations, events, open design questions (flee-only pirate behavior superseded by gameplay/07) |
 | [framework/01-ssh-server-and-identity.md](framework/01-ssh-server-and-identity.md) | Wish SSH server, middleware chain, key identity |
 | [framework/02-persistence-and-save-model.md](framework/02-persistence-and-save-model.md) | SQLite store, schema, save serialization |
 | [framework/03-session-lifecycle-and-actors.md](framework/03-session-lifecycle-and-actors.md) | Save manager, actor goroutines, takeover policy, shutdown flush |
@@ -200,6 +200,7 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 | [gameplay/04-progression-and-ship-log.md](gameplay/04-progression-and-ship-log.md) | Lifetime stats, ship upgrades (ships/upgrades sections superseded by gameplay/05), run history |
 | [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md) | 4-ship hangar, brands/classes, stat grades, Utility/Weapon/Internal slots, power/mass, buyback, scanner distance lock, hull-gated events |
 | [gameplay/06-gameplay-edge-case-audit.md](gameplay/06-gameplay-edge-case-audit.md) | Full-loop edge cases, gameplay-logic decisions, implementation order, and test plan |
+| [gameplay/07-pirate-combat-and-bounties.md](gameplay/07-pirate-combat-and-bounties.md) | Named pirate roster, active weapons, tactical-scope combat, bounty vouchers, COMBAT MODE interstitial (owns its sim + TUI work) |
 | [tui/01-app-shell-input-and-mouse.md](tui/01-app-shell-input-and-mouse.md) | Root model, screen router, keyboard + mouse input, resize/idle |
 | [tui/02-star-chart-and-run-summary.md](tui/02-star-chart-and-run-summary.md) | Star Chart screen, port services panel, Run Summary screen |
 | [tui/03-belt-views-and-mining-screen.md](tui/03-belt-views-and-mining-screen.md) | Belt screen (3 view modes), target lock, live Mining screen |
