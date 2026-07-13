@@ -623,11 +623,11 @@ func TestLowHullIncreasesEventChance(t *testing.T) {
 	}
 }
 
-// TestCargoCapDepletionLeavesRemnant covers a bug where mining stopping
-// early because the cargo hold filled (not because the rock ran out) still
-// hard-deleted the asteroid on Departed, destroying real unmined ore instead
-// of leaving the same kind of remnant a bailed run would.
-func TestCargoCapDepletionLeavesRemnant(t *testing.T) {
+// TestCargoCapDepletionStopsMiningAndLeavesRemnant covers a bug where mining
+// stopping early because the cargo hold filled (not because the rock ran out)
+// still hard-deleted the asteroid on Departed, destroying real unmined ore
+// instead of leaving the same kind of remnant a bailed run would.
+func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
 	_ = sim.Depart(s, c, 1)
@@ -639,28 +639,39 @@ func TestCargoCapDepletionLeavesRemnant(t *testing.T) {
 	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 		t.Fatal(err)
 	}
+	// This test exercises cargo behavior only; a pirate interruption would
+	// make the timing unrelated to whether the hold is respected.
+	s.Run.PirateImmune = true
 	cargoCap := sim.CargoCapacityUnits(s, c)
 	if cargoCap >= float64(ast.Volume) {
 		t.Fatalf("test setup invalid: cargo cap %v must be below asteroid volume %v", cargoCap, ast.Volume)
 	}
 
 	dt := 0.25
-	for i := 0; i < 400 && s.Run != nil && s.Run.Phase == sim.PhaseMining; i++ {
+	for i := 0; i < 400 && s.Run != nil && !sim.RunDepleted(s, c, &ast, s.Run); i++ {
 		sim.TickRun(s, c, dt, 1000+int64(i))
 	}
 	if s.Run == nil || s.Run.Phase != sim.PhaseMining {
-		t.Skip("pirates arrived before the hold filled in this scenario")
+		t.Fatal("run ended before the hold filled")
 	}
 	if !sim.RunDepleted(s, c, &ast, s.Run) {
 		t.Fatalf("expected cargo-cap depletion, mined %v of cap %v", s.Run.MinedUnits, cargoCap)
 	}
 	minedBeforeResolve := s.Run.MinedUnits
+	fuelBeforeStop := s.Fuel
+	if _, ended := sim.TickRun(s, c, 10, 1999); ended || s.Run == nil || s.Run.Phase != sim.PhaseMining {
+		t.Fatal("a full hold should stop mining, not end the run")
+	}
+	if s.Run.MinedUnits != minedBeforeResolve || s.Fuel != fuelBeforeStop {
+		t.Fatalf("full hold continued mining: units %.2f -> %.2f, fuel %.2f -> %.2f", minedBeforeResolve, s.Run.MinedUnits, fuelBeforeStop, s.Fuel)
+	}
 	if err := sim.BailOrDepart(s, c, 2000); err != nil {
 		t.Fatal(err)
 	}
 	if s.Run.Intent != sim.OutcomeDeparted {
 		t.Fatalf("expected departed intent once the hold is full, got %v", s.Run.Intent)
 	}
+	s.Run.BaseEscapeSecondsRequired = 0
 	s.Run.EscapeSecondsRequired = 0
 	out, ended := sim.TickRun(s, c, 0.1, 3000)
 	if !ended || out == nil {

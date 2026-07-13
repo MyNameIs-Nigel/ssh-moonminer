@@ -146,7 +146,9 @@ func TestRefuelBuysWholeFuelPoints(t *testing.T) {
 		{c.Port.RefuelPerPoint - 1, 0, 0, 0, sim.ErrInsufficientFunds},
 		{c.Port.RefuelPerPoint, 0, 1, c.Port.RefuelPerPoint, nil},
 		{c.Pilot.StartFuel * c.Port.RefuelPerPoint, 0, float64(c.Pilot.StartFuel), c.Pilot.StartFuel * c.Port.RefuelPerPoint, nil},
-		{c.Port.RefuelPerPoint, 99.5, 99.5, 0, sim.ErrAlreadyFull},
+		// Mining fuel drain is fractional. A 99.5/100 tank must still be
+		// refillable; rounding the shortfall down used to leave it stuck.
+		{c.Port.RefuelPerPoint, 99.5, 100, c.Port.RefuelPerPoint, nil},
 	} {
 		s := sim.New(c, 24, 0)
 		s.Credits = tc.credits

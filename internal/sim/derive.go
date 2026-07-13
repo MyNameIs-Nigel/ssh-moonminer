@@ -13,13 +13,21 @@ func TankSize(s *State, c *content.Content) float64 {
 	return FuelCapacity(s, c)
 }
 
-// RefuelCost returns credits to fill the tank.
+// RefuelCost returns credits to fill the tank. Fuel is consumed in fractional
+// units during a run but sold in whole points, so any non-zero shortfall needs
+// one final point rather than being rounded down to a free, unusable refuel.
 func RefuelCost(s *State, c *content.Content) int {
-	missingWhole := int(math.Floor(TankSize(s, c) - FuelAmount(s, c) + 0.000001))
-	if missingWhole <= 0 {
+	return refuelPointsNeeded(TankSize(s, c), FuelAmount(s, c)) * c.Port.RefuelPerPoint
+}
+
+const fuelRoundingEpsilon = 0.000001
+
+func refuelPointsNeeded(tank, fuel float64) int {
+	missing := tank - fuel
+	if missing <= fuelRoundingEpsilon {
 		return 0
 	}
-	return missingWhole * c.Port.RefuelPerPoint
+	return int(math.Ceil(missing - fuelRoundingEpsilon))
 }
 
 // RepairCost returns credits to repair hull to the active ship's max.
