@@ -21,6 +21,8 @@ func (g *Game) renderOverlay() string {
 		return g.renderSlotPickerOverlay()
 	case ovSlotRemove:
 		return g.renderSlotRemoveOverlay()
+	case ovPermit:
+		return g.renderPermitOverlay()
 	case ovKicked:
 		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
 	case ovOnboard:

@@ -23,8 +23,8 @@ const (
 )
 
 // renderDeath draws the ship-loss sequence: a brief CRT-dying flicker over
-// the last HUD frame, then the deep-red, full-screen CONNECTION LOST card
-// with a blinking cursor. Reduced motion skips straight to the final card.
+// the last HUD frame, then the deep-red, full-screen CONNECTION LOST card.
+// Reduced motion skips straight to the final card.
 func (g *Game) renderDeath() string {
 	if g.deathFrame < g.deathFlickerFrames {
 		return g.renderDeathFlicker()
@@ -56,15 +56,7 @@ func (g *Game) renderDeathFinal() string {
 	bgStyle := lipgloss.NewStyle().Background(lipgloss.Color(deathBg))
 	textStyle := bgStyle.Foreground(lipgloss.Color(deathFg)).Bold(true)
 
-	reducedMotion := g.snap.State.Settings.ReducedMotion
-	cursorOn := reducedMotion || g.tickCount%2 == 0
-	msg := "CONNECTION LOST "
-	if cursorOn {
-		msg += "█"
-	} else {
-		msg += " "
-	}
-	line := textStyle.Render(msg)
+	line := textStyle.Render("CONNECTION LOST")
 	body := lipgloss.Place(g.width, g.height-2, lipgloss.Center, lipgloss.Center, line,
 		lipgloss.WithWhitespaceStyle(bgStyle))
 	hint := bgStyle.Foreground(lipgloss.Color(deathDim)).Render("press any key")

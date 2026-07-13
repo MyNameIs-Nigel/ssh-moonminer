@@ -48,6 +48,7 @@ const (
 	ovDev
 	ovSlotPicker
 	ovSlotRemove
+	ovPermit
 )
 
 type (
@@ -99,6 +100,7 @@ type Game struct {
 	pickerCatalogGrade []int
 	removeConfirmSel   int
 	pendingSlotInstall *pickerEntry
+	pendingPermitWorld int
 
 	tickCount int
 	now       int64
@@ -199,7 +201,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if out := g.sess.LastOutcome(); out != nil && g.scr == scrMining {
 			g.lastOutcome = out
 			if out.Kind == sim.OutcomeShipLost {
-				g.deathFrameText = ansi.Strip(g.renderChrome() + "\n" + g.renderScreen())
+				g.deathFrameText = ansi.Strip(g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen()))
 				g.deathFrame = 0
 				g.deathFlickerFrames = 12
 				if g.snap.State.Settings.ReducedMotion {
@@ -300,6 +302,8 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		return g.updateSlotPickerOverlay(m.String())
 	case ovSlotRemove:
 		return g.updateSlotRemoveOverlay(m.String())
+	case ovPermit:
+		return g.updatePermitOverlay(m.String())
 	}
 	return nil
 }
@@ -374,7 +378,7 @@ func (g *Game) View() tea.View {
 	} else if g.scr == scrDeath {
 		body = g.renderDeath()
 	} else {
-		base := g.renderChrome() + "\n" + g.renderScreen()
+		base := g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen())
 		body = g.compositeView(base)
 	}
 	v := tea.NewView(body)
@@ -421,7 +425,7 @@ func (g *Game) renderChrome() string {
 	shield := g.renderShieldStatus(&st, 0)
 
 	hud := fmt.Sprintf(" %s — %s — %s  %s  %s  %s ", title, pilot, credits, fuel, hull, shield)
-	hudLine := accentStyle.Render(strings.Repeat("─", g.width))
+	hudLine := accentStyle.Render(strings.Repeat("─", g.contentWidth()))
 	return hudLine + "\n" + hud + "\n" + hudLine
 }
 
@@ -467,19 +471,24 @@ func (g *Game) renderDockShieldService(st *sim.State) string {
 }
 
 func (g *Game) renderKeybar(hint string) string {
-	cursor := theme.Cursor(g.tickCount, g.snap.State.Settings.ReducedMotion)
+	shipClass := "miner"
+	if model := g.content.ShipByID(g.snap.State.ActiveShipID); model != nil {
+		shipClass = model.Class
+	}
+	marker := theme.ShipMarker(shipClass)
 	bar := hint
 	if g.flash.text == "" {
 		bar = theme.KeybarHint(hint)
 	} else {
 		bar = theme.Red.Render(g.flash.text)
 	}
-	pad := g.width - lipgloss.Width(bar) - lipgloss.Width(cursor)
+	bar = ansi.Truncate(bar, g.contentWidth()-lipgloss.Width(marker), "…")
+	pad := g.contentWidth() - lipgloss.Width(bar) - lipgloss.Width(marker)
 	if pad < 0 {
 		pad = 0
 	}
-	bar = bar + strings.Repeat(" ", pad) + cursor
+	bar = bar + strings.Repeat(" ", pad) + marker
 	accent := g.screenAccent()
 	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accent)).Faint(true)
-	return ruleStyle.Render(strings.Repeat("─", g.width)) + "\n" + bar
+	return ruleStyle.Render(strings.Repeat("─", g.contentWidth())) + "\n" + bar
 }

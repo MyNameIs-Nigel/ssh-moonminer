@@ -69,7 +69,7 @@ func (g *Game) renderLog() string {
 	}
 	body := strings.Join(append([]string{theme.Cyan.Render("SERVICE RECORD"), strings.Join(stats, "\n"), "", theme.Bright.Render("RECENT RUNS")}, runs...), "\n")
 	hint := "ESC BACK TO CHART"
-	return theme.Panel("SHIP'S LOG", g.width-4, g.height-6, body, accent) + "\n" + g.renderKeybar(hint)
+	return theme.Panel("SHIP'S LOG", g.contentWidth()-4, g.height-6, body, accent) + "\n" + g.renderKeybar(hint)
 }
 
 var onboardPages = []string{

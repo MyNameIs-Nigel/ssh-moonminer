@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
@@ -20,6 +21,9 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 	case "down", "j":
 		g.worldSel = (g.worldSel + 1) % n
 	case "enter", " ":
+		if g.openPermitPrompt() {
+			return nil
+		}
 		snap, err := g.sess.Depart(g.now, g.worldSel)
 		if err == nil {
 			g.scr = scrBelt
@@ -29,26 +33,12 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 	case "f":
 		snap, err := g.sess.Refuel(g.now)
 		return g.refreshSnap(snap, err)
-	case "h":
+	case "r":
 		snap, err := g.sess.Repair(g.now)
 		return g.refreshSnap(snap, err)
 	case "c":
 		snap, err := g.sess.SellCargo(g.now)
 		return g.refreshSnap(snap, err)
-	case "p":
-		if g.worldSel < 0 || g.worldSel >= len(g.content.Worlds) {
-			return nil
-		}
-		w := g.content.Worlds[g.worldSel]
-		system := g.content.SystemByID(w.SystemID)
-		if system != nil && !system.StartsUnlocked && !st.SystemPermits[system.ID] {
-			snap, err := g.sess.BuySystemPermit(g.now, system.ID)
-			return g.refreshSnap(snap, err)
-		}
-		if !w.StartsUnlocked && !st.DestinationPermits[w.ID] {
-			snap, err := g.sess.BuyDestinationPermit(g.now, w.ID)
-			return g.refreshSnap(snap, err)
-		}
 	case "s":
 		g.scr = scrShipyard
 		g.shipyardPane = 0
@@ -92,9 +82,12 @@ func (g *Game) renderScreen() string {
 
 func (g *Game) renderChart() string {
 	st := g.snap.State
-	leftW := g.width/2 - 1
-	rightW := g.width - leftW - 1
+	w := g.contentWidth()
+	leftW := w / 2
+	rightW := w - leftW
 	rightX := leftW + 1
+	panelH := g.height - 5
+	panelBodyH := panelH - 2
 	accent := theme.Accent(theme.HueCyan)
 	leftLines := []string{}
 	for _, system := range g.content.Systems {
@@ -121,14 +114,16 @@ func (g *Game) renderChart() string {
 			}
 			namePart := fmt.Sprintf("%s%s  %s", marker, w.Name, w.Sub)
 			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast).Render(namePart) + "  " + fuel
+			line = ansi.Truncate(line, leftW-2, "…")
 			leftLines = append(leftLines, line)
 			g.hitPanelLine(len(leftLines)-1, 1, line, fmt.Sprintf("world:%d", i), i)
 		}
 	}
-	if g.worldSel < len(g.content.Worlds) {
-		leftLines = append(leftLines, "", theme.DimStyle.Render(g.content.Worlds[g.worldSel].Desc))
+	leftFooter := []string{}
+	if g.worldSel >= 0 && g.worldSel < len(g.content.Worlds) {
+		leftFooter = g.chartFooterLines(g.content.Worlds[g.worldSel].Desc, leftW-2, panelBodyH-len(leftLines))
 	}
-	leftBody := strings.Join(leftLines, "\n")
+	leftBody := strings.Join(bottomAlignPanelLines(leftLines, leftFooter, panelBodyH), "\n")
 
 	refuelCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RefuelCost(&st, g.content))
 	repairCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RepairCost(&st, g.content))
@@ -145,7 +140,7 @@ func (g *Game) renderChart() string {
 	g.hitPanelLine(1, rightX, refuelBtn, "svc:refuel", nil)
 
 	rightLines = append(rightLines, hullLabel)
-	repairBtn := theme.Button("H", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
+	repairBtn := theme.Button("R", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
 	rightLines = append(rightLines, repairBtn)
 	g.hitPanelLine(3, rightX, repairBtn, "svc:repair", nil)
 
@@ -156,22 +151,6 @@ func (g *Game) renderChart() string {
 	sellBtn := theme.Button("C", "SELL CARGO", fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue), st.CargoValue > 0, theme.HueGold)
 	rightLines = append(rightLines, sellBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, sellBtn, "svc:sell", nil)
-	if g.worldSel >= 0 && g.worldSel < len(g.content.Worlds) {
-		w := g.content.Worlds[g.worldSel]
-		system := g.content.SystemByID(w.SystemID)
-		if system != nil && !system.StartsUnlocked && !st.SystemPermits[system.ID] {
-			model := g.content.ShipByID(st.ActiveShipID)
-			classOK := system.RequiredShipClass == "" || (model != nil && model.Class == system.RequiredShipClass)
-			permit := theme.Button("P", "BUY TRANSFER", fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), system.TransferFee), classOK && st.Credits >= system.TransferFee, theme.HueViolet)
-			rightLines = append(rightLines, permit)
-			g.hitPanelLine(len(rightLines)-1, rightX, permit, "svc:permit", nil)
-		} else if !w.StartsUnlocked && !st.DestinationPermits[w.ID] {
-			permit := theme.Button("P", "BUY NAV PERMIT", fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), w.PermitFee), st.Credits >= w.PermitFee, theme.HueViolet)
-			rightLines = append(rightLines, permit)
-			g.hitPanelLine(len(rightLines)-1, rightX, permit, "svc:permit", nil)
-		}
-	}
-
 	if sim.InsuranceEligible(&st, g.content) {
 		insBtn := theme.Amber.Render("[I] INSURANCE ADVANCE")
 		rightLines = append(rightLines, insBtn)
@@ -185,18 +164,18 @@ func (g *Game) renderChart() string {
 	rightLines = append(rightLines, logBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, logBtn, "btn:log", nil)
 
-	rightLines = append(rightLines, "", theme.DimStyle.Render("Bigger rocks pay more but attract pirates."))
-	rightBody := strings.Join(rightLines, "\n")
+	rightFooter := g.chartFooterLines("Bigger rocks pay more but attract pirates.", rightW-2, panelBodyH-len(rightLines))
+	rightBody := strings.Join(bottomAlignPanelLines(rightLines, rightFooter, panelBodyH), "\n")
 
 	chartTitle := "STAR CHART"
 	if system := g.content.SystemByID(st.SystemID); system != nil {
 		chartTitle += " — " + system.Name
 	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
-		theme.Panel(chartTitle, leftW, g.height-5, leftBody, accent),
-		theme.Panel("PORT SERVICES", rightW, g.height-5, rightBody, accent),
+		theme.Panel(chartTitle, leftW, panelH, leftBody, accent),
+		theme.Panel("PORT SERVICES", rightW, panelH, rightBody, accent),
 	)
-	hint := "↑/↓ SELECT · ENTER DEPART · P PERMIT · C SELL · F REFUEL · H REPAIR · S SHIPYARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
+	hint := "↑/↓ SELECT · ENTER FLY · C SELL · S YARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
 	return body + "\n" + g.renderKeybar(hint)
 }
 
@@ -209,13 +188,11 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 		case "svc:refuel":
 			return g.keyChart("f")
 		case "svc:repair":
-			return g.keyChart("h")
+			return g.keyChart("r")
 		case "svc:insurance":
 			return g.keyChart("i")
 		case "svc:sell":
 			return g.keyChart("c")
-		case "svc:permit":
-			return g.keyChart("p")
 		case "btn:shipyard":
 			return g.keyChart("s")
 		case "btn:shipyard:remove":
@@ -284,20 +261,26 @@ func (g *Game) updateWheel(m tea.MouseWheelMsg) []tea.Cmd {
 	}
 	switch g.scr {
 	case scrChart:
-		if m.Y < 0 {
+		if m.Y > 0 {
 			return g.keyChart("up")
 		}
-		return g.keyChart("down")
-	case scrShipyard:
 		if m.Y < 0 {
+			return g.keyChart("down")
+		}
+	case scrShipyard:
+		if m.Y > 0 {
 			return g.keyShipyard("up")
 		}
-		return g.keyShipyard("down")
-	case scrBelt:
 		if m.Y < 0 {
+			return g.keyShipyard("down")
+		}
+	case scrBelt:
+		if m.Y > 0 {
 			return g.keyBelt("up")
 		}
-		return g.keyBelt("down")
+		if m.Y < 0 {
+			return g.keyBelt("down")
+		}
 	}
 	return nil
 }

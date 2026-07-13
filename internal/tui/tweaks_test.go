@@ -26,7 +26,7 @@ func TestTweaksOverlayRendersAllSettings(t *testing.T) {
 	out := g.renderTweaksOverlay()
 	for _, want := range []string{
 		"BELT VIEW", "PIRATE THREAT ASSIST", "Rewards unchanged.", "HIGH CONTRAST",
-		"ASCII SAFE MODE", "REDUCED MOTION", "tiles", "1.0",
+		"ASCII SAFE MODE", "REDUCED MOTION", "LONG TEXT", "tiles", "1.0", "scroll",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("tweaks overlay missing %q:\n%s", want, out)
@@ -55,6 +55,10 @@ func TestApplyTweakDeltaCyclesSettings(t *testing.T) {
 	if !s.ReducedMotion {
 		t.Fatal("expected reduced motion on")
 	}
+	applyTweakDelta(&s, tweakWrapLongText, 1)
+	if !s.WrapLongText {
+		t.Fatal("expected long text wrapping on")
+	}
 }
 
 func TestSettingsPersistThroughEncodeDecode(t *testing.T) {
@@ -68,6 +72,7 @@ func TestSettingsPersistThroughEncodeDecode(t *testing.T) {
 	st.Settings.HighContrast = true
 	st.Settings.ASCIISafe = true
 	st.Settings.ReducedMotion = true
+	st.Settings.WrapLongText = true
 
 	b, err := st.Encode()
 	if err != nil {
@@ -83,7 +88,7 @@ func TestSettingsPersistThroughEncodeDecode(t *testing.T) {
 	if out.Settings.PirateAggression != 2.0 {
 		t.Fatalf("pirate agg: got %v", out.Settings.PirateAggression)
 	}
-	if !out.Settings.HighContrast || !out.Settings.ASCIISafe || !out.Settings.ReducedMotion {
+	if !out.Settings.HighContrast || !out.Settings.ASCIISafe || !out.Settings.ReducedMotion || !out.Settings.WrapLongText {
 		t.Fatalf("toggles not persisted: %+v", out.Settings)
 	}
 }

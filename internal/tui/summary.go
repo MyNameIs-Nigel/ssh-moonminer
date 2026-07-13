@@ -59,7 +59,7 @@ func (g *Game) renderSummary() string {
 	continueBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
 	dockBtn := theme.Button("Q", "DOCK AT PORT", "", true, theme.HueGold)
 	body = append(body, "", continueBtn, dockBtn)
-	content := theme.Panel("RUN SUMMARY", g.width-4, 16, strings.Join(body, "\n"), accent)
+	content := theme.Panel("RUN SUMMARY", g.contentWidth()-4, 16, strings.Join(body, "\n"), accent)
 	g.hitPanelLine(8, 1, continueBtn, "btn:summary:continue", nil)
 	g.hitPanelLine(9, 1, dockBtn, "btn:summary:dock", nil)
 	hint := "[ENTER] RETURN TO BELT · [Q] DOCK AT PORT"
@@ -87,7 +87,7 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 	}
 	dockBtn := theme.Button("ENTER", "RESPAWN AT DOCK", "", true, theme.HueGold)
 	body = append(body, "", dockBtn)
-	content := theme.Panel("RESPAWN — SHIP LOST", g.width-4, 16, strings.Join(body, "\n"), accent)
+	content := theme.Panel("RESPAWN — SHIP LOST", g.contentWidth()-4, 16, strings.Join(body, "\n"), accent)
 	g.hitPanelLine(9, 1, dockBtn, "btn:summary:dock", nil)
 	hint := "[ENTER] RESPAWN AT DOCK"
 	return content + "\n" + g.renderKeybar(hint)

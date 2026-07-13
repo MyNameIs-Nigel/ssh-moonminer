@@ -29,6 +29,7 @@ type Settings struct {
 	HighContrast     bool         `json:"high_contrast"`
 	ASCIISafe        bool         `json:"ascii_safe"`
 	ReducedMotion    bool         `json:"reduced_motion"`
+	WrapLongText     bool         `json:"wrap_long_text"`
 	InsuranceUsed    bool         `json:"insurance_used"`
 }
 
