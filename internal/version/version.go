@@ -12,7 +12,7 @@
 package version
 
 // Version is the game's current release. Moon Miner is in alpha.
-const Version = "1.4.4"
+const Version = "1.4.5"
 
 // Channel is the human-readable release channel derived from Version's
 // leading component.
