@@ -346,7 +346,7 @@ func (g *Game) renderBelt() string {
 	}
 	body := strings.Join(lines, "\n")
 	hint := "↑/↓ SELECT · S SCAN · ENTER LOCK · V VIEW · Q DOCK"
-	return body + "\n" + g.renderKeybar(hint)
+	return g.renderBottomKeybar(body, hint)
 }
 
 const lipglossColorForUnknown = "#12324a"

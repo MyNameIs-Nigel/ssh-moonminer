@@ -415,7 +415,7 @@ func New(c *content.Content, seed uint64, now int64) *State {
 		WorldIdx:  -1,
 		SystemID:  "sol",
 		Settings: Settings{
-			BeltView:         BeltViewTiles,
+			BeltView:         BeltViewOreScan,
 			PirateAggression: 1.0,
 		},
 		Stats: Stats{FirstSeen: now, LastSeen: now},

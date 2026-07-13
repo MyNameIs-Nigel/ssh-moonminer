@@ -273,28 +273,39 @@ func (g *Game) updateWheel(m tea.MouseWheelMsg) []tea.Cmd {
 	if g.overlay != ovNone {
 		return nil
 	}
+	delta := wheelDelta(m)
+	if delta == 0 {
+		return nil
+	}
 	switch g.scr {
 	case scrChart:
-		if m.Y > 0 {
+		if delta < 0 {
 			return g.keyChart("up")
 		}
-		if m.Y < 0 {
-			return g.keyChart("down")
-		}
+		return g.keyChart("down")
 	case scrShipyard:
-		if m.Y > 0 {
+		if delta < 0 {
 			return g.keyShipyard("up")
 		}
-		if m.Y < 0 {
-			return g.keyShipyard("down")
-		}
+		return g.keyShipyard("down")
 	case scrBelt:
-		if m.Y > 0 {
+		if delta < 0 {
 			return g.keyBelt("up")
 		}
-		if m.Y < 0 {
-			return g.keyBelt("down")
-		}
+		return g.keyBelt("down")
 	}
 	return nil
+}
+
+// wheelDelta reads the button that the terminal reports for a wheel event.
+// MouseWheelMsg.Y is the pointer's row on screen, not the wheel direction.
+func wheelDelta(m tea.MouseWheelMsg) int {
+	switch m.Button {
+	case tea.MouseWheelUp:
+		return -1
+	case tea.MouseWheelDown:
+		return 1
+	default:
+		return 0
+	}
 }

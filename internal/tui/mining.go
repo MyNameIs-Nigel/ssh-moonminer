@@ -205,7 +205,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	leftBody := strings.Join(lines, "\n")
 	rightBody := g.renderPirateRadar(run)
 	body := lipgloss.JoinHorizontal(lipgloss.Bottom, leftBody, "  "+strings.ReplaceAll(rightBody, "\n", "\n  "))
-	return body + "\n" + g.renderKeybar(hint)
+	return g.renderBottomKeybar(body, hint)
 }
 
 const pirateRadarW = 16
@@ -302,7 +302,7 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 		g.hitBodyLine(len(lines)-1, 1, fightBtn, "btn:tribute:fight", nil)
 		hint = "D DROP CARGO · R REFUSE / RUN · F FIGHT"
 	}
-	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
+	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
 }
 
 func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier int) string {
@@ -355,7 +355,7 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 	if run.UnderAttack {
 		hint = theme.Red.Render("UNDER FIRE — HULL FALLING")
 	}
-	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
+	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
 }
 
 func (g *Game) renderHullLine(st *sim.State, hullPct float64, width int) string {
