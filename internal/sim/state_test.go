@@ -39,6 +39,12 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNewPilotDefaultsToOreScan(t *testing.T) {
+	if got := sim.New(testContent(t), 42, 1000).Settings.BeltView; got != sim.BeltViewOreScan {
+		t.Fatalf("new-pilot belt view = %v, want ore scan", got)
+	}
+}
+
 func TestVersionFourChaffMigratesToArmedEMPLauncher(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 42, 1000)

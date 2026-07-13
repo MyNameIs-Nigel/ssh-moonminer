@@ -30,6 +30,22 @@ func TestPanelBodyY(t *testing.T) {
 	}
 }
 
+func TestBottomKeybarUsesTheScreenBottom(t *testing.T) {
+	c, err := content.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &Game{content: c, width: 80, height: 30, snap: sim.Snapshot{State: *sim.New(c, 1, 1000)}}
+	out := g.renderBottomKeybar("BELT CONTENT", "Q DOCK")
+	lines := strings.Split(out, "\n")
+	if len(lines) != g.height-chromeH {
+		t.Fatalf("screen body has %d rows, want %d", len(lines), g.height-chromeH)
+	}
+	if !strings.Contains(lines[len(lines)-1], "DOCK") {
+		t.Fatalf("keybar is not on the final screen row: %q", lines[len(lines)-1])
+	}
+}
+
 func TestChartHitboxAlignment(t *testing.T) {
 	c, err := content.Load("")
 	if err != nil {

@@ -241,23 +241,27 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 }
 
 func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
+	delta := wheelDelta(m)
+	if delta == 0 {
+		return nil
+	}
 	switch g.overlay {
 	case ovHelp:
-		if m.Y > 0 {
+		if delta < 0 {
 			g.helpScrollBy(-1)
-		} else if m.Y < 0 {
+		} else {
 			g.helpScrollBy(1)
 		}
 	case ovTweaks:
-		if m.Y > 0 {
+		if delta < 0 {
 			g.tweaksSel = (g.tweaksSel - 1 + tweakCount) % tweakCount
-		} else if m.Y < 0 {
+		} else {
 			g.tweaksSel = (g.tweaksSel + 1) % tweakCount
 		}
 	case ovDev:
-		if m.Y > 0 {
+		if delta < 0 {
 			g.devSel = (g.devSel - 1 + devRowCount) % devRowCount
-		} else if m.Y < 0 {
+		} else {
 			g.devSel = (g.devSel + 1) % devRowCount
 		}
 	case ovSlotPicker:
@@ -265,9 +269,9 @@ func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 		if !ok || len(entries) == 0 {
 			break
 		}
-		if m.Y > 0 {
+		if delta < 0 {
 			g.pickerSel = (g.pickerSel - 1 + len(entries)) % len(entries)
-		} else if m.Y < 0 {
+		} else {
 			g.pickerSel = (g.pickerSel + 1) % len(entries)
 		}
 		g.pickerClampScroll(len(entries))
