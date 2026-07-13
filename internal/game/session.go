@@ -128,6 +128,29 @@ func (s *Session) RefuseTribute(now int64) (Snapshot, error) {
 	})
 }
 
+// FightPirates chooses [F] FIGHT at the tribute prompt: valid only while
+// armed, and — unlike RefuseTribute — does not start the escape burn.
+func (s *Session) FightPirates(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.FightPirates(st, s.actor.content(), now)
+	})
+}
+
+// FireWeapons fires every installed weapon as one volley in PhaseCombat.
+func (s *Session) FireWeapons(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.FireWeapons(st, s.actor.content(), now)
+	})
+}
+
+// CombatEscape starts the escape burn from PhaseCombat — the [B]/[Enter]
+// action, a no-op if the burn is already running.
+func (s *Session) CombatEscape(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		return sim.CombatEscape(st, s.actor.content(), now)
+	})
+}
+
 // AttemptSkillCheck resolves a press/click against the active mining
 // "drill calibration" prompt, if any. Misses cost nothing.
 func (s *Session) AttemptSkillCheck(now int64) (Snapshot, error) {

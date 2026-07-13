@@ -92,9 +92,14 @@ func TestEquipmentDuplicatesAndTurretsHaveDefinedEffects(t *testing.T) {
 	}
 	s.Ships["warden"].Weapon[0] = &sim.SlotDevice{ItemID: sim.ItemTurret, Grade: 0}
 	s.Ships["warden"].Weapon[1] = &sim.SlotDevice{ItemID: sim.ItemTurret, Grade: 0}
-	want := math.Max(0.1, math.Pow(1-c.Slots.TurretPctPerGrade, 2))
-	if got := sim.AttackDamageMul(s, c); math.Abs(got-want) > 0.000001 {
-		t.Fatalf("two turret multiplier = %.6f, want %.6f", got, want)
+	// Two installed turrets stack additively — the old per-shot mitigation
+	// multiplier was retired in favor of active weapons (gameplay/07).
+	perTurret := c.Slots.TurretDamagePerShotBase
+	wantDmg := perTurret * 2
+	wantHeat := c.Slots.TurretHeatPerShot * 2
+	gotDmg, gotHeat, _ := sim.InstalledWeaponVolley(s, c)
+	if math.Abs(gotDmg-wantDmg) > 0.000001 || math.Abs(gotHeat-wantHeat) > 0.000001 {
+		t.Fatalf("two turret volley = dmg=%.6f heat=%.6f, want dmg=%.6f heat=%.6f", gotDmg, gotHeat, wantDmg, wantHeat)
 	}
 }
 

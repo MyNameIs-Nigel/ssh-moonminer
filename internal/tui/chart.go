@@ -148,7 +148,15 @@ func (g *Game) renderChart() string {
 	rightLines = append(rightLines, g.renderDockShieldService(&st))
 	cargoLabel := fmt.Sprintf("CARGO %.0f/%.0f  %s %d", st.CargoUnits, sim.CargoCapacityUnits(&st, g.content), theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue)
 	rightLines = append(rightLines, cargoLabel)
-	sellBtn := theme.Button("C", "SELL CARGO", fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue), st.CargoValue > 0, theme.HueGold)
+	if st.BountyVouchers > 0 {
+		rightLines = append(rightLines, theme.Amber.Render(fmt.Sprintf("BOUNTY VOUCHERS  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.BountyVouchers)))
+	}
+	sellLabel, sellTotal := "SELL CARGO", st.CargoValue
+	if st.BountyVouchers > 0 {
+		sellLabel = "SELL CARGO + BOUNTY"
+		sellTotal += st.BountyVouchers
+	}
+	sellBtn := theme.Button("C", sellLabel, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sellTotal), sellTotal > 0, theme.HueGold)
 	rightLines = append(rightLines, sellBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, sellBtn, "svc:sell", nil)
 	if sim.InsuranceEligible(&st, g.content) {
@@ -209,6 +217,12 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyMining(tea.KeyPressMsg{Code: 'd', Text: "d"})
 		case "btn:tribute:refuse":
 			return g.keyMining(tea.KeyPressMsg{Code: 'r', Text: "r"})
+		case "btn:tribute:fight":
+			return g.keyMining(tea.KeyPressMsg{Code: 'f', Text: "f"})
+		case "btn:combat:fire":
+			return g.keyMining(tea.KeyPressMsg{Code: 'f', Text: "f"})
+		case "btn:combat:escape":
+			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
 		case "btn:summary:continue":
 			return g.keySummary("enter")
 		case "btn:summary:dock":

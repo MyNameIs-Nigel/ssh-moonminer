@@ -61,21 +61,28 @@ func BuyDestinationPermit(s *State, c *content.Content, destinationID string) er
 	return nil
 }
 
-// SellCargo converts the entire docked cargo hold into credits and records
-// the sale separately from the mining runs that loaded the hold.
+// SellCargo converts the entire docked cargo hold into credits and redeems
+// any bounty vouchers earned from destroyed pirates in the same
+// transaction, recording the sale separately from the mining runs that
+// loaded the hold. Vouchers are not cargo — docs/gameplay/07-pirate-combat-
+// and-bounties.md's deliberate carve-out — so they can pay out even when
+// the hold is empty.
 func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	if !s.IsDocked() {
 		return 0, ErrInBelt
 	}
-	if s.CargoValue <= 0 {
+	if s.CargoValue <= 0 && s.BountyVouchers <= 0 {
 		return 0, ErrCargoEmpty
 	}
-	value := s.CargoValue
+	cargoValue := s.CargoValue
+	bounty := s.BountyVouchers
+	value := cargoValue + bounty
 	s.Credits += value
 	s.CargoValue = 0
 	s.CargoUnits = 0
+	s.BountyVouchers = 0
 	s.Stats.CreditsEarned += value
-	s.Stats.CargoValueSold += value
+	s.Stats.CargoValueSold += cargoValue
 	// Selling recovered cargo is a documented recovery milestone: the pilot
 	// has converted a viable escape route, so a future real softlock may use
 	// the safety net again.
@@ -84,7 +91,7 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	if system := c.SystemByID(s.SystemID); system != nil {
 		systemName = system.Name
 	}
-	appendRunLog(s, RunRecord{When: now, World: systemName, Asteroid: "DOCK SALE", Outcome: "cargo_sold", CargoValueSold: value})
+	appendRunLog(s, RunRecord{When: now, World: systemName, Asteroid: "DOCK SALE", Outcome: "cargo_sold", CargoValueSold: cargoValue, BountyEarned: bounty})
 	return value, nil
 }
 

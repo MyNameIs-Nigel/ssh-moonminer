@@ -12,10 +12,15 @@ var badEvents = []EventKind{EventLifeSupportFailure, EventCargoShift, EventReact
 var nuisanceEvents = []EventKind{EventPowerOutage, EventRadarBlackout}
 
 // tickEvents advances the active event (if any) and, once its cooldown has
-// elapsed, rolls for a new one. Events only fire during mining and escaping
-// — the tribute phase is a short, deliberately quiet decision beat.
+// elapsed, rolls for a new one. New events only roll during mining and
+// escaping — the tribute phase is a short, deliberately quiet decision
+// beat, and combat has enough going on already (an event already in
+// progress keeps ticking down through either phase).
 func tickEvents(s *State, c *content.Content, run *ActiveRun, dt float64, now int64) {
 	if run.Phase == PhaseTribute {
+		return
+	}
+	if run.Phase == PhaseCombat && run.ActiveEvent == nil {
 		return
 	}
 	if run.ActiveEvent != nil {

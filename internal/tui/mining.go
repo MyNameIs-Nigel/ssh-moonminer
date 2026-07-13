@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -39,10 +40,18 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 		case "r", "esc":
 			snap, err := g.sess.RefuseTribute(g.now)
 			return g.refreshSnap(snap, err)
+		case "f":
+			if !sim.HasWeapon(&g.snap.State) {
+				return nil
+			}
+			snap, err := g.sess.FightPirates(g.now)
+			return g.refreshSnap(snap, err)
 		}
 	case sim.PhaseEscaping:
 		// No menu actions are accepted while fleeing — the ship either
 		// escapes or dies.
+	case sim.PhaseCombat:
+		return g.keyCombat(m)
 	}
 	return nil
 }
@@ -70,6 +79,8 @@ func (g *Game) renderMining() string {
 		return g.renderTribute(&st, run, name, tier, value)
 	case sim.PhaseEscaping:
 		return g.renderEscape(&st, run, name, tier)
+	case sim.PhaseCombat:
+		return g.renderCombat(&st, run)
 	default:
 		return g.renderDrilling(&st, run, ast, name, tier, value)
 	}
@@ -241,7 +252,11 @@ func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
 }
 
 func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tier, value int) string {
-	title := theme.Red.Render(theme.Glyph("skull", st.Settings.ASCIISafe) + " PIRATE TRANSMISSION")
+	pirateName := "PIRATE"
+	if p := g.content.PirateByID(run.PirateID); p != nil {
+		pirateName = p.Name
+	}
+	title := theme.Red.Render(theme.Glyph("skull", st.Settings.ASCIISafe) + " " + pirateName + " TRANSMISSION")
 	totalCargo := st.CargoValue + run.CargoValue
 	demand := int(float64(totalCargo) * g.content.Mining.TributeDemandPct)
 	if demand > totalCargo {
@@ -251,6 +266,7 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 	if remaining < 0 {
 		remaining = 0
 	}
+	armed := sim.HasWeapon(st)
 	lines := []string{
 		title,
 		"",
@@ -260,15 +276,32 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 		fmt.Sprintf("ASTEROID  %s (%s %s)", theme.Gold.Render(name), g.content.Tiers.Glyphs[tier], g.content.Tiers.Labels[tier]),
 		fmt.Sprintf("CARGO ABOARD  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo),
 		fmt.Sprintf("RETAIN AFTER DROP  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), totalCargo-demand),
+	}
+	if p := g.content.PirateByID(run.PirateID); p != nil {
+		odds := int(math.Round(sim.EstimateOddsForRun(st, g.content, run) * 100))
+		bountyLine := fmt.Sprintf("BOUNTY %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), p.Bounty)
+		if armed {
+			bountyLine += fmt.Sprintf("   EST. ODDS %d%%", odds)
+		}
+		lines = append(lines, theme.Amber.Render(bountyLine))
+	}
+	lines = append(lines,
 		theme.DimStyle.Render(fmt.Sprintf("decision timeout: %.0fs", remaining)),
 		"",
-	}
+	)
 	dropBtn := theme.Button("D", "DROP CARGO", "", true, theme.HueAmber)
 	refuseBtn := theme.Button("R", "REFUSE / RUN", "", true, theme.HueRed)
 	lines = append(lines, dropBtn, refuseBtn)
 	g.hitBodyLine(len(lines)-2, 1, dropBtn, "btn:tribute:accept", nil)
 	g.hitBodyLine(len(lines)-1, 1, refuseBtn, "btn:tribute:refuse", nil)
 	hint := "D DROP CARGO · R REFUSE / RUN"
+	if armed {
+		odds := int(math.Round(sim.EstimateOddsForRun(st, g.content, run) * 100))
+		fightBtn := theme.Button("F", fmt.Sprintf("FIGHT — EST. ODDS %d%%", odds), "", true, theme.HueRed)
+		lines = append(lines, fightBtn)
+		g.hitBodyLine(len(lines)-1, 1, fightBtn, "btn:tribute:fight", nil)
+		hint = "D DROP CARGO · R REFUSE / RUN · F FIGHT"
+	}
 	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
 }
 

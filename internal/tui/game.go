@@ -122,6 +122,14 @@ type Game struct {
 	deathFrame         int
 	deathFlickerFrames int
 	deathFrameText     string
+
+	// Combat-mode interstitial (internal/tui/combat.go): combatEntered
+	// tracks whether the last processed snapshot was already in
+	// PhaseCombat, so the amber "COMBAT MODE ENGAGED" card only fires once
+	// per engagement; combatIntroActive is whether that card is currently
+	// showing (any key, or a ~2s timer, dismisses it).
+	combatEntered     bool
+	combatIntroActive bool
 }
 
 // NewGame constructs the session UI.
@@ -235,7 +243,10 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if g.snap.State.Run != nil && g.scr != scrMining {
 			g.scr = scrMining
 		}
+		cmds = append(cmds, g.syncCombatEntry()...)
 		cmds = append(cmds, listenSnaps(g.sess))
+	case combatIntroDoneMsg:
+		g.combatIntroActive = false
 	case kickedMsg:
 		if m != "" {
 			g.kickReason = string(m)
@@ -243,6 +254,14 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		g.lastInput = g.now
+		if g.combatIntroActive {
+			if m.String() == "ctrl+c" {
+				cmds = append(cmds, tea.Quit)
+				break
+			}
+			g.combatIntroActive = false
+			break
+		}
 		if g.overlay != ovNone {
 			cmds = append(cmds, g.updateOverlay(m)...)
 			break
@@ -366,7 +385,7 @@ func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
 	if g.snap.State.Run != nil {
 		g.scr = scrMining
 	}
-	return nil
+	return g.syncCombatEntry()
 }
 
 func (g *Game) View() tea.View {
@@ -377,6 +396,8 @@ func (g *Game) View() tea.View {
 			fmt.Sprintf("RESIZE TERMINAL — need %dx%d, have %dx%d", minWidth, minHeight, g.width, g.height))
 	} else if g.scr == scrDeath {
 		body = g.renderDeath()
+	} else if g.combatIntroActive {
+		body = g.renderCombatIntro()
 	} else {
 		base := g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen())
 		body = g.compositeView(base)

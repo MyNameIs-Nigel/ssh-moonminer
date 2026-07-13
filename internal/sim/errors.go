@@ -40,4 +40,8 @@ var (
 	ErrSlotOccupied     = errors.New("slot already has a module — store or sell it first")
 	ErrInvalidInventory = errors.New("invalid inventory item")
 	ErrDuplicateItem    = errors.New("that module is already installed on this ship")
+
+	// Combat errors (gameplay/07-pirate-combat-and-bounties.md).
+	ErrNoWeaponInstalled = errors.New("no weapon installed")
+	ErrWeaponsLocked     = errors.New("weapons overheated — locked")
 )

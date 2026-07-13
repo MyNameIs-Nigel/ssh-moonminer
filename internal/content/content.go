@@ -48,6 +48,43 @@ type World struct {
 	PirateAttackMul      float64 `toml:"pirate_attack_mul"`
 }
 
+// Pirate is one named roster entry — docs/gameplay/07-pirate-combat-and-
+// bounties.md. Spawn is a weighted pick (salt 7100, rolled at Lock) among
+// entries whose [MinThreat, MaxThreat] band covers
+// threat = asteroid.Risk/100 * world.PirateMul.
+type Pirate struct {
+	ID              string  `toml:"id"`
+	Name            string  `toml:"name"`
+	Hull            float64 `toml:"hull"`
+	DamagePerSecond float64 `toml:"damage_per_second"`
+	Maneuver        float64 `toml:"maneuver"`
+	Bounty          int     `toml:"bounty"`
+	MinThreat       float64 `toml:"min_threat"`
+	MaxThreat       float64 `toml:"max_threat"`
+	Weight          float64 `toml:"weight"`
+}
+
+// CombatConfig tunes the tactical-scope pirate-combat minigame — docs/
+// gameplay/07-pirate-combat-and-bounties.md. Bearing/Range/Solution are a
+// deterministic function of the run's TickCount so replay stays exact.
+type CombatConfig struct {
+	HeatCapacity        float64 `toml:"heat_capacity"`
+	HeatDecayPerSecond  float64 `toml:"heat_decay_per_second"`
+	OverheatLockSeconds float64 `toml:"overheat_lock_seconds"`
+	ArcCenter           float64 `toml:"arc_center"`
+	ArcHalfWidth        float64 `toml:"arc_half_width"`
+	SolutionRangeFloor  float64 `toml:"solution_range_floor"`
+	RangeMin            float64 `toml:"range_min"`
+	ManeuverW1          float64 `toml:"maneuver_w1"`
+	ManeuverW2          float64 `toml:"maneuver_w2"`
+	ManeuverW3          float64 `toml:"maneuver_w3"`
+	ManeuverAmp1        float64 `toml:"maneuver_amp1"`
+	ManeuverAmp2        float64 `toml:"maneuver_amp2"`
+	OddsAvgSolutionBase float64 `toml:"odds_avg_solution_base"`
+	OddsFloor           float64 `toml:"odds_floor"`
+	OddsCeiling         float64 `toml:"odds_ceiling"`
+}
+
 // PilotStart is the new-pilot starting resources.
 type PilotStart struct {
 	StartCredits int `toml:"start_credits"`
@@ -285,10 +322,32 @@ type SlotsConfig struct {
 	EMPLauncherDeployESeconds float64 `toml:"emp_launcher_deploy_e_seconds"`
 	EMPLauncherDeploySSeconds float64 `toml:"emp_launcher_deploy_s_seconds"`
 
-	TurretBasePrice    int     `toml:"turret_base_price"`
-	TurretPowerK       float64 `toml:"turret_power_k"`
-	TurretMassPerGrade float64 `toml:"turret_mass_per_grade"`
-	TurretPctPerGrade  float64 `toml:"turret_pct_per_grade"`
+	// Weapon catalog (docs/gameplay/07-pirate-combat-and-bounties.md). All
+	// three install into the Weapon slot; damage/shot scales per grade,
+	// heat/shot and the solution accuracy bonus are grade-invariant.
+	TurretBasePrice               int     `toml:"turret_base_price"`
+	TurretPowerK                  float64 `toml:"turret_power_k"`
+	TurretMassPerGrade            float64 `toml:"turret_mass_per_grade"`
+	TurretDamagePerShotBase       float64 `toml:"turret_damage_per_shot_base"`
+	TurretDamagePerShotPerGrade   float64 `toml:"turret_damage_per_shot_per_grade"`
+	TurretHeatPerShot             float64 `toml:"turret_heat_per_shot"`
+	TurretSolutionBonus           float64 `toml:"turret_solution_bonus"`
+
+	MassDriverBasePrice             int     `toml:"mass_driver_base_price"`
+	MassDriverPowerK                float64 `toml:"mass_driver_power_k"`
+	MassDriverMassPerGrade          float64 `toml:"mass_driver_mass_per_grade"`
+	MassDriverDamagePerShotBase     float64 `toml:"mass_driver_damage_per_shot_base"`
+	MassDriverDamagePerShotPerGrade float64 `toml:"mass_driver_damage_per_shot_per_grade"`
+	MassDriverHeatPerShot           float64 `toml:"mass_driver_heat_per_shot"`
+	MassDriverSolutionBonus         float64 `toml:"mass_driver_solution_bonus"`
+
+	PulseLaserBasePrice             int     `toml:"pulse_laser_base_price"`
+	PulseLaserPowerK                float64 `toml:"pulse_laser_power_k"`
+	PulseLaserMassPerGrade          float64 `toml:"pulse_laser_mass_per_grade"`
+	PulseLaserDamagePerShotBase     float64 `toml:"pulse_laser_damage_per_shot_base"`
+	PulseLaserDamagePerShotPerGrade float64 `toml:"pulse_laser_damage_per_shot_per_grade"`
+	PulseLaserHeatPerShot           float64 `toml:"pulse_laser_heat_per_shot"`
+	PulseLaserSolutionBonus         float64 `toml:"pulse_laser_solution_bonus"`
 
 	InternalPowerK       float64 `toml:"internal_power_k"`
 	InternalMassPerGrade float64 `toml:"internal_mass_per_grade"`
@@ -316,11 +375,16 @@ type balanceFile struct {
 	Belt   BeltConfig   `toml:"belt"`
 	Tiers  TierConfig   `toml:"tiers"`
 	Mining MiningConfig `toml:"mining"`
+	Combat CombatConfig `toml:"combat"`
 	Events EventsConfig `toml:"events"`
 	Port   PortConfig   `toml:"port"`
 	Fleet  FleetConfig  `toml:"fleet"`
 	Slots  SlotsConfig  `toml:"slots"`
 	Ships  []ShipModel  `toml:"ships"`
+}
+
+type piratesFile struct {
+	Pirates []Pirate `toml:"pirates"`
 }
 
 // Content is immutable validated game configuration.
@@ -331,11 +395,13 @@ type Content struct {
 	Belt    BeltConfig
 	Tiers   TierConfig
 	Mining  MiningConfig
+	Combat  CombatConfig
 	Events  EventsConfig
 	Port    PortConfig
 	Fleet   FleetConfig
 	Slots   SlotsConfig
 	Ships   []ShipModel
+	Pirates []Pirate
 }
 
 // ShipByID returns the ship model with the given ID, or nil.
@@ -343,6 +409,16 @@ func (c *Content) ShipByID(id string) *ShipModel {
 	for i := range c.Ships {
 		if c.Ships[i].ID == id {
 			return &c.Ships[i]
+		}
+	}
+	return nil
+}
+
+// PirateByID returns the pirate roster entry with the given ID, or nil.
+func (c *Content) PirateByID(id string) *Pirate {
+	for i := range c.Pirates {
+		if c.Pirates[i].ID == id {
+			return &c.Pirates[i]
 		}
 	}
 	return nil
@@ -362,6 +438,10 @@ func Load(overrideDir string) (*Content, error) {
 	if err := decodeTOML(fsys, "balance.toml", &bf); err != nil {
 		return nil, err
 	}
+	var pf piratesFile
+	if err := decodeTOML(fsys, "pirates.toml", &pf); err != nil {
+		return nil, err
+	}
 	c := &Content{
 		Systems: wf.Systems,
 		Worlds:  wf.Destinations,
@@ -369,11 +449,13 @@ func Load(overrideDir string) (*Content, error) {
 		Belt:    bf.Belt,
 		Tiers:   bf.Tiers,
 		Mining:  bf.Mining,
+		Combat:  bf.Combat,
 		Events:  bf.Events,
 		Port:    bf.Port,
 		Fleet:   bf.Fleet,
 		Slots:   bf.Slots,
 		Ships:   bf.Ships,
+		Pirates: pf.Pirates,
 	}
 	if err := c.validate(); err != nil {
 		return nil, err
@@ -512,6 +594,53 @@ func (c *Content) validate() error {
 	}
 	if err := c.validateFleet(); err != nil {
 		return err
+	}
+	if err := c.validateCombat(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateCombat checks the pirate roster and [combat] tuning — docs/
+// gameplay/07-pirate-combat-and-bounties.md.
+func (c *Content) validateCombat() error {
+	if len(c.Pirates) == 0 {
+		return fmt.Errorf("content: need at least 1 pirate, got 0")
+	}
+	seen := make(map[string]bool, len(c.Pirates))
+	for _, p := range c.Pirates {
+		if p.ID == "" || p.Name == "" {
+			return fmt.Errorf("content: pirate has no id/name")
+		}
+		if seen[p.ID] {
+			return fmt.Errorf("content: duplicate pirate id %q", p.ID)
+		}
+		seen[p.ID] = true
+		if p.Hull <= 0 || p.DamagePerSecond <= 0 || p.Maneuver <= 0 || p.Weight <= 0 {
+			return fmt.Errorf("content: pirate %q hull/damage_per_second/maneuver/weight must be positive", p.ID)
+		}
+		if p.Bounty < 0 {
+			return fmt.Errorf("content: pirate %q bounty must be non-negative", p.ID)
+		}
+		if p.MinThreat < 0 || p.MaxThreat < p.MinThreat {
+			return fmt.Errorf("content: pirate %q min_threat/max_threat must be non-negative and ascending", p.ID)
+		}
+	}
+	cc := c.Combat
+	if cc.HeatCapacity <= 0 || cc.HeatDecayPerSecond <= 0 || cc.OverheatLockSeconds <= 0 {
+		return fmt.Errorf("content: combat heat_capacity/heat_decay_per_second/overheat_lock_seconds must be positive")
+	}
+	if cc.ArcHalfWidth <= 0 || cc.ArcHalfWidth > 0.5 {
+		return fmt.Errorf("content: combat arc_half_width must be within (0..0.5]")
+	}
+	if cc.SolutionRangeFloor < 0 || cc.SolutionRangeFloor > 1 || cc.RangeMin < 0 || cc.RangeMin > 1 {
+		return fmt.Errorf("content: combat solution_range_floor/range_min must be within 0..1")
+	}
+	if cc.OddsFloor < 0 || cc.OddsCeiling > 1 || cc.OddsCeiling < cc.OddsFloor {
+		return fmt.Errorf("content: combat odds_floor/odds_ceiling must be within 0..1 and ascending")
+	}
+	if cc.OddsAvgSolutionBase <= 0 {
+		return fmt.Errorf("content: combat odds_avg_solution_base must be positive")
 	}
 	return nil
 }
