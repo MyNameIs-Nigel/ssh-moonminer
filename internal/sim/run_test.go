@@ -401,7 +401,7 @@ func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 // TestAttackDamagePerSecondUnmitigatedByTurret confirms the combat rework:
 // the Defense/Autocannon Turret no longer passively mitigates incoming
 // pirate damage (that job now belongs entirely to the Shield) — it became
-// an active weapon dealt with by FireWeapons/combat_test.go instead.
+// an always-firing weapon covered by combat_test.go instead.
 func TestAttackDamagePerSecondUnmitigatedByTurret(t *testing.T) {
 	c := testContent(t)
 	for _, grade := range []int{0, 1, 2, 3, 4} {

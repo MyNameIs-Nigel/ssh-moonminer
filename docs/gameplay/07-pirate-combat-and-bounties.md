@@ -19,9 +19,10 @@ roster — with hull, damage, maneuvering profile and a **bounty**. A ship with
 at least one weapon installed gains **[F] FIGHT** at the tribute prompt (next
 to Drop and Refuse/Run); pirates that attack outright skip the prompt and drop
 the player straight into combat. Combat plays out on a **tactical scope**: the
-pirate blip maneuvers across a radar box, the player presses **F** to fire
-when the blip crosses their firing arc, and a shared **HEAT** capacitor
-punishes spamming with a lockout. Destroying the pirate awards a **bounty
+pirate blip maneuvers across a radar box. The **Autocannon Turret** tracks and
+damages it continuously; the player presses **F** for other weapons when the
+blip crosses their firing arc, with a shared **HEAT** capacitor punishing
+manual-fire spam. Destroying the pirate seals the run and awards a **bounty
 voucher**, redeemed with the cargo sale (**C**) at dock. An **EST. ODDS %**
 readout on the prompt and combat header tells the player what they're signing
 up for.
@@ -48,7 +49,7 @@ escapes" rule are unchanged.
 
 | Old behavior | Disposition |
 | --- | --- |
-| **Defense Turret passive mitigation** (`AttackDamageMul`, `turret_pct_per_grade`) | Deleted. The turret keeps its item ID (`turret`), grade, price curve, power and mass, and becomes an **active weapon** ("AUTOCANNON TURRET"). Live saves need no rewrite — installed turrets simply change behavior. The mitigation loss is offset by the shield buff below; **release-note it**. |
+| **Defense Turret passive mitigation** (`AttackDamageMul`, `turret_pct_per_grade`) | Deleted. The turret keeps its item ID (`turret`), grade, price curve, power and mass, and becomes an **always-firing weapon** ("AUTOCANNON TURRET"). Live saves need no rewrite — installed turrets simply change behavior. The mitigation loss is offset by the shield buff below; **release-note it**. |
 | `shield_hp_per_grade = 20` | Buffed to **30** — the shield is now the only damage-mitigation layer, absorbing attack damage before hull exactly as today. |
 | Immediate attack / refused tribute → auto-started escape burn (`startEscape(underAttack=true)`) | Replaced by **PhaseCombat** (below). The burn auto-starts only in the cases in the burn matrix; PhaseEscaping with `UnderAttack=true` no longer occurs naturally. `attackHullDamagePerSecond` stays only as a defensive fallback for `Run.Combat == nil` (legacy tests set that shape directly). |
 | "The player cannot win a fight" (02-danger doc) | Superseded by this doc. |
@@ -123,14 +124,13 @@ PhaseMining ──(distance 0, EMP resolved)──> rollPirateAction
            └─ unarmed:  burn RUNNING (preserves today's auto-escape)
 
 PhaseCombat
-    ├─ [F] FireWeapons (armed, not overheated)
+    ├─ autocannon damage applies continuously (when installed)
+    ├─ [F] FireWeapons (manual weapon, not overheated)
     ├─ [B]/[Enter] CombatEscape — starts the burn if not started
     │      (BAIL/DEPART intent by RunDepleted, exactly like BailOrDepart)
     ├─ burn completes ──> resolveRun(OutcomeEscapedUnderFire)
-    ├─ pirate hull ≤ 0 ──> winCombat
-    │      ├─ burn not started ──> PhaseMining, PirateImmune=true (drill resumes)
-    │      └─ burn running ──> PhaseEscaping, UnderAttack=false
-    │             (outcome falls back to Intent; cargo kept as usual)
+    ├─ pirate hull ≤ 0 ──> resolveRun(OutcomePirateDestroyed)
+    │      └─ cargo sealed; run summary shown immediately
     └─ own hull ≤ 0 ──> resolveRun(OutcomeShipLost)                   (unchanged)
 ```
 
@@ -205,9 +205,9 @@ rangeFactor = solution_range_floor + (1 − solution_range_floor)·(1 − Range)
 Solution    = clamp(arcFactor·rangeFactor + Σ installed weapon solution_bonus, 0, 1)
 ```
 
-**Fire — `FireWeapons(s, c, now)`.** Valid only in PhaseCombat with ≥ 1
-installed weapon and `LockRemaining ≤ 0`; otherwise a typed error (TUI
-flashes it). One press fires **all installed weapons as one volley**:
+**Fire — `FireWeapons(s, c, now)`.** Valid only in PhaseCombat with a manual
+weapon (Mass Driver or Pulse Laser) and `LockRemaining ≤ 0`; otherwise a typed
+error (TUI flashes it). One press fires all installed **manual weapons** as one volley:
 `damage = Σ WeaponDamagePerShot(item, grade)`, `heatCost = Σ
 WeaponHeatPerShot(item, grade)`. Single hit roll `runRNG(s, run,
 10000+run.TickCount).Float64() < Solution` — full damage on hit, nothing on
@@ -218,23 +218,23 @@ line. Latency note: the roll uses the solution at the tick the action is
 (SSH round-trips are part of the terrain; same reasoning as the skill-check
 design in gameplay/02).
 
-**Per tick — `tickCombat(s, c, run, dt)`:** recompute Bearing/Range/Solution;
+**Per tick — `tickCombat(s, c, run, dt, now)`:** recompute Bearing/Range/Solution;
 `Heat = max(0, Heat − heat_decay_per_second·dt)`; `LockRemaining =
-max(0, LockRemaining − dt)`; incoming fire `applyAttackDamageRate(s, c, run,
-Combat.PirateDPS, dt)` (shield absorbs first, remainder to hull — the turret
-multiplier is deleted from that function); if `EscapeStarted`, run the escape
+max(0, LockRemaining − dt)`; installed autocannons deal their deterministic
+`damage_per_shot × shots_per_second × dt` directly to pirate hull; incoming
+fire `applyAttackDamageRate(s, c, run, Combat.PirateDPS, dt)` (shield absorbs
+first, remainder to hull); if `EscapeStarted`, run the escape
 bookkeeping shared with `tickEscape` (elapsed, escape fuel drain, fuel-out
 penalty — factored into a helper so the damage line isn't double-applied).
 All math must clamp for huge `dt` (EmergencyResolve fast-forwards in one
 giant tick) — no NaN, no negative pools.
 
 **Winning — `winCombat`:** `s.BountyVouchers += Bounty`; bump stats; event
-log `pirate_destroyed`; stash name/bounty for the `RunRecord`. If the burn is
-running → `PhaseEscaping` with `UnderAttack = false` (the outcome falls back
-to `Intent`, cargo kept per the normal rules). If not → back to
-`PhaseMining` with `PirateImmune = true` — the named hunter is dead, the
-radar stays clear for the rest of this run, and the drill resumes. `Combat`
-is cleared in both cases.
+log `pirate_destroyed`; stash name/bounty for the `RunRecord`; then resolve
+the run as `OutcomePirateDestroyed`. Cargo is sealed, the asteroid remnant is
+updated by the ordinary run-resolution path, and the TUI goes directly to the
+run summary. This prevents a finished fight from returning to mining with a
+zero-distance pirate contact.
 
 **Bounty vouchers are not cargo.** They are registered kill confirmations:
 they live on `State`, **survive ship loss**, and convert to credits only at
@@ -249,14 +249,14 @@ kill never pays out mid-run.)
 
 `weaponItems = [turret, mass_driver, pulse_laser]`. `AttackDamageMul` is
 deleted; new helpers `WeaponDamagePerShot`, `WeaponHeatPerShot`,
-`WeaponSolutionBonus`, and `HasWeapon(s) bool` (any non-nil entry in the
-active ship's `Weapon` slice). Grades work exactly like every other device
+`WeaponSolutionBonus`, `HasWeapon(s) bool`, and
+`AutocannonDamagePerSecond(s, c)`. Grades work exactly like every other device
 (price = base · `grade_price_curve`^grade; power = `power_k`; mass per
 grade). Damage/heat per grade g (0..5 = E..S):
 
 | Item | Name | dmg/shot | heat/shot | sol. bonus | base ◈ | power_k | mass/grade | Profile |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `turret` | AUTOCANNON TURRET | 8 + 3g | 22 | 0 | 700 (existing) | 1.6 (existing) | 7 (existing) | balanced |
+| `turret` | AUTOCANNON TURRET | 8 + 3g | — | — | 700 (existing) | 1.6 (existing) | 7 (existing) | fires continuously at 0.82 shots/s |
 | `mass_driver` | MASS DRIVER | 16 + 6g | 45 | 0 | 1100 | 2.2 | 10 | alpha strike, heat-hungry |
 | `pulse_laser` | PULSE LASER | 5 + 2g | 12 | +0.10 | 900 | 1.8 | 5 | sustained, accurate |
 
@@ -272,17 +272,17 @@ combat header. It is an honest *estimate*, not a promise:
 
 ```
 avgSol     = clamp(odds_avg_solution_base / pirate.maneuver, 0.15, 0.90)
-volleyDmg  = Σ dmg/shot        volleyHeat = Σ heat/shot     (installed weapons)
-sustained  = heat_decay_per_second / volleyHeat              (volleys/sec, heat-bound)
-pDPS       = volleyDmg · sustained · avgSol
+manualDPS  = Σ dmg/shot · (heat_decay_per_second / Σ heat/shot) · avgSol
+autoDPS    = Σ turret dmg/shot · turret_shots_per_second
+pDPS       = manualDPS + autoDPS
 ttkPirate  = pirate.hull / max(pDPS, ε)
 ttkSelf    = (Hull + ShieldHP) / (pirate.dps · world.PirateAttackMul)
 odds       = clamp(ttkSelf / (ttkSelf + ttkPirate), odds_floor, odds_ceiling)
 ```
 
 Unarmed ⇒ 0 (and no FIGHT button). Worked example: stock Skiff can't fight;
-a Warden with a C autocannon (14 dmg, 0.82 volleys/s, avgSol ≈ 0.48 vs a
-Marauder) ≈ 5.5 pDPS ⇒ ttkPirate ≈ 16 s; 140 hull + 90 shield vs 7.5 dps ⇒
+a Warden with a C autocannon (14 dmg, 0.82 shots/s) deals 11.5 pDPS
+continuously ⇒ ttkPirate ≈ 8 s; 140 hull + 90 shield vs 7.5 dps ⇒
 ttkSelf ≈ 31 s ⇒ **EST. ODDS 66%**. On the always-attack Eridani worlds
 `pirate_attack_mul` (3.0–3.5) multiplies pirate DPS, so odds there collapse
 toward the floor — fighting a Dreadwing over Sable is correctly advertised
@@ -300,10 +300,10 @@ total (hard test requirement).
 `EmergencyResolve` gains `case PhaseCombat:` — if `!Combat.EscapeStarted`,
 call `CombatEscape` first; then the existing fast-forward
 (`TickRun(remaining+1)`) resolves it. Combat damage keeps applying during
-the fast-forward, so **disconnecting mid-fight can still kill the ship**, and
-success resolves `OutcomeEscapedUnderFire` — the shutdown/disconnect policy
-in framework/03 is preserved verbatim. The existing anti-infinite-loop clamp
-covers the phase once the completion check accepts combat-with-burn.
+the fast-forward until the first terminal event, so **disconnecting mid-fight
+can still kill the ship**. A victory may resolve `OutcomePirateDestroyed`; an
+escape resolves `OutcomeEscapedUnderFire`. The existing anti-infinite-loop
+clamp covers the phase once the completion check accepts combat-with-burn.
 
 ### Save impact
 
@@ -355,14 +355,15 @@ matrix above, nobody is eating damage they wouldn't have eaten anyway.
   `▲` anchor, firing-arc rays brightening with `Solution`, pirate blip `●`
   plotted from sim `Bearing`/`Range`, dim `·` starfield.
 - Right column: player HULL/SHIELD (reuse the mining screen's bar helpers),
-  HEAT bar (`theme.RampBar`) that becomes `WEAPONS LOCKED n.n s` in red
-  while `LockRemaining > 0`; pirate name + hull bar; `RANGE ~410m` cosmetic
-  meters (`120 + Range·680`).
+  an AUTOCANNON DPS readout when fitted, and a HEAT bar only when a manual
+  weapon is fitted; pirate name + hull bar; `RANGE ~410m` cosmetic meters
+  (`120 + Range·680`).
 - `SOLUTION nn%` line tracks `Combat.Solution`; last 3 `Combat.Log` lines.
 - When `EscapeStarted`: the escape-burn progress bar (reuse `renderEscape`'s
   bar block) appears below the log, and the keybar drops B/Enter for
   `ESCAPE BURN nn%`.
-- Unarmed: no FIRE line/HEAT bar; instead a flashing
+- Autocannon-only: `AUTOCANNON ONLINE — CONSTANT DAMAGE n.n DPS`, without an
+  F key. Unarmed: no FIRE line/HEAT bar; instead a flashing
   `NO WEAPONS — ESCAPE BURN RUNNING` banner (their burn auto-started).
 - Keys (`keyMining`, PhaseCombat case): `f` → `sess.FireWeapons`,
   `b`/`esc`/`enter` → `sess.CombatEscape`. Tribute phase adds `f` →
@@ -410,8 +411,7 @@ odds_ceiling = 0.98
 shield_hp_per_grade = 30            # was 20 — sole mitigation layer now
 turret_damage_per_shot_base = 8.0
 turret_damage_per_shot_per_grade = 3.0
-turret_heat_per_shot = 22.0
-turret_solution_bonus = 0.0
+turret_shots_per_second = 0.82
 mass_driver_base_price = 1100
 mass_driver_power_k = 2.2
 mass_driver_mass_per_grade = 10
@@ -447,20 +447,20 @@ decay, lock positive; `arc_half_width ∈ (0, 0.5]`; odds clamps ordered.
 - [ ] FIGHT is offered only when a weapon is installed; `FightPirates`
   without one is a typed error; tribute timeout still auto-refuses into
   combat-with-burn.
-- [ ] Fire: heat accrues on hit and miss; `Heat ≥ capacity` locks for
+- [ ] Autocannon: pirate hull falls continuously at the deterministic fitted
+  turret DPS; it consumes no heat and needs no F key.
+- [ ] Manual fire: heat accrues on hit and miss; `Heat ≥ capacity` locks for
   `overheat_lock_seconds` and decays back; firing while locked is an error,
   not a crash.
-- [ ] Kill, burn not started: voucher credited, `PhaseMining` resumes with
-  `PirateImmune=true`, drill and skill checks come back, radar stays clear.
-- [ ] Kill, burn running: `PhaseEscaping` with `UnderAttack=false`; outcome
-  = Intent; cargo kept.
+- [ ] Kill: voucher credited, cargo sealed, and `OutcomePirateDestroyed`
+  opens the run summary immediately; no further pirate action can roll.
 - [ ] Hull 0 in combat ⇒ `OutcomeShipLost` exactly as today (cargo zeroed,
   ship destroyed, respawn) — but `BountyVouchers` survive.
 - [ ] `SellCargo` pays cargo + vouchers, zeroes both, logs one DOCK SALE
   record including `BountyEarned`; works with vouchers and empty hold.
 - [ ] `EmergencyResolve` from PhaseCombat (both burn states) always
-  terminates: escaped-under-fire or ship-lost, never a hang (fuel-out clamp
-  covered by test).
+  terminates: pirate-destroyed, escaped-under-fire, or ship-lost — never a
+  hang (fuel-out clamp covered by test).
 - [ ] `EstimateOdds`: 0 unarmed; monotone up in weapon grade/shield/hull;
   monotone down in pirate hull/dps/maneuver; clamped to [floor, ceiling].
 - [ ] Interstitial shows on every combat entry, holds ~2 s, any-key skip,

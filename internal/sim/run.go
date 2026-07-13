@@ -37,6 +37,7 @@ const (
 	OutcomeBailed           OutcomeKind = "bailed"
 	OutcomeTributePaid      OutcomeKind = "tribute_paid"
 	OutcomeEscapedUnderFire OutcomeKind = "escaped_under_fire"
+	OutcomePirateDestroyed  OutcomeKind = "pirate_destroyed"
 	OutcomeShipLost         OutcomeKind = "ship_lost"
 )
 
@@ -53,6 +54,7 @@ var outcomeMeta = map[OutcomeKind]struct{ Label, Desc string }{
 	OutcomeBailed:           {"BAILED", "Cut the drill and ran with a partial hold."},
 	OutcomeTributePaid:      {"TRIBUTE PAID", "Cargo jettisoned. Pirates took the easy money and let the ship run."},
 	OutcomeEscapedUnderFire: {"ESCAPED UNDER FIRE", "Hull torn open, engines screaming, cargo still aboard."},
+	OutcomePirateDestroyed:  {"PIRATE DESTROYED", "Threat neutralized. Cargo sealed and bounty voucher confirmed."},
 	OutcomeShipLost:         {"CONNECTION LOST", "The ship and its hold are gone."},
 }
 
@@ -324,7 +326,7 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	switch run.Phase {
 	case PhaseMining:
 		tickMining(s, c, run, ast, dt)
-		if run.PirateDistance <= 0 && !run.EMPActive {
+		if run.PirateDistance <= 0 && !run.EMPActive && !run.PirateImmune {
 			if deployEMPLauncher(s, c, run, now) {
 				break
 			}
@@ -338,7 +340,9 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	case PhaseEscaping:
 		tickEscape(s, c, run, dt)
 	case PhaseCombat:
-		tickCombat(s, c, run, dt)
+		if out := tickCombat(s, c, run, dt, now); out != nil {
+			return out, true
+		}
 	}
 
 	if s.Hull <= 0 {

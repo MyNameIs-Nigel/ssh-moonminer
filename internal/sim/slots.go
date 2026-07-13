@@ -561,8 +561,7 @@ func RearmEMPLaunchers(s *State) {
 }
 
 // HasWeapon reports whether the active ship has at least one weapon
-// installed — gates [F] FIGHT at the tribute prompt and FireWeapons in
-// combat (docs/gameplay/07-pirate-combat-and-bounties.md).
+// installed — gates [F] FIGHT at the tribute prompt.
 func HasWeapon(s *State) bool {
 	inst := ActiveShip(s)
 	if inst == nil {
@@ -570,6 +569,21 @@ func HasWeapon(s *State) bool {
 	}
 	for _, d := range inst.Weapon {
 		if d != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// HasManualWeapon reports whether the active ship has a weapon the pilot can
+// fire. Autocannon turrets fire continuously and are therefore excluded.
+func HasManualWeapon(s *State) bool {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return false
+	}
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID != ItemTurret {
 			return true
 		}
 	}
@@ -592,12 +606,10 @@ func WeaponDamagePerShot(c *content.Content, itemID string, grade int) float64 {
 	return 0
 }
 
-// WeaponHeatPerShot returns itemID's heat-capacitor cost per volley. Zero
-// for non-weapon items. Grade-invariant per docs/gameplay/07.
+// WeaponHeatPerShot returns itemID's heat-capacitor cost per manual volley.
+// Autocannon turrets never use the shared heat capacitor.
 func WeaponHeatPerShot(c *content.Content, itemID string, _ int) float64 {
 	switch itemID {
-	case ItemTurret:
-		return c.Slots.TurretHeatPerShot
 	case ItemMassDriver:
 		return c.Slots.MassDriverHeatPerShot
 	case ItemPulseLaser:
@@ -606,13 +618,10 @@ func WeaponHeatPerShot(c *content.Content, itemID string, _ int) float64 {
 	return 0
 }
 
-// WeaponSolutionBonus returns itemID's flat addition to the firing solution
-// (e.g. the Pulse Laser's accuracy edge). Zero for non-weapon items.
-// Grade-invariant per docs/gameplay/07.
+// WeaponSolutionBonus returns itemID's flat addition to the manual firing
+// solution (e.g. the Pulse Laser's accuracy edge).
 func WeaponSolutionBonus(c *content.Content, itemID string, _ int) float64 {
 	switch itemID {
-	case ItemTurret:
-		return c.Slots.TurretSolutionBonus
 	case ItemMassDriver:
 		return c.Slots.MassDriverSolutionBonus
 	case ItemPulseLaser:
@@ -622,7 +631,8 @@ func WeaponSolutionBonus(c *content.Content, itemID string, _ int) float64 {
 }
 
 // InstalledWeaponVolley sums the active ship's installed weapons' damage,
-// heat cost, and solution bonus for one FireWeapons volley.
+// heat cost, and solution bonus. It is kept for loadout previews; combat
+// firing uses InstalledManualWeaponVolley so autocannons are not double-fired.
 func InstalledWeaponVolley(s *State, c *content.Content) (damage, heat, solutionBonus float64) {
 	inst := ActiveShip(s)
 	if inst == nil {
@@ -637,6 +647,40 @@ func InstalledWeaponVolley(s *State, c *content.Content) (damage, heat, solution
 		solutionBonus += WeaponSolutionBonus(c, d.ItemID, d.Grade)
 	}
 	return damage, heat, solutionBonus
+}
+
+// InstalledManualWeaponVolley sums the non-autocannon weapons that fire when
+// the pilot presses F.
+func InstalledManualWeaponVolley(s *State, c *content.Content) (damage, heat, solutionBonus float64) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0, 0, 0
+	}
+	for _, d := range inst.Weapon {
+		if d == nil || d.ItemID == ItemTurret {
+			continue
+		}
+		damage += WeaponDamagePerShot(c, d.ItemID, d.Grade)
+		heat += WeaponHeatPerShot(c, d.ItemID, d.Grade)
+		solutionBonus += WeaponSolutionBonus(c, d.ItemID, d.Grade)
+	}
+	return damage, heat, solutionBonus
+}
+
+// AutocannonDamagePerSecond sums the always-on damage dealt by installed
+// autocannon turrets. It has no firing solution, heat, or RNG component.
+func AutocannonDamagePerSecond(s *State, c *content.Content) float64 {
+	inst := ActiveShip(s)
+	if inst == nil || c.Slots.TurretShotsPerSecond <= 0 {
+		return 0
+	}
+	dps := 0.0
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == ItemTurret {
+			dps += WeaponDamagePerShot(c, d.ItemID, d.Grade) * c.Slots.TurretShotsPerSecond
+		}
+	}
+	return dps
 }
 
 // FuelMinerRefundPct returns the fraction of a mined Rare+ asteroid's

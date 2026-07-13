@@ -200,7 +200,7 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 | [gameplay/04-progression-and-ship-log.md](gameplay/04-progression-and-ship-log.md) | Lifetime stats, ship upgrades (ships/upgrades sections superseded by gameplay/05), run history |
 | [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md) | 4-ship hangar, brands/classes, stat grades, Utility/Weapon/Internal slots, power/mass, buyback, scanner distance lock, hull-gated events |
 | [gameplay/06-gameplay-edge-case-audit.md](gameplay/06-gameplay-edge-case-audit.md) | Full-loop edge cases, gameplay-logic decisions, implementation order, and test plan |
-| [gameplay/07-pirate-combat-and-bounties.md](gameplay/07-pirate-combat-and-bounties.md) | Named pirate roster, active weapons, tactical-scope combat, bounty vouchers, COMBAT MODE interstitial (owns its sim + TUI work) |
+| [gameplay/07-pirate-combat-and-bounties.md](gameplay/07-pirate-combat-and-bounties.md) | Named pirate roster, autocannon/manual weapons, tactical-scope combat, bounty vouchers, COMBAT MODE interstitial (owns its sim + TUI work) |
 | [tui/01-app-shell-input-and-mouse.md](tui/01-app-shell-input-and-mouse.md) | Root model, screen router, keyboard + mouse input, resize/idle |
 | [tui/02-star-chart-and-run-summary.md](tui/02-star-chart-and-run-summary.md) | Star Chart screen, port services panel, Run Summary screen |
 | [tui/03-belt-views-and-mining-screen.md](tui/03-belt-views-and-mining-screen.md) | Belt screen (3 view modes), target lock, live Mining screen |

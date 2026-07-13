@@ -280,9 +280,8 @@ type ActiveRun struct {
 	// against. Combat is nil until the pirate arrives.
 	PirateID string       `json:"pirate_id,omitempty"`
 	Combat   *CombatState `json:"combat,omitempty"`
-	// PirateDestroyed/BountyEarned carry a mid-run kill's result forward so
-	// resolveRun can record it on the eventual RunRecord even if mining
-	// continues (or another pirate encounter happens) before the run ends.
+	// PirateDestroyed/BountyEarned carry a combat win into the resulting run
+	// record and summary.
 	PirateDestroyed string `json:"pirate_destroyed,omitempty"`
 	BountyEarned    int    `json:"bounty_earned,omitempty"`
 	// PirateBearing is a cosmetic 0..1 direction rolled once at Lock, giving

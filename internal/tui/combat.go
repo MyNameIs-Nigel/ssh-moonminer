@@ -85,7 +85,7 @@ func (g *Game) keyCombat(m tea.KeyPressMsg) []tea.Cmd {
 	}
 	switch k {
 	case "f":
-		if !sim.HasWeapon(&g.snap.State) {
+		if !sim.HasManualWeapon(&g.snap.State) {
 			return nil
 		}
 		snap, err := g.sess.FireWeapons(g.now)
@@ -143,15 +143,16 @@ func (g *Game) renderCombatScope(cs *sim.CombatState) string {
 
 // renderCombat draws the tactical-scope combat screen shown for the
 // duration of ActiveRun.Phase == PhaseCombat, replacing the escape-burn
-// screen. Weaponless ships see it without fire controls — their only play
-// is the escape burn, which is already running for them by the burn
-// matrix in docs/gameplay/07-pirate-combat-and-bounties.md.
+// screen. Autocannons track and damage the pirate continuously; mass drivers
+// and pulse lasers keep the manual firing controls. Weaponless ships see only
+// the escape-burn option.
 func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	cs := run.Combat
 	if cs == nil {
 		return g.renderBelt()
 	}
-	armed := sim.HasWeapon(st)
+	manualArmed := sim.HasManualWeapon(st)
+	autocannonDPS := sim.AutocannonDamagePerSecond(st, g.content)
 
 	titleText := fmt.Sprintf("%s %s — BOUNTY %s %d — EST. ODDS %d%%",
 		theme.Glyph("skull", st.Settings.ASCIISafe), cs.PirateName,
@@ -179,18 +180,28 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	statLines := []string{
 		theme.Bright.Render("YOU"),
 		g.renderHullLine(st, hullPct, 16),
-		heatLine,
+	}
+	if manualArmed {
+		statLines = append(statLines, heatLine)
+	}
+	if autocannonDPS > 0 {
+		statLines = append(statLines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON %.1f DPS", autocannonDPS)))
+	}
+	statLines = append(statLines,
 		"",
 		theme.Red.Render(cs.PirateName),
 		fmt.Sprintf("HULL   %s %3.0f%%", theme.HullBar(pirateHullPct, 16), pirateHullPct),
 		theme.DimStyle.Render(fmt.Sprintf("RANGE ~%.0fm", 120+cs.Range*680)),
-	}
+	)
 	rightBody := strings.Join(statLines, "\n")
 	scopeRow := lipgloss.JoinHorizontal(lipgloss.Top, scope, "  "+strings.ReplaceAll(rightBody, "\n", "\n  "))
 
 	lines := []string{title, "", scopeRow, ""}
 
-	if armed {
+	if autocannonDPS > 0 {
+		lines = append(lines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON ONLINE — CONSTANT DAMAGE %.1f DPS", autocannonDPS)))
+	}
+	if manualArmed {
 		solutionText := fmt.Sprintf("SOLUTION %3.0f%%", cs.Solution*100)
 		fireLabel := "[F] FIRE"
 		switch {
@@ -204,7 +215,7 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		fireLine := fireLabel + "   " + theme.TxtStyle.Render(solutionText)
 		lines = append(lines, fireLine)
 		g.hitBodyLine(len(lines)-1, 1, fireLine, "btn:combat:fire", nil)
-	} else {
+	} else if autocannonDPS <= 0 {
 		banner := "NO WEAPONS — ESCAPE BURN RUNNING"
 		if !cs.EscapeStarted {
 			banner = "NO WEAPONS — PRESS B TO RUN"
@@ -262,12 +273,12 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	}
 
 	hint := "B BAIL"
-	if armed {
+	if manualArmed {
 		hint = "F FIRE · B BAIL"
 	}
 	if cs.EscapeStarted {
 		hint = "ESCAPE BURN RUNNING"
-		if armed {
+		if manualArmed {
 			hint = "F FIRE · ESCAPE BURN RUNNING"
 		}
 	}

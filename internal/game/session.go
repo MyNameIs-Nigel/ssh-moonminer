@@ -136,10 +136,15 @@ func (s *Session) FightPirates(now int64) (Snapshot, error) {
 	})
 }
 
-// FireWeapons fires every installed weapon as one volley in PhaseCombat.
+// FireWeapons fires the pilot-triggered weapons in PhaseCombat. If the volley
+// destroys the pirate, retain the immediate outcome for the TUI summary.
 func (s *Session) FireWeapons(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
-		return sim.FireWeapons(st, s.actor.content(), now)
+		out, err := sim.FireWeaponsWithOutcome(st, s.actor.content(), now)
+		if out != nil {
+			s.lastOutcome = out
+		}
+		return err
 	})
 }
 

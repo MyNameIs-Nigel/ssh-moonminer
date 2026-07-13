@@ -173,16 +173,15 @@ emp_launcher_power_k = 0.6
 emp_launcher_mass_per_grade = 2
 emp_launcher_deploy_e_seconds = 1
 emp_launcher_deploy_s_seconds = 10
-# Weapon catalog — active combat devices (docs/gameplay/07). All three
-# install into the Weapon slot; damage/shot scales per grade, heat/shot and
-# solution_bonus are grade-invariant per-item constants.
+# Weapon catalog — the autocannon fires continuously; the mass driver and
+# pulse laser use the player's manual, heat-limited volley.
 turret_base_price = 700
 turret_power_k = 1.6
 turret_mass_per_grade = 7
 turret_damage_per_shot_base = 8.0
 turret_damage_per_shot_per_grade = 3.0
-turret_heat_per_shot = 22.0
-turret_solution_bonus = 0.0
+# The autocannon's damage is deterministic: no solution roll or heat cost.
+turret_shots_per_second = 0.82
 mass_driver_base_price = 1100
 mass_driver_power_k = 2.2
 mass_driver_mass_per_grade = 10
