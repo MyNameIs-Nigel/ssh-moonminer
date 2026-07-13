@@ -117,6 +117,8 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	fuelAmount := sim.FuelAmount(st, g.content)
 	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
+	cargoUnits := st.CargoUnits + sim.RunHeldUnits(run)
+	cargoCapacity := sim.CargoCapacityUnits(st, g.content)
 
 	lines := []string{title}
 	if badge := g.renderEventBadge(st, run); badge != "" {
@@ -137,7 +139,8 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 			theme.FuelBar(fuelPct, 26),
 			theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f %3.0f%%", fuelAmount, sim.TankSize(st, g.content), fuelPct))),
 		"",
-		fmt.Sprintf("CARGO VALUE IN HOLD  %s %s of %s %s (not sold)",
+		fmt.Sprintf("CARGO %.0f/%.0f  VALUE IN HOLD  %s %s of %s %s (not sold)",
+			cargoUnits, cargoCapacity,
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue)),
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.TxtStyle.Render(fmt.Sprintf("%d", value))),
 		"",

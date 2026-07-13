@@ -1,10 +1,6 @@
 package sim
 
-import (
-	"math"
-
-	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
-)
+import "github.com/mynameis-nigel/ssh-moonminer/internal/content"
 
 // BuySystemPermit permanently opens a system transfer for this pilot.
 func BuySystemPermit(s *State, c *content.Content, systemID string) error {
@@ -93,7 +89,8 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 }
 
 // Refuel buys whole fuel points at the port's whole-credit rate, filling
-// detachable tanks before the hull reserve.
+// detachable tanks before the hull reserve. A fractional shortfall costs one
+// final point so the tank can always be topped off.
 func Refuel(s *State, c *content.Content) error {
 	syncActiveConditionFromLegacy(s, c)
 	if !s.IsDocked() {
@@ -106,11 +103,11 @@ func Refuel(s *State, c *content.Content) error {
 	if s.Credits <= 0 {
 		return ErrInsufficientFunds
 	}
-	missingWhole := int(math.Floor(tank - s.Fuel + 0.000001))
-	if missingWhole <= 0 {
+	pointsNeeded := refuelPointsNeeded(tank, s.Fuel)
+	if pointsNeeded <= 0 {
 		return ErrAlreadyFull
 	}
-	points := min(s.Credits/c.Port.RefuelPerPoint, missingWhole)
+	points := min(s.Credits/c.Port.RefuelPerPoint, pointsNeeded)
 	if points <= 0 {
 		return ErrInsufficientFunds
 	}

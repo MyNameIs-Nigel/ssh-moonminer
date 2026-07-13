@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,6 +77,7 @@ func TestMiningHitboxAlignment(t *testing.T) {
 	}
 	st.Run.MinedUnits = 50
 	st.Run.CargoValue = 100
+	st.CargoUnits = 77
 	g := &Game{
 		content:   c,
 		width:     80,
@@ -86,7 +88,11 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		id:        identity.SessionIdentity{Slot: "test"},
 		tickCount: 1,
 	}
-	g.View()
+	view := g.View()
+	wantCargo := fmt.Sprintf("CARGO %.0f/%.0f", st.CargoUnits+sim.RunHeldUnits(st.Run), sim.CargoCapacityUnits(st, c))
+	if !strings.Contains(view.Content, wantCargo) {
+		t.Fatalf("mining cargo display missing %q:\n%s", wantCargo, view.Content)
+	}
 
 	// BAIL is the last content line before the keybar during mining
 	// (no skill check active in this snapshot).
