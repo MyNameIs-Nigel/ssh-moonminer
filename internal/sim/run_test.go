@@ -140,8 +140,11 @@ func TestEMPLauncherDelaysPiratesAndSpendsHighestGradeFirst(t *testing.T) {
 	// is unambiguous.
 	c.Worlds[s.WorldIdx].PiratesAlwaysAttack = true
 	sim.TickRun(s, c, 9, 1010)
-	if s.Run.Phase != sim.PhaseEscaping || !s.Run.EMPDeployed {
+	if s.Run.Phase != sim.PhaseCombat || !s.Run.EMPDeployed {
 		t.Fatalf("expected pirates to act after the delay, got %+v", s.Run)
+	}
+	if s.Run.Combat == nil || !s.Run.Combat.EscapeStarted {
+		t.Fatal("expected the unarmed skiff's escape burn to already be running once pirates attack")
 	}
 	if !s.Ships["skiff"].Utility[0].EMPArmed {
 		t.Fatal("a second EMP launcher must remain armed during the same asteroid run")
@@ -177,8 +180,8 @@ func TestPirateActionRolledDeterministically(t *testing.T) {
 	if s.Run == nil {
 		t.Fatal("run should still be active")
 	}
-	if s.Run.Phase != sim.PhaseTribute && s.Run.Phase != sim.PhaseEscaping {
-		t.Fatalf("expected tribute or escaping phase once pirates arrive, got %v", s.Run.Phase)
+	if s.Run.Phase != sim.PhaseTribute && s.Run.Phase != sim.PhaseCombat {
+		t.Fatalf("expected tribute or combat phase once pirates arrive, got %v", s.Run.Phase)
 	}
 }
 
@@ -241,8 +244,11 @@ func TestRefuseTributeStartsAttack(t *testing.T) {
 		if !s.Run.UnderAttack {
 			t.Fatal("expected UnderAttack after refusing tribute")
 		}
-		if s.Run.Phase != sim.PhaseEscaping {
-			t.Fatalf("expected escaping phase after refusal, got %v", s.Run.Phase)
+		if s.Run.Phase != sim.PhaseCombat {
+			t.Fatalf("expected combat phase after refusal, got %v", s.Run.Phase)
+		}
+		if s.Run.Combat == nil || !s.Run.Combat.EscapeStarted {
+			t.Fatal("expected the escape burn to already be running after refusing tribute")
 		}
 		return
 	}
@@ -392,7 +398,11 @@ func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 	}
 }
 
-func TestAttackDamagePerSecondRespectsTurretMitigation(t *testing.T) {
+// TestAttackDamagePerSecondUnmitigatedByTurret confirms the combat rework:
+// the Defense/Autocannon Turret no longer passively mitigates incoming
+// pirate damage (that job now belongs entirely to the Shield) — it became
+// an active weapon dealt with by FireWeapons/combat_test.go instead.
+func TestAttackDamagePerSecondUnmitigatedByTurret(t *testing.T) {
 	c := testContent(t)
 	for _, grade := range []int{0, 1, 2, 3, 4} {
 		s := sim.New(c, 1, 1000)
@@ -423,14 +433,10 @@ func TestAttackDamagePerSecondRespectsTurretMitigation(t *testing.T) {
 		}
 		lost := startHull - s.Hull
 
-		pct := c.Slots.TurretPctPerGrade * float64(grade+1)
-		want := int(c.Mining.AttackHullDamagePerSecond * (1 - pct))
+		want := int(c.Mining.AttackHullDamagePerSecond)
 		if lost != want {
-			t.Fatalf("turret grade=%d: expected %d hull lost over 1s at %.1f dmg/s, got %d",
+			t.Fatalf("turret grade=%d: expected full %d hull lost over 1s at %.1f dmg/s (no mitigation), got %d",
 				grade, want, c.Mining.AttackHullDamagePerSecond, lost)
-		}
-		if grade > 0 && lost >= int(c.Mining.AttackHullDamagePerSecond) {
-			t.Fatalf("turret grade=%d should mitigate some damage, lost as much as unmitigated", grade)
 		}
 	}
 }

@@ -96,6 +96,8 @@ type Stats struct {
 	CreditsSpent         int     `json:"credits_spent"`
 	CargoValueSold       int     `json:"cargo_value_sold"`
 	LegendariesMined     int     `json:"legendaries_mined"`
+	PiratesDestroyed     int     `json:"pirates_destroyed"`
+	BountyCreditsEarned  int     `json:"bounty_credits_earned"`
 	FuelBurned           float64 `json:"fuel_burned"`
 	InsuranceClaims      int     `json:"insurance_claims"`
 	FirstSeen            int64   `json:"first_seen"`
@@ -117,6 +119,8 @@ type RunRecord struct {
 	Depleted             bool     `json:"depleted"`
 	CargoValueSold       int      `json:"cargo_value_sold"`
 	Events               []string `json:"events,omitempty"`
+	PirateDestroyed      string   `json:"pirate_destroyed,omitempty"`
+	BountyEarned         int      `json:"bounty_earned,omitempty"`
 }
 
 // Asteroid is one belt contact.
@@ -143,10 +147,14 @@ type RunPhase int
 const (
 	// PhaseMining is the drill transferring asteroid units into cargo.
 	PhaseMining RunPhase = iota
-	// PhaseTribute is pirates waiting for accept/refuse.
+	// PhaseTribute is pirates waiting for accept/refuse/fight.
 	PhaseTribute
 	// PhaseEscaping is the ship trying to leave, possibly under attack.
 	PhaseEscaping
+	// PhaseCombat is an active tactical-scope engagement with the run's
+	// named pirate — docs/gameplay/07-pirate-combat-and-bounties.md. The
+	// escape burn runs alongside it only once Combat.EscapeStarted is true.
+	PhaseCombat
 )
 
 // PirateAction is the pirates' chosen behavior once they arrive.
@@ -196,6 +204,43 @@ type RunEventRecord struct {
 	At   int64     `json:"at"`
 }
 
+// CombatState is a transient tactical-scope engagement against the run's
+// named pirate — docs/gameplay/07-pirate-combat-and-bounties.md. It exists
+// only while ActiveRun.Phase == PhaseCombat (ActiveRun itself is never
+// persisted). Bearing/Range/Solution are recomputed each tick as a pure
+// function of TickCount so replay stays exact.
+type CombatState struct {
+	PirateName    string  `json:"pirate_name"`
+	PirateHull    float64 `json:"pirate_hull"`
+	PirateMaxHull float64 `json:"pirate_max_hull"`
+	// PirateDPS is the roster damage_per_second already scaled by the
+	// world's PirateAttackMul, so tickCombat can apply it directly.
+	PirateDPS float64 `json:"pirate_dps"`
+	Bounty    int     `json:"bounty"`
+	// OddsPct is EstimateOdds at combat start (0..100), frozen for the
+	// header — it does not track mid-fight damage taken/dealt.
+	OddsPct int `json:"odds_pct"`
+	// Maneuver is the roster maneuver stat, copied in at combat start so
+	// tickCombat never needs a content lookup by PirateID.
+	Maneuver float64 `json:"maneuver"`
+	Bearing  float64 `json:"bearing"`
+	Range    float64 `json:"range"`
+	Solution float64 `json:"solution"`
+	Heat     float64 `json:"heat"`
+	// LockRemaining > 0 means weapons are overheat-locked.
+	LockRemaining float64 `json:"lock_remaining"`
+	// Phase1/Phase2 are maneuver phase offsets rolled once at combat start.
+	Phase1 float64 `json:"phase1"`
+	Phase2 float64 `json:"phase2"`
+	// EscapeStarted is the Fight-vs-Run difference: Refuse and an unarmed
+	// immediate attack pre-start the burn; Fight and an armed immediate
+	// attack wait for CombatEscape (B/Enter).
+	EscapeStarted bool     `json:"escape_started"`
+	Log           []string `json:"log,omitempty"`
+	ShotsFired    int      `json:"shots_fired"`
+	ShotsHit      int      `json:"shots_hit"`
+}
+
 // SkillCheck is a periodic "drill calibration" prompt during mining: a
 // countdown of Window seconds starts, and hitting AttemptSkillCheck any time
 // before Elapsed reaches Window grants a mining-progress bonus. Missing
@@ -230,6 +275,16 @@ type ActiveRun struct {
 
 	PirateDistance float64      `json:"pirate_distance"`
 	PirateAction   PirateAction `json:"pirate_action"`
+	// PirateID is the named roster pirate rolled at Lock (salt 7100) — the
+	// same hunter foretold by the radar approach is the one combat starts
+	// against. Combat is nil until the pirate arrives.
+	PirateID string       `json:"pirate_id,omitempty"`
+	Combat   *CombatState `json:"combat,omitempty"`
+	// PirateDestroyed/BountyEarned carry a mid-run kill's result forward so
+	// resolveRun can record it on the eventual RunRecord even if mining
+	// continues (or another pirate encounter happens) before the run ends.
+	PirateDestroyed string `json:"pirate_destroyed,omitempty"`
+	BountyEarned    int    `json:"bounty_earned,omitempty"`
 	// PirateBearing is a cosmetic 0..1 direction rolled once at Lock, giving
 	// the radar-widget blip a fixed approach angle instead of teleporting.
 	PirateBearing float64 `json:"pirate_bearing"`
@@ -307,6 +362,12 @@ type State struct {
 	DestinationPermits map[string]bool `json:"destination_permits,omitempty"`
 	CargoUnits         float64         `json:"cargo_units,omitempty"`
 	CargoValue         int             `json:"cargo_value,omitempty"`
+
+	// BountyVouchers are confirmed pirate kills awaiting dock redemption
+	// (the C key sells cargo and redeems vouchers together). Unlike cargo,
+	// vouchers survive ship loss — docs/gameplay/07-pirate-combat-and-
+	// bounties.md's deliberate carve-out from "cargo is not money".
+	BountyVouchers int `json:"bounty_vouchers,omitempty"`
 
 	// Ships is the pilot's hangar: owned ship models keyed by ModelID, each
 	// with its own persistent grades, loadout, hull and fuel condition.

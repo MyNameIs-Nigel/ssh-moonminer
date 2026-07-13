@@ -100,6 +100,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		s.Run.PirateImmune = true
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
+	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
 	rollNextSkillCheckIn(s, c, s.Run)
 	updatePirateETA(s, c, s.Run, ast)
 	return nil
@@ -257,7 +258,7 @@ func RefuseTribute(s *State, c *content.Content, now int64) error {
 		return nil
 	}
 	run.EventLog = append(run.EventLog, RunEventRecord{Kind: "tribute_refused", At: now})
-	startEscape(s, c, ast, true)
+	startCombat(s, c, run, ast, true, now)
 	return nil
 }
 
@@ -268,6 +269,15 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	if underAttack {
 		run.UnderAttack = true
 	}
+	configureEscape(s, c, run, ast)
+}
+
+// configureEscape computes the escape-burn duration from cargo load and
+// starts its timer, without touching Phase — startEscape uses it to enter
+// PhaseEscaping, and combat.go's startCombat/CombatEscape use it to start
+// the burn alongside an ongoing PhaseCombat engagement (docs/gameplay/07-
+// pirate-combat-and-bounties.md's "burn matrix").
+func configureEscape(s *State, c *content.Content, run *ActiveRun, ast *Asteroid) {
 	if run.Intent == "" {
 		if RunDepleted(s, c, ast, run) {
 			run.Intent = OutcomeDeparted
@@ -288,7 +298,6 @@ func startEscape(s *State, c *content.Content, ast *Asteroid, underAttack bool) 
 	run.FuelOutSeconds = 0
 	run.EscapeSecondsRequired = run.BaseEscapeSecondsRequired
 	run.EscapeSecondsElapsed = 0
-
 }
 
 // TickRun advances the mining run by dt seconds.
@@ -328,13 +337,17 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 		}
 	case PhaseEscaping:
 		tickEscape(s, c, run, dt)
+	case PhaseCombat:
+		tickCombat(s, c, run, dt)
 	}
 
 	if s.Hull <= 0 {
 		out := resolveRun(s, c, OutcomeShipLost, now)
 		return out, true
 	}
-	if run.Phase == PhaseEscaping && run.EscapeSecondsElapsed >= run.EscapeSecondsRequired {
+	burnRunning := run.Phase == PhaseEscaping ||
+		(run.Phase == PhaseCombat && run.Combat != nil && run.Combat.EscapeStarted)
+	if burnRunning && run.EscapeSecondsElapsed >= run.EscapeSecondsRequired {
 		kind := run.Intent
 		switch {
 		case run.TributePaid:
@@ -436,10 +449,19 @@ func updatePirateETA(s *State, c *content.Content, run *ActiveRun, ast *Asteroid
 }
 
 func tickEscape(s *State, c *content.Content, run *ActiveRun, dt float64) {
-	run.EscapeSecondsElapsed += dt
 	if run.UnderAttack {
 		applyAttackDamageRate(s, c, run, attackHullDamagePerSecond(s, c), dt)
 	}
+	tickEscapeBurn(s, c, run, dt)
+}
+
+// tickEscapeBurn advances the escape-burn timer, fuel drain, and fuel-out
+// penalty shared by tickEscape (PhaseEscaping) and, once
+// Combat.EscapeStarted, tickCombat (PhaseCombat) — see combat.go. Incoming
+// attack damage is applied by the caller, not here, so PhaseCombat's
+// constant pirate DPS is never double-applied.
+func tickEscapeBurn(s *State, c *content.Content, run *ActiveRun, dt float64) {
+	run.EscapeSecondsElapsed += dt
 	fuelDrain := c.Mining.EscapeFuelDrainPerSec * FuelDrainMul(s, c)
 	if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 		fuelDrain *= c.Events.ReactorSurgeFuelMul
@@ -456,7 +478,9 @@ func rollPirateAction(s *State, c *content.Content, run *ActiveRun, ast *Asteroi
 	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PiratesAlwaysAttack {
 		run.PirateAction = PirateActionAttack
 		run.EventLog = append(run.EventLog, RunEventRecord{Kind: "pirate_attack", At: now})
-		startEscape(s, c, ast, true)
+		// Unarmed ships keep today's auto-escape (the burn matrix in
+		// docs/gameplay/07); armed ships stand and fight until B/Enter.
+		startCombat(s, c, run, ast, !HasWeapon(s), now)
 		return
 	}
 	rng := runRNG(s, run, 9001)
@@ -469,7 +493,7 @@ func rollPirateAction(s *State, c *content.Content, run *ActiveRun, ast *Asteroi
 	}
 	run.PirateAction = PirateActionAttack
 	run.EventLog = append(run.EventLog, RunEventRecord{Kind: "pirate_attack", At: now})
-	startEscape(s, c, ast, true)
+	startCombat(s, c, run, ast, !HasWeapon(s), now)
 }
 
 // EmergencyResolve fast-forwards an in-progress run to resolution without
@@ -489,6 +513,15 @@ func EmergencyResolve(s *State, c *content.Content, now int64) *RunOutcome {
 	case PhaseTribute:
 		if err := RefuseTribute(s, c, now); err != nil || s.Run == nil {
 			return nil
+		}
+	case PhaseCombat:
+		// Mirror the player's own choice on disconnect: flee under fire
+		// rather than stand and fight blind. A burn already running (Refuse,
+		// or an unarmed immediate attack) is left alone.
+		if run.Combat != nil && !run.Combat.EscapeStarted {
+			if err := CombatEscape(s, c, now); err != nil || s.Run == nil {
+				return nil
+			}
 		}
 	}
 	run = s.Run
@@ -551,15 +584,16 @@ func applyHullDamageInstant(s *State, c *content.Content, run *ActiveRun, amount
 	applyHullDamageCarry(s, c, run, amount)
 }
 
-// applyAttackDamageRate applies continuous pirate-attack damage: the
-// Defense Turret's percentage mitigation reduces the incoming rate, then
-// the active ship's persistent Shield buffer absorbs what's left, and only
-// the remainder reaches the hull.
+// applyAttackDamageRate applies continuous pirate-attack damage: the active
+// ship's persistent Shield buffer absorbs what it can, and only the
+// remainder reaches the hull. Damage mitigation is entirely the Shield's
+// job now — the Defense Turret (now "Autocannon Turret") became an active
+// weapon under docs/gameplay/07-pirate-combat-and-bounties.md.
 func applyAttackDamageRate(s *State, c *content.Content, run *ActiveRun, ratePerSecond, dt float64) {
 	if ratePerSecond <= 0 || dt <= 0 {
 		return
 	}
-	amount := ratePerSecond * AttackDamageMul(s, c) * dt
+	amount := ratePerSecond * dt
 	inst := ActiveShip(s)
 	if inst != nil && inst.ShieldHP > 0 {
 		absorbed := math.Min(inst.ShieldHP, amount)
@@ -653,6 +687,7 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 		When: now, World: worldName, Asteroid: astName, Tier: astTier,
 		Outcome: string(kind), CargoValueRecovered: recovered, CargoValueLost: lost, CargoValueJettisoned: run.TributeDemand,
 		HullDelta: hullDelta, FuelDelta: fuelDelta, Depleted: depleted, Events: events,
+		PirateDestroyed: run.PirateDestroyed, BountyEarned: run.BountyEarned,
 	}
 	appendRunLog(s, rec)
 	updateStatsOnOutcome(s, kind, astTier)

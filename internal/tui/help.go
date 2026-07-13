@@ -68,7 +68,9 @@ func (g *Game) helpLines() []string {
 			"Enter DEPART once the asteroid is depleted",
 			"Space or click the gauge to hit a drill calibration check",
 			"D drop cargo / R refuse if pirates demand tribute",
-			"No input once escaping — the ship flees or dies",
+			"F fight (armed ships only) instead of dropping or running",
+			"In combat: F fire on the pirate's arc, B/Enter starts the escape burn",
+			"No input once escaping unarmed — the ship flees or dies",
 			"Watch resource, hull, fuel, and the pirate radar/ETA widget",
 		}
 	case scrDeath:
@@ -93,7 +95,7 @@ func (g *Game) helpLines() []string {
 			theme.Bright.Render("STAR CHART"),
 			"↑/↓ select destination",
 			"Enter depart to asteroid belt",
-			"C sell cargo · F refuel · R repair hull",
+			"C sell cargo + bounty vouchers · F refuel · R repair hull",
 			"I insurance (when eligible)",
 			"S shipyard · L ship's log",
 			"T tweaks · Q quit",

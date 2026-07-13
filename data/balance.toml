@@ -67,6 +67,27 @@ eta_base_uncertainty_pct = 0.5
 eta_surveyor_reduction_pct = 0.08
 eta_min_uncertainty_pct = 0.15
 
+[combat]
+# Tactical-scope pirate combat — docs/gameplay/07-pirate-combat-and-bounties.md.
+# Bearing/Range are a deterministic sum-of-sines function of run.TickCount
+# (scaled by the pirate's roster maneuver stat) so replay stays exact; no
+# per-tick RNG in the maneuver path.
+heat_capacity = 100.0
+heat_decay_per_second = 18.0
+overheat_lock_seconds = 4.0
+arc_center = 0.5
+arc_half_width = 0.18
+solution_range_floor = 0.35
+range_min = 0.35
+maneuver_w1 = 0.11
+maneuver_w2 = 0.043
+maneuver_w3 = 0.07
+maneuver_amp1 = 0.30
+maneuver_amp2 = 0.18
+odds_avg_solution_base = 0.55
+odds_floor = 0.02
+odds_ceiling = 0.98
+
 [events]
 base_chance_per_minute = 6.0
 low_hull_chance_bonus = 18.0
@@ -137,7 +158,10 @@ fuel_tank_mass_per_grade = 5
 shield_base_price = 900
 shield_power_k = 2.7
   shield_mass_per_grade = 8
-  shield_hp_per_grade = 20
+  # Combat rework: the turret's passive damage mitigation is retired in favor
+  # of an active weapon, so the shield is now the sole mitigation layer — the
+  # per-grade pool is buffed accordingly (was 20).
+  shield_hp_per_grade = 30
   # E shields recharge from empty in 90 seconds; S shields in 15 seconds.
   # A shield that bursts in a run can recover only 25% in the belt until it
   # returns to dock for a full service.
@@ -149,10 +173,30 @@ emp_launcher_power_k = 0.6
 emp_launcher_mass_per_grade = 2
 emp_launcher_deploy_e_seconds = 1
 emp_launcher_deploy_s_seconds = 10
+# Weapon catalog — active combat devices (docs/gameplay/07). All three
+# install into the Weapon slot; damage/shot scales per grade, heat/shot and
+# solution_bonus are grade-invariant per-item constants.
 turret_base_price = 700
 turret_power_k = 1.6
 turret_mass_per_grade = 7
-turret_pct_per_grade = 0.08
+turret_damage_per_shot_base = 8.0
+turret_damage_per_shot_per_grade = 3.0
+turret_heat_per_shot = 22.0
+turret_solution_bonus = 0.0
+mass_driver_base_price = 1100
+mass_driver_power_k = 2.2
+mass_driver_mass_per_grade = 10
+mass_driver_damage_per_shot_base = 16.0
+mass_driver_damage_per_shot_per_grade = 6.0
+mass_driver_heat_per_shot = 45.0
+mass_driver_solution_bonus = 0.0
+pulse_laser_base_price = 900
+pulse_laser_power_k = 1.8
+pulse_laser_mass_per_grade = 5
+pulse_laser_damage_per_shot_base = 5.0
+pulse_laser_damage_per_shot_per_grade = 2.0
+pulse_laser_heat_per_shot = 12.0
+pulse_laser_solution_bonus = 0.10
 internal_power_k = 1.0
 internal_mass_per_grade = 4
 seismic_base_price = 600

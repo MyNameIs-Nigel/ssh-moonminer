@@ -114,10 +114,29 @@ func TestEridaniRingsAreSlowAndLethal(t *testing.T) {
 	if !s.Run.UnderAttack {
 		t.Fatal("Eridani pirates must always attack")
 	}
+	if s.Run.Phase != sim.PhaseCombat || s.Run.Combat == nil {
+		t.Fatalf("expected combat to start immediately on an always-attack world, got phase=%v", s.Run.Phase)
+	}
+	// The unarmed starter Skiff's escape burn pre-starts per the burn matrix
+	// (docs/gameplay/07-pirate-combat-and-bounties.md) — combat damage is
+	// now the rolled pirate's own damage_per_second (varies by roster entry)
+	// times the world's PirateAttackMul, not a single global constant.
+	wantRate := s.Run.Combat.PirateDPS
+	if wantRate <= 0 {
+		t.Fatal("expected a positive rolled-pirate damage rate")
+	}
 	startHull := s.Hull
-	sim.TickRun(s, c, 1, 3)
-	if got, want := startHull-s.Hull, int(c.Mining.AttackHullDamagePerSecond*3); got != want {
-		t.Fatalf("Eridani attack damage = %d, want %d", got, want)
+	const seconds = 2 // short enough that even the toughest roster pirate can't kill the starter Skiff first
+	for i := 0; i < seconds; i++ {
+		if s.Run == nil {
+			t.Fatalf("run resolved unexpectedly after %d of %d seconds", i, seconds)
+		}
+		sim.TickRun(s, c, 1, int64(3+i))
+	}
+	got := startHull - s.Hull
+	want := int(wantRate * seconds)
+	if got < want-1 || got > want+1 {
+		t.Fatalf("Eridani attack damage over %ds = %d, want ~%d (rate %.2f/s)", seconds, got, want, wantRate)
 	}
 }
 

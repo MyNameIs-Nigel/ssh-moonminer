@@ -22,7 +22,7 @@ func TestShieldStatusAppearsInGlobalHUDAndDock(t *testing.T) {
 	g, _ := shieldStatusGame(t)
 	g.scr = scrChart
 
-	if hud := g.renderChrome(); !strings.Contains(hud, "SHD 20/20") {
+	if hud := g.renderChrome(); !strings.Contains(hud, "SHD 30/30") {
 		t.Fatalf("global HUD should show shield charge, got:\n%s", hud)
 	}
 	if dock := g.renderChart(); !strings.Contains(dock, "SHIELD") || !strings.Contains(dock, "CHARGED") {

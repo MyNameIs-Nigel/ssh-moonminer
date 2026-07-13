@@ -1,0 +1,49 @@
+# Named pirate roster — docs/gameplay/07-pirate-combat-and-bounties.md.
+# Spawn weight applies among entries whose [min_threat, max_threat] band
+# covers threat = asteroid.risk/100 * world.pirate_mul (roughly 0.06..2.0
+# across the shipped worlds). bounty is paid as a voucher on kill, redeemed
+# at dock alongside cargo (C).
+
+[[pirates]]
+id = "jackal"
+name = "JACKAL"
+hull = 55.0
+damage_per_second = 5.0
+maneuver = 0.8
+bounty = 400
+min_threat = 0.0
+max_threat = 0.7
+weight = 3.0
+
+[[pirates]]
+id = "marauder"
+name = "MARAUDER"
+hull = 90.0
+damage_per_second = 7.5
+maneuver = 1.15
+bounty = 900
+min_threat = 0.4
+max_threat = 1.1
+weight = 2.5
+
+[[pirates]]
+id = "corsair"
+name = "CORSAIR"
+hull = 140.0
+damage_per_second = 10.5
+maneuver = 1.5
+bounty = 1900
+min_threat = 0.8
+max_threat = 1.6
+weight = 2.0
+
+[[pirates]]
+id = "dreadwing"
+name = "DREADWING"
+hull = 210.0
+damage_per_second = 14.0
+maneuver = 1.9
+bounty = 3800
+min_threat = 1.3
+max_threat = 3.0
+weight = 1.0

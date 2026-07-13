@@ -26,6 +26,8 @@ const (
 	ItemShield      = "shield"
 	ItemEMPLauncher = "emp_launcher"
 	ItemTurret      = "turret"
+	ItemMassDriver  = "mass_driver"
+	ItemPulseLaser  = "pulse_laser"
 	ItemSeismic     = "seismic_sensors"
 	ItemFuelMiner   = "fuel_miner"
 	ItemJammer      = "pirate_jammer"
@@ -35,7 +37,7 @@ const (
 // SlotItemKind reports which slot kind an item installs into.
 func SlotItemKind(itemID string) SlotKind {
 	switch itemID {
-	case ItemTurret:
+	case ItemTurret, ItemMassDriver, ItemPulseLaser:
 		return SlotWeapon
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemJumpDrive:
 		return SlotInternal
@@ -56,7 +58,11 @@ func SlotItemName(itemID string) string {
 	case ItemEMPLauncher:
 		return "EMP LAUNCHER"
 	case ItemTurret:
-		return "DEFENSE TURRET"
+		return "AUTOCANNON TURRET"
+	case ItemMassDriver:
+		return "MASS DRIVER"
+	case ItemPulseLaser:
+		return "PULSE LASER"
 	case ItemSeismic:
 		return "SEISMIC SENSORS"
 	case ItemFuelMiner:
@@ -76,7 +82,7 @@ func SlotItemLocked(itemID string) bool { return false }
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.
 var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemEMPLauncher}
-var weaponItems = []string{ItemTurret}
+var weaponItems = []string{ItemTurret, ItemMassDriver, ItemPulseLaser}
 var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemJumpDrive}
 
 // SlotItemsFor returns the buyable item catalog for a slot kind.
@@ -104,6 +110,10 @@ func slotItemBasePrice(c *content.Content, itemID string) int {
 		return sc.EMPLauncherBasePrice
 	case ItemTurret:
 		return sc.TurretBasePrice
+	case ItemMassDriver:
+		return sc.MassDriverBasePrice
+	case ItemPulseLaser:
+		return sc.PulseLaserBasePrice
 	case ItemSeismic:
 		return sc.SeismicBasePrice
 	case ItemFuelMiner:
@@ -137,6 +147,10 @@ func SlotItemPower(c *content.Content, itemID string, grade int) int {
 		return int(math.Round(sc.EMPLauncherPowerK * g))
 	case ItemTurret:
 		return int(math.Round(sc.TurretPowerK * g))
+	case ItemMassDriver:
+		return int(math.Round(sc.MassDriverPowerK * g))
+	case ItemPulseLaser:
+		return int(math.Round(sc.PulseLaserPowerK * g))
 	case ItemSeismic, ItemFuelMiner, ItemJammer:
 		return int(math.Round(sc.InternalPowerK * g))
 	default: // ItemCargo, ItemFuelTank, ItemJumpDrive
@@ -159,6 +173,10 @@ func SlotItemMass(c *content.Content, itemID string, grade int) float64 {
 		return sc.EMPLauncherMassPerGrade * n
 	case ItemTurret:
 		return sc.TurretMassPerGrade * n
+	case ItemMassDriver:
+		return sc.MassDriverMassPerGrade * n
+	case ItemPulseLaser:
+		return sc.PulseLaserMassPerGrade * n
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemJumpDrive:
 		return sc.InternalMassPerGrade * n
 	}
@@ -325,8 +343,8 @@ func hasOtherDevice(inst *ShipInstance, kind SlotKind, exclude int, itemID strin
 }
 
 // SlotItemIsUnique declares categories that may be installed only once per
-// ship. Extra cargo/fuel and EMP launchers deliberately stack; turrets stack
-// their mitigation in AttackDamageMul.
+// ship. Extra cargo/fuel and EMP launchers deliberately stack; weapons stack
+// their damage/heat additively in FireWeapons.
 func SlotItemIsUnique(itemID string) bool { return itemID == ItemShield }
 
 func validateUniqueSlotItem(inst *ShipInstance, kind SlotKind, index int, itemID string) error {
@@ -542,25 +560,83 @@ func RearmEMPLaunchers(s *State) {
 	}
 }
 
-// AttackDamageMul returns the active ship's Defense Turret mitigation
-// multiplier applied to incoming attack damage (1 = no mitigation, i.e. no
-// turret installed or no weapon slot).
-func AttackDamageMul(s *State, c *content.Content) float64 {
+// HasWeapon reports whether the active ship has at least one weapon
+// installed — gates [F] FIGHT at the tribute prompt and FireWeapons in
+// combat (docs/gameplay/07-pirate-combat-and-bounties.md).
+func HasWeapon(s *State) bool {
 	inst := ActiveShip(s)
 	if inst == nil {
-		return 1
+		return false
 	}
-	mul := 1.0
 	for _, d := range inst.Weapon {
-		if d == nil || d.ItemID != ItemTurret {
+		if d != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// WeaponDamagePerShot returns itemID's damage dealt per volley at grade
+// (0..5). Zero for non-weapon items.
+func WeaponDamagePerShot(c *content.Content, itemID string, grade int) float64 {
+	sc := c.Slots
+	n := float64(grade)
+	switch itemID {
+	case ItemTurret:
+		return sc.TurretDamagePerShotBase + sc.TurretDamagePerShotPerGrade*n
+	case ItemMassDriver:
+		return sc.MassDriverDamagePerShotBase + sc.MassDriverDamagePerShotPerGrade*n
+	case ItemPulseLaser:
+		return sc.PulseLaserDamagePerShotBase + sc.PulseLaserDamagePerShotPerGrade*n
+	}
+	return 0
+}
+
+// WeaponHeatPerShot returns itemID's heat-capacitor cost per volley. Zero
+// for non-weapon items. Grade-invariant per docs/gameplay/07.
+func WeaponHeatPerShot(c *content.Content, itemID string, _ int) float64 {
+	switch itemID {
+	case ItemTurret:
+		return c.Slots.TurretHeatPerShot
+	case ItemMassDriver:
+		return c.Slots.MassDriverHeatPerShot
+	case ItemPulseLaser:
+		return c.Slots.PulseLaserHeatPerShot
+	}
+	return 0
+}
+
+// WeaponSolutionBonus returns itemID's flat addition to the firing solution
+// (e.g. the Pulse Laser's accuracy edge). Zero for non-weapon items.
+// Grade-invariant per docs/gameplay/07.
+func WeaponSolutionBonus(c *content.Content, itemID string, _ int) float64 {
+	switch itemID {
+	case ItemTurret:
+		return c.Slots.TurretSolutionBonus
+	case ItemMassDriver:
+		return c.Slots.MassDriverSolutionBonus
+	case ItemPulseLaser:
+		return c.Slots.PulseLaserSolutionBonus
+	}
+	return 0
+}
+
+// InstalledWeaponVolley sums the active ship's installed weapons' damage,
+// heat cost, and solution bonus for one FireWeapons volley.
+func InstalledWeaponVolley(s *State, c *content.Content) (damage, heat, solutionBonus float64) {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0, 0, 0
+	}
+	for _, d := range inst.Weapon {
+		if d == nil {
 			continue
 		}
-		pct := clamp(c.Slots.TurretPctPerGrade*float64(d.Grade+1), 0, 1)
-		mul *= 1 - pct
+		damage += WeaponDamagePerShot(c, d.ItemID, d.Grade)
+		heat += WeaponHeatPerShot(c, d.ItemID, d.Grade)
+		solutionBonus += WeaponSolutionBonus(c, d.ItemID, d.Grade)
 	}
-	// Stacking turrets is useful, but no loadout may negate every point of
-	// incoming hull damage. The cap keeps high-grade WARDEN builds legible.
-	return math.Max(0.1, mul)
+	return damage, heat, solutionBonus
 }
 
 // FuelMinerRefundPct returns the fraction of a mined Rare+ asteroid's
