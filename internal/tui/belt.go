@@ -116,7 +116,7 @@ func sizeGlyph(size string) string {
 // in and gains its designation label — in its true tier color once scanned,
 // or a neutral "target lock" color if its details are still unknown.
 func (g *Game) renderOreScan(st *sim.State) string {
-	w := g.width
+	w := g.contentWidth()
 	if w < 24 {
 		w = 24
 	}
@@ -151,7 +151,7 @@ func (g *Game) renderOreScan(st *sim.State) string {
 // renderOreScan: bearing/range are derived from each rock's X,Y instead of
 // placing blobs directly at their belt coordinates.
 func (g *Game) renderRadarScope(st *sim.State) string {
-	w := g.width
+	w := g.contentWidth()
 	if w < 24 {
 		w = 24
 	}

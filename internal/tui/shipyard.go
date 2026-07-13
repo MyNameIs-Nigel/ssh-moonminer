@@ -284,7 +284,7 @@ func (g *Game) renderShipyard() string {
 	st := g.snap.State
 	hangarW := 20
 	statusW := 22
-	loadoutW := g.width - hangarW - statusW
+	loadoutW := g.contentWidth() - hangarW - statusW
 	if loadoutW < 30 {
 		loadoutW = 30
 	}

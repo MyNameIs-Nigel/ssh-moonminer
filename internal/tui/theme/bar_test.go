@@ -18,27 +18,31 @@ func TestKeybarHintPreservesUTF8Arrows(t *testing.T) {
 }
 
 func TestKeybarHintStylesControlKeysNotLabelFirstLetters(t *testing.T) {
-	hint := "↑/↓ SELECT · ENTER DEPART · F REFUEL · ? HELP"
+	hint := "↑/↓ SELECT · ENTER DEPART · TAB PANE · ESC/Q CHART · F REFUEL · ? HELP"
 	out := theme.KeybarHint(hint)
-	for _, word := range []string{"SELECT", "DEPART", "REFUEL", "HELP"} {
+	for _, word := range []string{"SELECT", "DEPART", "PANE", "CHART", "REFUEL", "HELP"} {
 		if !strings.Contains(out, word) {
 			t.Fatalf("expected label %q in output, got %q", word, out)
 		}
 	}
-	for _, key := range []string{"↑", "↓", "ENTER", "F", "?"} {
+	for _, key := range []string{"↑", "↓", "ENTER", "TAB", "ESC/Q", "F", "?"} {
 		if !strings.Contains(out, key) {
 			t.Fatalf("expected control key %q in output, got %q", key, out)
 		}
 	}
+	for _, key := range []string{"TAB", "ESC/Q"} {
+		if !strings.Contains(out, theme.Bright.Render(key)) {
+			t.Fatalf("expected the whole %q token to use the control-key style: %q", key, out)
+		}
+	}
 }
 
-func TestCursorReducedMotion(t *testing.T) {
-	blink := theme.Cursor(0, false)
-	steady := theme.Cursor(0, true)
-	if steady == " " {
-		t.Fatal("reduced motion cursor should be visible")
-	}
-	if blink == steady && theme.Cursor(1, false) == blink {
-		t.Fatal("expected blink cursor to alternate when motion enabled")
+func TestShipMarkerMatchesShipClass(t *testing.T) {
+	for class, want := range map[string]string{
+		"miner": "■", "fighter": "▲", "freighter": "█",
+	} {
+		if got := theme.ShipMarker(class); !strings.Contains(got, want) {
+			t.Fatalf("%s ship marker = %q, want %q", class, got, want)
+		}
 	}
 }

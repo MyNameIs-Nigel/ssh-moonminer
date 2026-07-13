@@ -118,15 +118,18 @@ func Button(key, label, price string, enabled bool, h Hue) string {
 	return keyStyle.Render("["+key+"]") + " " + labelStyle.Render(label) + pricePart
 }
 
-// Cursor renders blinking footer cursor.
-func Cursor(tick int, reducedMotion bool) string {
-	if reducedMotion {
+// ShipMarker renders the steady ship marker at the end of each keybar.
+// It gives the otherwise-empty end of the command line a useful, at-a-glance
+// indication of the pilot's current hull instead of a blinking text cursor.
+func ShipMarker(class string) string {
+	switch class {
+	case "fighter":
+		return Bright.Render("▲")
+	case "freighter":
 		return Bright.Render("█")
+	default: // miner and unknown starter hulls
+		return Bright.Render("■")
 	}
-	if tick%2 == 0 {
-		return Bright.Render("█")
-	}
-	return " "
 }
 
 // KeybarHint renders a keybar hint with bright control keys and lighter labels.
@@ -170,7 +173,11 @@ func splitHintSegment(seg string) (key, label string) {
 		}
 		return seg[:i], seg[i:]
 	}
-	for _, mk := range []string{"ENTER", "SPACE", "ESC"} {
+	// Keep an entire control token bright. In particular, treating ESC/Q as
+	// "ESC" plus a light "/Q" made the latter look like ordinary prose, and
+	// falling through to the first rune of TAB made it look like "T" was the
+	// shortcut.
+	for _, mk := range []string{"SHIFT+TAB", "ESC/Q", "ENTER", "SPACE", "TAB", "ESC"} {
 		if strings.HasPrefix(seg, mk) {
 			rest := seg[len(mk):]
 			if rest == "" || rest[0] == ' ' {

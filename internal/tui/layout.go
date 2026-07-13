@@ -2,8 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
 )
@@ -11,7 +13,35 @@ import (
 const (
 	chromeH      = 3
 	panelBorderH = 1
+	maxCockpitW  = 96
 )
+
+// contentWidth keeps the cockpit readable on wide terminals. Above this
+// width every game screen uses the same centered frame rather than stretching
+// panels just because the terminal happens to be large.
+func (g *Game) contentWidth() int {
+	if g.width > maxCockpitW {
+		return maxCockpitW
+	}
+	return g.width
+}
+
+func (g *Game) contentX() int {
+	return max(0, (g.width-g.contentWidth())/2)
+}
+
+// positionCockpit centers the shared fixed-width frame. Rendering functions
+// deliberately stay unaware of the outer terminal gutter, while hitbox
+// helpers below account for the same offset.
+func (g *Game) positionCockpit(body string) string {
+	left := strings.Repeat(" ", g.contentX())
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		line = ansi.Truncate(line, g.contentWidth(), "")
+		lines[i] = left + line
+	}
+	return strings.Join(lines, "\n")
+}
 
 // panelBodyY returns the terminal row for a line index inside a bordered panel body.
 func panelBodyY(lineIdx int) int {
@@ -38,7 +68,7 @@ func (g *Game) hitPanelLine(lineIdx, x int, label string, id string, data any) {
 	if w < 1 {
 		w = 1
 	}
-	g.addHit(x, panelBodyY(lineIdx), w, 1, id, data)
+	g.addHit(x+g.contentX(), panelBodyY(lineIdx), w, 1, id, data)
 }
 
 func (g *Game) hitBodyLine(lineIdx, x int, label string, id string, data any) {
@@ -46,7 +76,7 @@ func (g *Game) hitBodyLine(lineIdx, x int, label string, id string, data any) {
 	if w < 1 {
 		w = 1
 	}
-	g.addHit(x, bodyLineY(lineIdx), w, 1, id, data)
+	g.addHit(x+g.contentX(), bodyLineY(lineIdx), w, 1, id, data)
 }
 
 // overlayHitLine registers a hitbox for one line inside a centered floating

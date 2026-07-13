@@ -17,6 +17,7 @@ const (
 	tweakHighContrast
 	tweakASCII
 	tweakReducedMotion
+	tweakWrapLongText
 	tweakCount
 )
 
@@ -39,6 +40,8 @@ func (g *Game) tweakLabel(i int) string {
 		return "ASCII SAFE MODE"
 	case tweakReducedMotion:
 		return "REDUCED MOTION"
+	case tweakWrapLongText:
+		return "LONG TEXT"
 	default:
 		return ""
 	}
@@ -60,6 +63,11 @@ func (g *Game) tweakValue(st sim.Settings, i int) string {
 		return boolLabel(st.ASCIISafe)
 	case tweakReducedMotion:
 		return boolLabel(st.ReducedMotion)
+	case tweakWrapLongText:
+		if st.WrapLongText {
+			return "wrap"
+		}
+		return "scroll"
 	default:
 		return ""
 	}
@@ -98,6 +106,10 @@ func applyTweakDelta(s *sim.Settings, row, delta int) {
 	case tweakReducedMotion:
 		if delta != 0 {
 			s.ReducedMotion = !s.ReducedMotion
+		}
+	case tweakWrapLongText:
+		if delta != 0 {
+			s.WrapLongText = !s.WrapLongText
 		}
 	}
 }
@@ -183,6 +195,13 @@ func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 
 func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 	switch g.overlay {
+	case ovPermit:
+		if b, ok := g.hits.At(m.X, m.Y); ok && b.ID == "permit:buy" {
+			return g.confirmPermitPurchase()
+		}
+		if b, ok := g.hits.At(m.X, m.Y); ok && b.ID == "permit:cancel" {
+			g.overlay = ovNone
+		}
 	case ovTweaks:
 		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "tweak:") {
 			if idx, ok := b.Data.(int); ok {
@@ -224,21 +243,21 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 	switch g.overlay {
 	case ovHelp:
-		if m.Y < 0 {
+		if m.Y > 0 {
 			g.helpScrollBy(-1)
-		} else if m.Y > 0 {
+		} else if m.Y < 0 {
 			g.helpScrollBy(1)
 		}
 	case ovTweaks:
-		if m.Y < 0 {
+		if m.Y > 0 {
 			g.tweaksSel = (g.tweaksSel - 1 + tweakCount) % tweakCount
-		} else if m.Y > 0 {
+		} else if m.Y < 0 {
 			g.tweaksSel = (g.tweaksSel + 1) % tweakCount
 		}
 	case ovDev:
-		if m.Y < 0 {
+		if m.Y > 0 {
 			g.devSel = (g.devSel - 1 + devRowCount) % devRowCount
-		} else if m.Y > 0 {
+		} else if m.Y < 0 {
 			g.devSel = (g.devSel + 1) % devRowCount
 		}
 	case ovSlotPicker:
@@ -246,9 +265,9 @@ func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 		if !ok || len(entries) == 0 {
 			break
 		}
-		if m.Y < 0 {
+		if m.Y > 0 {
 			g.pickerSel = (g.pickerSel - 1 + len(entries)) % len(entries)
-		} else if m.Y > 0 {
+		} else if m.Y < 0 {
 			g.pickerSel = (g.pickerSel + 1) % len(entries)
 		}
 		g.pickerClampScroll(len(entries))
