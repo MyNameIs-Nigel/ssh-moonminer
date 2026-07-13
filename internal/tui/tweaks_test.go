@@ -26,7 +26,7 @@ func TestTweaksOverlayRendersAllSettings(t *testing.T) {
 	out := g.renderTweaksOverlay()
 	for _, want := range []string{
 		"BELT VIEW", "PIRATE THREAT ASSIST", "Rewards unchanged.", "HIGH CONTRAST",
-		"ASCII SAFE MODE", "REDUCED MOTION", "LONG TEXT", "tiles", "1.0", "scroll",
+		"ASCII SAFE MODE", "REDUCED MOTION", "LONG TEXT", "orescan", "1.0", "scroll",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("tweaks overlay missing %q:\n%s", want, out)

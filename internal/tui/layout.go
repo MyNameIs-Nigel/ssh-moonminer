@@ -13,7 +13,7 @@ import (
 const (
 	chromeH      = 3
 	panelBorderH = 1
-	maxCockpitW  = 96
+	maxCockpitW  = 144
 )
 
 // contentWidth keeps the cockpit readable on wide terminals. Above this
@@ -41,6 +41,18 @@ func (g *Game) positionCockpit(body string) string {
 		lines[i] = left + line
 	}
 	return strings.Join(lines, "\n")
+}
+
+// renderBottomKeybar keeps the command line on the last two terminal rows.
+// Compact belt and mining views intentionally leave the middle of the cockpit
+// open, but their controls must still line up with full-height screens.
+func (g *Game) renderBottomKeybar(body, hint string) string {
+	lines := strings.Split(body, "\n")
+	bodyH := max(0, g.height-chromeH-2) // renderKeybar occupies two rows.
+	for len(lines) < bodyH {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
 }
 
 // panelBodyY returns the terminal row for a line index inside a bordered panel body.

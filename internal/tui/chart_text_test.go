@@ -62,10 +62,10 @@ func TestChartFootersShareTheBottomRow(t *testing.T) {
 }
 
 func TestWideCockpitCentersAndOffsetsHitboxes(t *testing.T) {
-	g := newChartGame(t, 120, 24)
+	g := newChartGame(t, 180, 24)
 	g.View()
-	if g.contentWidth() != maxCockpitW || g.contentX() != 12 {
-		t.Fatalf("wide content layout = %d at x=%d, want %d at x=12", g.contentWidth(), g.contentX(), maxCockpitW)
+	if g.contentWidth() != maxCockpitW || g.contentX() != 18 {
+		t.Fatalf("wide content layout = %d at x=%d, want %d at x=18", g.contentWidth(), g.contentX(), maxCockpitW)
 	}
 	if _, ok := g.hits.At(1, panelBodyY(1)); ok {
 		t.Fatal("content hitbox should not remain at the terminal edge on a wide screen")
@@ -111,11 +111,13 @@ func TestPermitPromptOpensWhenTryingLockedDestination(t *testing.T) {
 func TestWheelUpMovesSelectionUp(t *testing.T) {
 	g := newChartGame(t, 80, 24)
 	g.worldSel = 1
-	g.updateWheel(tea.MouseWheelMsg{Y: 1})
+	// Y is the pointer row, deliberately set low/high to prove it has no
+	// bearing on direction. The wheel button is the source of truth.
+	g.updateWheel(tea.MouseWheelMsg{Button: tea.MouseWheelUp, Y: 23})
 	if g.worldSel != 0 {
 		t.Fatalf("wheel up selected %d, want 0", g.worldSel)
 	}
-	g.updateWheel(tea.MouseWheelMsg{Y: -1})
+	g.updateWheel(tea.MouseWheelMsg{Button: tea.MouseWheelDown, Y: 1})
 	if g.worldSel != 1 {
 		t.Fatalf("wheel down selected %d, want 1", g.worldSel)
 	}
