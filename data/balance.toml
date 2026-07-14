@@ -207,6 +207,12 @@ jammer_base_price = 850
 # uses_per_trip = 1 + grade/step: step=2 gives the first bonus charge at
 # grade C (2), matching docs/gameplay/05's "grade C+ grants an extra use".
 jammer_grade_uses_step = 2
+# Each charge suppresses the pirate approach for this many seconds. The
+# ordinary fuzzed ETA begins only after the jammer expires.
+jammer_duration_seconds = 10.0
+heat_sink_base_price = 1000
+# Adds 25/50/75/100/125/150 to the shared 100-point combat heat capacitor.
+heat_sink_capacity_per_grade = 25.0
 jump_drive_base_price = 25000
 
 [[ships]]

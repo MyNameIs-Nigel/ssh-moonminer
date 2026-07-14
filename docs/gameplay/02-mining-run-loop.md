@@ -43,6 +43,7 @@ type ActiveRun struct {
     PirateBearing  float64 // 0..1, cosmetic, rolled once at Lock
     PirateETAMin   float64 // fuzzed arrival estimate (seconds)
     PirateETAMax   float64
+    JammerRemaining float64 // exact suppression countdown; approach is paused
     PirateAction   PirateAction // none | tribute | attack
 
     EscapeSecondsRequired     float64
@@ -76,6 +77,12 @@ narrowing used to come from) (floored so it's never exact even fully
 upgraded) and freezes while a
 `radar_blackout` event is active. The TUI renders only this range plus the
 radar-scope widget's blip position — never the true, exact arrival time.
+
+When a Pirate Jammer charge is consumed at lock, pirate approach pauses for
+`jammer_duration_seconds` (10 seconds by default). During that window the
+radar replaces the ETA with `JAMMED <seconds>`; once it expires, approach
+resumes and the fuzzed ETA appears. The jammer countdown itself is exact
+because it describes the player's equipment, not the pirate's arrival time.
 
 ### Mining skill-check ("stabilize drill")
 

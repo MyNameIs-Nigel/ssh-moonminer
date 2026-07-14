@@ -49,6 +49,8 @@ func Glyph(name string, asciiSafe bool) string {
 		switch name {
 		case "diamond":
 			return "◇"
+		case "diamond_filled":
+			return "◆"
 		case "credit":
 			return "◈"
 		case "fuel":
@@ -73,6 +75,8 @@ func Glyph(name string, asciiSafe bool) string {
 	switch name {
 	case "diamond", "common":
 		return "*"
+	case "diamond_filled":
+		return "#"
 	case "credit":
 		return "$"
 	case "fuel":

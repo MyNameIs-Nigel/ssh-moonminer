@@ -219,7 +219,9 @@ const pirateRadarH = 6
 func (g *Game) renderPirateRadar(run *sim.ActiveRun) string {
 	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == sim.EventRadarBlackout
 	etaText := fmt.Sprintf("PIRATE ETA ~%.0f-%.0fs", run.PirateETAMin, run.PirateETAMax)
-	if blackout {
+	if run.JammerRemaining > 0 {
+		etaText = fmt.Sprintf("JAMMED %.0fs", run.JammerRemaining)
+	} else if blackout {
 		etaText = "CONTACT LOST — NO ETA"
 	}
 	if run.EMPActive {

@@ -44,11 +44,11 @@ after death, and reflects.
 ```
 ┌ MOON MINER ─────────────────── PILOT: DEFAULT ── ◈ 4,820 ┐   ← shell HUD
 │ ◇ STAR CHART                      │ ◇ PORT / STATION      │
-│ SOL  permit owned                 │ SKIFF HULL █████ 100% │
+│ ◆ SOL  permit owned               │ SKIFF HULL █████ 100% │
 │ ▸ VESTA LOCAL       ⛽ 6           │ FUEL  ███████░ 45/60  │
 │   CERES CLAIMS      LOCK TANK I   │ CARGO ██░░░░░ 12/40   │
 │   IO SHADOW         LOCK ◈25,000  │ [F] REFUEL ◈135       │
-│ ERIDANI DRIFT       LOCK CUTTER   │ [H] REPAIR FULL       │
+│ ◇ ERIDANI DRIFT     LOCK CUTTER   │ [H] REPAIR FULL       │
 │ KEPLER REACH        LOCK HAULER   │ [S] SHIPYARD          │
 │                                   │ [C] COSMETICS         │
 │  "Thin, legal, and picked over.   │ [B] BUILD STATION     │
@@ -58,6 +58,9 @@ after death, and reflects.
 
 - Left panel: grouped system/destination rows. Systems can be selected to show
   permit/transfer details; destinations can be selected to depart.
+  - The ship's current system uses a solid diamond (`◆`) and brighter,
+    higher-contrast styling for its header and every destination beneath it.
+    Other systems retain the hollow diamond (`◇`) and normal dim styling.
   - Unlocked rows show travel fuel, risk dots, rarity label, and fuel
     affordability color.
   - Locked rows are dimmed but selectable; the detail panel must show the exact

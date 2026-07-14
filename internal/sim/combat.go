@@ -193,8 +193,9 @@ func FireWeaponsWithOutcome(s *State, c *content.Content, now int64) (*RunOutcom
 	rng := runRNG(s, run, 10000+run.TickCount)
 	hit := rng.Float64() < cs.Solution
 	cs.Heat += heat
-	if cs.Heat >= c.Combat.HeatCapacity {
-		cs.Heat = c.Combat.HeatCapacity
+	heatCapacity := HeatCapacity(s, c)
+	if cs.Heat >= heatCapacity {
+		cs.Heat = heatCapacity
 		cs.LockRemaining = c.Combat.OverheatLockSeconds
 		cs.Log = prependCombatLog(cs.Log, "CAPACITORS OVERHEATED")
 	}

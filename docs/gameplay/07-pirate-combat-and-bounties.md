@@ -54,9 +54,9 @@ escapes" rule are unchanged.
 | Immediate attack / refused tribute → auto-started escape burn (`startEscape(underAttack=true)`) | Replaced by **PhaseCombat** (below). The burn auto-starts only in the cases in the burn matrix; PhaseEscaping with `UnderAttack=true` no longer occurs naturally. `attackHullDamagePerSecond` stays only as a defensive fallback for `Run.Combat == nil` (legacy tests set that shape directly). |
 | "The player cannot win a fight" (02-danger doc) | Superseded by this doc. |
 
-EMP Launcher (delays the pirate's action roll on arrival) and Pirate Jammer
-(full-run immunity) are **unchanged** — they gate whether/when combat starts,
-not how it plays.
+EMP Launcher delays the pirate's action roll on arrival. Pirate Jammer now
+suppresses approach for a timed 10-second window rather than granting
+full-run immunity; both gate when combat starts, not how it plays.
 
 ## Deliverables
 
@@ -167,7 +167,7 @@ type CombatState struct {
     Bearing        float64  // 0..1 blip angle, sim-computed each tick
     Range          float64  // 0..1 normalized range, sim-computed each tick
     Solution       float64  // 0..1 firing solution, sim-computed each tick
-    Heat           float64  // 0..heat_capacity, shared ship capacitor
+    Heat           float64  // 0..HeatCapacity(ship), shared ship capacitor
     LockRemaining  float64  // > 0 ⇒ weapons locked (overheat)
     Phase1, Phase2 float64  // maneuver phase offsets, rolled once at combat start
     EscapeStarted  bool     // burn matrix above
@@ -211,7 +211,8 @@ error (TUI flashes it). One press fires all installed **manual weapons** as one 
 `damage = Σ WeaponDamagePerShot(item, grade)`, `heatCost = Σ
 WeaponHeatPerShot(item, grade)`. Single hit roll `runRNG(s, run,
 10000+run.TickCount).Float64() < Solution` — full damage on hit, nothing on
-miss; heat is spent either way. `Heat += heatCost`; if `Heat ≥ heat_capacity`
+miss; heat is spent either way. `Heat += heatCost`; if `Heat ≥
+HeatCapacity(ship)` (base 100 plus any internal Heat Sink)
 → `LockRemaining = overheat_lock_seconds` and a "CAPACITORS OVERHEATED" log
 line. Latency note: the roll uses the solution at the tick the action is
 *processed*, not when the key went down — arcs are deliberately generous
@@ -264,6 +265,10 @@ Only the Warden (2 weapon slots) and Mule (1) can fight at all — the class
 identity gameplay/05 promised the "fighter" finally lands. A single shared
 heat capacitor across both Warden slots is deliberate v1 simplicity;
 per-weapon heat is a future tune, not this task.
+
+The internal **Heat Sink** raises that shared capacity by `25*(g+1)` at grade
+`g` (E..S), from 125 at E through 250 at S. It does not increase decay, so it
+extends burst firing without changing sustained-fire recovery.
 
 ### EST. ODDS — `EstimateOdds(s, c, pirate) float64`
 
@@ -426,6 +431,8 @@ pulse_laser_damage_per_shot_base = 5.0
 pulse_laser_damage_per_shot_per_grade = 2.0
 pulse_laser_heat_per_shot = 12.0
 pulse_laser_solution_bonus = 0.10
+heat_sink_base_price = 1000
+heat_sink_capacity_per_grade = 25.0
 ```
 
 Content validation (`internal/content`): roster non-empty; unique ids;

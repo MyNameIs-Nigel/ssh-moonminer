@@ -167,7 +167,7 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	if cs.PirateMaxHull > 0 {
 		pirateHullPct = clampF(100*cs.PirateHull/cs.PirateMaxHull, 0, 100)
 	}
-	heatCap := g.content.Combat.HeatCapacity
+	heatCap := sim.HeatCapacity(st, g.content)
 	heatPct := 0.0
 	if heatCap > 0 {
 		heatPct = clampF(100*cs.Heat/heatCap, 0, 100)

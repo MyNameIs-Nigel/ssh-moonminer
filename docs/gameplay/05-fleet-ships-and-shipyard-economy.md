@@ -73,7 +73,7 @@ alongside the new system — there is exactly one upgrade model going forward.
 
 The pilot owns a **hangar**: a set of ship *models* they've bought, each
 tracked as one persistent `ShipInstance` (its own track grades, its own
-installed slot devices, its own Pirate Jammer arm-state). The hangar holds **at
+installed slot devices, and its own Pirate Jammer charge count). The hangar holds **at
 most one instance per model** — buying a model you already own is rejected
 (no fleet of duplicate Wardens). One instance is the **active ship**; only the
 active ship can depart into a belt. Switching the active ship is a docked-only
@@ -86,7 +86,7 @@ type ShipInstance struct {
     Utility []SlotDevice        `json:"utility,omitempty"`
     Weapon  []SlotDevice        `json:"weapon,omitempty"`
     Internal *SlotDevice        `json:"internal,omitempty"`
-    JammerArmed bool            `json:"jammer_armed"`
+    JammerCharges int           `json:"jammer_charges"`
 }
 
 type TrackGrades struct {
@@ -245,8 +245,8 @@ per-ship (table above); Internal is always exactly **one** slot on every ship
 - **Weapon slot** — Defense Turret (only item today; not every ship has this
   slot at all).
 - **Internal slot** — exactly one of: Seismic Sensors, Jump Drive,
-  Fuel Miner, Pirate Jammer. Swapping the installed module is a docked action
-  like any other slot change.
+  Fuel Miner, Pirate Jammer, Heat Sink. Swapping the installed module is a
+  docked action like any other slot change.
 
 **Power.** A ship's Power Generator grade sets its power *capacity*
 (`10 + 8*g`, above). Every installed device draws power **except** Extra Cargo
@@ -266,7 +266,7 @@ powerCost(deviceType, grade) = round(k[deviceType] * (grade+1)^1.5)
 | Shield | 2.7 | 3, 8, 14, 22, 30, 40 |
 | EMP Launcher | 0.6 | 1, 2, 3, 5, 7, 9 |
 | Defense Turret | 1.6 | 2, 5, 8, 13, 18, 24 |
-| Seismic Sensors / Fuel Miner / Pirate Jammer | 1.0 | 1, 3, 5, 8, 11, 15 |
+| Seismic Sensors / Fuel Miner / Pirate Jammer / Heat Sink | 1.0 | 1, 3, 5, 8, 11, 15 |
 | Extra Cargo / Extra Fuel Tank | — | 0 at every grade |
 
 A fully-upgraded MULE (Power Generator A = 42 capacity) can run an S-grade
@@ -321,7 +321,8 @@ round(itemBase * 2.2^grade)`.
 | **Defense Turret** | Weapon | 700 | Reduces `AttackHullDamagePerSecond` by `8%*(g+1)` (cumulative multiplier `1 - 0.08*(g+1)`) |
 | **Seismic Sensors** | Internal | 600 | 3 random *in-range* belt asteroids (respects the ship's own Scanner lock — this is a free convenience pre-scan, not a way to see past it) arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
 | **Fuel Miner** | Internal | 750 | Mining a Rare+ asteroid refunds fuel equal to `(0.25 + 0.15*g)` of that asteroid's `FuelCost` |
-| **Pirate Jammer** | Internal | 850 | While armed, the asteroid currently being mined draws no pirates at all; consumes the arm on use, must rearm (free, instant) while docked — switching the active ship also counts as arriving fresh and rearms it; grade C+ grants `1 + floor(g/2)` uses per trip before a dock visit is required |
+| **Pirate Jammer** | Internal | 850 | Consumes one charge at lock and suppresses pirate approach for 10 seconds. The radar shows the exact `JAMMED` countdown, then reveals the ordinary fuzzed ETA when suppression expires. Docking rearms it; switching ships does not. Grade C+ grants `1 + floor(g/2)` charges per dock visit. |
+| **Heat Sink** | Internal | 1,000 | Raises the shared manual-weapon heat capacity by `25*(g+1)` above the base 100, allowing longer volleys before overheat lock. It does not change heat decay. |
 | **Jump Drive** | Internal | 25,000 | Opens Eridani Drift while installed. It draws no power, but occupies the ship's sole Internal slot; removing it locks the route again. |
 
 ### Buyback

@@ -99,7 +99,7 @@ func TestManualWeaponKillReturnsSummaryOutcome(t *testing.T) {
 	}
 }
 
-func TestPirateImmuneRunDoesNotRerollCombatAtZeroDistance(t *testing.T) {
+func TestJammerSuppressesPirateApproachUntilCountdownExpires(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 42, 1000)
 	if err := sim.Depart(s, c, 1); err != nil {
@@ -110,13 +110,31 @@ func TestPirateImmuneRunDoesNotRerollCombatAtZeroDistance(t *testing.T) {
 	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 		t.Fatal(err)
 	}
-	s.Run.PirateImmune = true
-	s.Run.PirateDistance = 0
-	if out, ended := sim.TickRun(s, c, 0, 1001); ended || out != nil {
-		t.Fatalf("immune run should not resolve: out=%+v ended=%v", out, ended)
+	s.Run.JammerRemaining = 2
+	s.Run.PirateDistance = 100
+	if out, ended := sim.TickRun(s, c, 1, 1001); ended || out != nil {
+		t.Fatalf("jammed run should not resolve: out=%+v ended=%v", out, ended)
 	}
-	if s.Run.Phase != sim.PhaseMining || s.Run.Combat != nil {
-		t.Fatalf("immune run rerolled a pirate action: %+v", s.Run)
+	if s.Run.PirateDistance != 100 || s.Run.JammerRemaining != 1 {
+		t.Fatalf("jammer should freeze approach for the first second: %+v", s.Run)
+	}
+	sim.TickRun(s, c, 2, 1003)
+	if s.Run == nil || s.Run.Phase != sim.PhaseMining || s.Run.PirateDistance >= 100 {
+		t.Fatalf("pirates should resume approaching after the jammer expires: %+v", s.Run)
+	}
+}
+
+func TestHeatSinkRaisesShipHeatCapacityByGrade(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 42, 1000)
+	base := c.Combat.HeatCapacity
+	if got := sim.HeatCapacity(s, c); got != base {
+		t.Fatalf("base heat capacity = %.0f, want %.0f", got, base)
+	}
+	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemHeatSink, Grade: 2}
+	want := base + 3*c.Slots.HeatSinkCapacityPerGrade
+	if got := sim.HeatCapacity(s, c); got != want {
+		t.Fatalf("C-grade heat sink capacity = %.0f, want %.0f", got, want)
 	}
 }
 
