@@ -138,6 +138,41 @@ func TestHeatSinkRaisesShipHeatCapacityByGrade(t *testing.T) {
 	}
 }
 
+func TestHeatSinkDelaysManualWeaponOverheat(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 42, 1000)
+	s.Credits = 100000
+	if err := sim.AcquireShip(s, c, "warden"); err != nil {
+		t.Fatal(err)
+	}
+	s.Ships["warden"].Weapon[0] = &sim.SlotDevice{ItemID: sim.ItemPulseLaser, Grade: 0}
+	s.Ships["warden"].Internal = &sim.SlotDevice{ItemID: sim.ItemHeatSink, Grade: 0}
+	if err := sim.SwitchActiveShip(s, c, "warden"); err != nil {
+		t.Fatal(err)
+	}
+	s.Run = &sim.ActiveRun{
+		Phase: sim.PhaseCombat,
+		Combat: &sim.CombatState{
+			PirateName: "TARGET",
+			PirateHull: 10000,
+		},
+	}
+	for shot := 1; shot <= 10; shot++ {
+		if _, err := sim.FireWeaponsWithOutcome(s, c, int64(shot)); err != nil {
+			t.Fatalf("shot %d: %v", shot, err)
+		}
+	}
+	if s.Run.Combat.LockRemaining > 0 {
+		t.Fatalf("E-grade heat sink should keep ten pulse shots below its %.0f capacity", sim.HeatCapacity(s, c))
+	}
+	if _, err := sim.FireWeaponsWithOutcome(s, c, 11); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.Combat.LockRemaining <= 0 || s.Run.Combat.Heat != sim.HeatCapacity(s, c) {
+		t.Fatalf("eleventh pulse shot should overheat at sink capacity: %+v", s.Run.Combat)
+	}
+}
+
 func TestAutocannonFastForwardStillAllowsPirateToWin(t *testing.T) {
 	c := testContent(t)
 	s, _ := startAutocannonCombat(t, c)
