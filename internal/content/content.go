@@ -358,8 +358,12 @@ type SlotsConfig struct {
 	FuelMinerBasePct     float64 `toml:"fuel_miner_base_pct"`
 	FuelMinerPerGradePct float64 `toml:"fuel_miner_per_grade_pct"`
 
-	JammerBasePrice     int `toml:"jammer_base_price"`
-	JammerGradeUsesStep int `toml:"jammer_grade_uses_step"`
+	JammerBasePrice       int     `toml:"jammer_base_price"`
+	JammerGradeUsesStep   int     `toml:"jammer_grade_uses_step"`
+	JammerDurationSeconds float64 `toml:"jammer_duration_seconds"`
+
+	HeatSinkBasePrice        int     `toml:"heat_sink_base_price"`
+	HeatSinkCapacityPerGrade float64 `toml:"heat_sink_capacity_per_grade"`
 
 	JumpDriveBasePrice int `toml:"jump_drive_base_price"`
 }
@@ -643,6 +647,12 @@ func (c *Content) validateCombat() error {
 	}
 	if c.Slots.TurretShotsPerSecond <= 0 {
 		return fmt.Errorf("content: slots turret_shots_per_second must be positive")
+	}
+	if c.Slots.JammerDurationSeconds <= 0 {
+		return fmt.Errorf("content: slots jammer_duration_seconds must be positive")
+	}
+	if c.Slots.HeatSinkCapacityPerGrade <= 0 {
+		return fmt.Errorf("content: slots heat_sink_capacity_per_grade must be positive")
 	}
 	return nil
 }

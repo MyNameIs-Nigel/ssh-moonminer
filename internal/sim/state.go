@@ -327,9 +327,9 @@ type ActiveRun struct {
 	EMPDeployed  bool    `json:"emp_deployed"`
 	EMPActive    bool    `json:"emp_active"`
 	EMPRemaining float64 `json:"emp_remaining"`
-	// PirateImmune is set at Lock time when a Pirate Jammer charge was
-	// consumed for this asteroid — pirates never approach for the run.
-	PirateImmune bool `json:"pirate_immune"`
+	// JammerRemaining is the time left on the Pirate Jammer charge consumed
+	// at Lock. Pirate approach is suspended until it reaches zero.
+	JammerRemaining float64 `json:"jammer_remaining"`
 }
 
 // ActiveScan is an in-progress sensor scan (never persisted non-nil).

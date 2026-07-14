@@ -91,7 +91,14 @@ func (g *Game) renderChart() string {
 	accent := theme.Accent(theme.HueCyan)
 	leftLines := []string{}
 	for _, system := range g.content.Systems {
-		leftLines = append(leftLines, theme.Violet.Render("◇ "+system.Name))
+		currentSystem := system.ID == st.SystemID
+		systemGlyph := theme.Glyph("diamond", st.Settings.ASCIISafe)
+		systemHeader := theme.Violet.Render(systemGlyph + " " + system.Name)
+		if currentSystem {
+			systemGlyph = theme.Glyph("diamond_filled", st.Settings.ASCIISafe)
+			systemHeader = theme.Bright.Bold(true).Render(systemGlyph + " " + system.Name)
+		}
+		leftLines = append(leftLines, systemHeader)
 		for i, w := range g.content.Worlds {
 			if w.SystemID != system.ID {
 				continue
@@ -113,7 +120,7 @@ func (g *Game) renderChart() string {
 				fuel = theme.Amber.Render(fuel)
 			}
 			namePart := fmt.Sprintf("%s%s  %s", marker, w.Name, w.Sub)
-			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast).Render(namePart) + "  " + fuel
+			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast || currentSystem).Render(namePart) + "  " + fuel
 			line = ansi.Truncate(line, leftW-2, "…")
 			leftLines = append(leftLines, line)
 			g.hitPanelLine(len(leftLines)-1, 1, line, fmt.Sprintf("world:%d", i), i)
