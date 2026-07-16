@@ -45,7 +45,7 @@ five in favor of the fleet/slot model below. Nothing is silently dropped:
 | **Tank** | Folded into the new **Fuel Efficiency** ship upgrade (drain-rate multiplier) plus the **Extra Fuel Tank** utility slot device (capacity). |
 | **Plating** | Folded into the new **Hull** ship upgrade (max-hull pool) plus the **Defense Turret** weapon device and **Shield** utility device (damage mitigation). |
 | **Surveyor** | Folded into the new **Scanner** ship upgrade (distance lock + ETA narrowing) plus the **Seismic Sensors** internal module (free pre-scans). Its old "belt size +1 per level" effect is retired — belt asteroid count is world-controlled only from this doc forward. |
-| **Drill (mine rate)** | Retired with no direct replacement. The requested set of ship upgrades (Thrusters/Hull/Fuel Efficiency/Power Generator/Scanner) has no mining-speed track; mining speed is now influenced only by asteroid choice and the existing skill-check bonus. A future internal-slot module could reintroduce it — out of scope here. |
+| **Drill (mine rate)** | Still has no ship-track upgrade. Mining speed is influenced by asteroid choice, pressure-point hits, and the optional utility-slot Seismic Overcharge. |
 | **Damper** (pirate-ETA/signature) | Retired as a standalone track. ETA narrowing lives on Scanner (A/S grades); there is no direct replacement for its old effect on `PirateApproachBase`. |
 
 `data/balance.toml`'s `[upgrades]` section and `internal/sim/upgrades.go`'s
@@ -241,7 +241,8 @@ Every ship has three slot *kinds*. Utility and Weapon slot **counts** are
 per-ship (table above); Internal is always exactly **one** slot on every ship
 — it holds a single swappable core module.
 
-- **Utility slot** — Extra Cargo, Extra Fuel Tank, Shield, EMP Launcher.
+- **Utility slot** — Extra Cargo, Extra Fuel Tank, Shield, **Seismic
+  Overcharge**, EMP Launcher.
 - **Weapon slot** — Defense Turret (only item today; not every ship has this
   slot at all).
 - **Internal slot** — exactly one of: Seismic Sensors, Jump Drive,
@@ -267,6 +268,7 @@ powerCost(deviceType, grade) = round(k[deviceType] * (grade+1)^1.5)
 | EMP Launcher | 0.6 | 1, 2, 3, 5, 7, 9 |
 | Defense Turret | 1.6 | 2, 5, 8, 13, 18, 24 |
 | Seismic Sensors / Fuel Miner / Pirate Jammer / Heat Sink | 1.0 | 1, 3, 5, 8, 11, 15 |
+| Seismic Overcharge | 2.2 | 2, 6, 11, 18, 25, 36 |
 | Extra Cargo / Extra Fuel Tank | — | 0 at every grade |
 
 A fully-upgraded MULE (Power Generator A = 42 capacity) can run an S-grade
@@ -286,6 +288,7 @@ mass(deviceType, grade) = massPerGrade[deviceType] * (grade + 1)
 | Device | massPerGrade |
 | --- | --- |
 | Shield | 8 |
+| Seismic Overcharge | 9 |
 | Extra Cargo | 6 |
 | Extra Fuel Tank | 5 |
 | Defense Turret | 7 |
@@ -317,10 +320,11 @@ round(itemBase * 2.2^grade)`.
 | **Extra Cargo** | Utility | 300 | Cargo capacity `+15*(g+1)` |
 | **Extra Fuel Tank** | Utility | 350 | Fuel capacity `+10*(g+1)` |
 | **Shield** | Utility | 900 | Absorbs `20*(g+1)` pirate-attack damage before hull itself takes damage. Its blue charge overlays the hull bar and recharges in the belt between runs: E takes 90s from empty, S takes 15s (linear between grades). A shield that fully bursts returns with only a 25% emergency charge and `DAMAGED` status until dock service restores it to 100%. |
+| **Seismic Overcharge** | Utility | 1,300 | Unique, one per ship. Raises drill speed from `1.45x` at E to `2.20x` at S. It uses mass-driver-class power (2–36) and `9*(g+1)` mass, so high-grade rigs compete directly with shields/weapons for generator capacity and worsen fuel/escape mass penalties. |
 | **EMP Launcher** | Utility | 250 | Auto-deploys when pirates arrive, delaying their action while mining continues. E delays them 1 second and S 10 seconds (linearly between grades). Each launcher is spent after deployment until docked; only one launcher may deploy per asteroid run, choosing the highest-grade armed launcher first. |
 | **Defense Turret** | Weapon | 700 | Reduces `AttackHullDamagePerSecond` by `8%*(g+1)` (cumulative multiplier `1 - 0.08*(g+1)`) |
 | **Seismic Sensors** | Internal | 600 | 3 random *in-range* belt asteroids (respects the ship's own Scanner lock — this is a free convenience pre-scan, not a way to see past it) arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
-| **Fuel Miner** | Internal | 750 | Mining a Rare+ asteroid refunds fuel equal to `(0.25 + 0.15*g)` of that asteroid's `FuelCost` |
+| **Fuel Miner** | Internal | 750 | Reveals a separate 33%-by-content fuel-vein roll after lock (unrelated to rarity or distance). On a vein, E restores exactly active drill fuel consumption; each grade above E adds `0.25×` the burn as net fuel, capped by tank capacity. |
 | **Pirate Jammer** | Internal | 850 | Consumes one charge at lock and suppresses pirate approach for 10 seconds. The radar shows the exact `JAMMED` countdown, then reveals the ordinary fuzzed ETA when suppression expires. Docking rearms it; switching ships does not. Grade C+ grants `1 + floor(g/2)` charges per dock visit. |
 | **Heat Sink** | Internal | 1,000 | Raises the shared manual-weapon heat capacity by `25*(g+1)` above the base 100, allowing longer volleys before overheat lock. It does not change heat decay. |
 | **Jump Drive** | Internal | 25,000 | Opens Eridani Drift while installed. It draws no power, but occupies the ship's sole Internal slot; removing it locks the route again. |

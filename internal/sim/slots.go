@@ -21,18 +21,19 @@ const (
 // docs/gameplay/05-fleet-ships-and-shipyard-economy.md. Not content-data
 // driven (like TrackName) since each has a distinct effect formula.
 const (
-	ItemCargo       = "cargo"
-	ItemFuelTank    = "fuel_tank"
-	ItemShield      = "shield"
-	ItemEMPLauncher = "emp_launcher"
-	ItemTurret      = "turret"
-	ItemMassDriver  = "mass_driver"
-	ItemPulseLaser  = "pulse_laser"
-	ItemSeismic     = "seismic_sensors"
-	ItemFuelMiner   = "fuel_miner"
-	ItemJammer      = "pirate_jammer"
-	ItemHeatSink    = "heat_sink"
-	ItemJumpDrive   = "jump_drive"
+	ItemCargo             = "cargo"
+	ItemFuelTank          = "fuel_tank"
+	ItemShield            = "shield"
+	ItemSeismicOvercharge = "seismic_overcharge"
+	ItemEMPLauncher       = "emp_launcher"
+	ItemTurret            = "turret"
+	ItemMassDriver        = "mass_driver"
+	ItemPulseLaser        = "pulse_laser"
+	ItemSeismic           = "seismic_sensors"
+	ItemFuelMiner         = "fuel_miner"
+	ItemJammer            = "pirate_jammer"
+	ItemHeatSink          = "heat_sink"
+	ItemJumpDrive         = "jump_drive"
 )
 
 // SlotItemKind reports which slot kind an item installs into.
@@ -56,6 +57,8 @@ func SlotItemName(itemID string) string {
 		return "FUEL TANK"
 	case ItemShield:
 		return "SHIELD"
+	case ItemSeismicOvercharge:
+		return "SEISMIC OVERCHARGE"
 	case ItemEMPLauncher:
 		return "EMP LAUNCHER"
 	case ItemTurret:
@@ -84,7 +87,7 @@ func SlotItemLocked(itemID string) bool { return false }
 
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.
-var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemEMPLauncher}
+var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemSeismicOvercharge, ItemEMPLauncher}
 var weaponItems = []string{ItemTurret, ItemMassDriver, ItemPulseLaser}
 var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink, ItemJumpDrive}
 
@@ -109,6 +112,8 @@ func slotItemBasePrice(c *content.Content, itemID string) int {
 		return sc.FuelTankBasePrice
 	case ItemShield:
 		return sc.ShieldBasePrice
+	case ItemSeismicOvercharge:
+		return sc.SeismicOverchargeBasePrice
 	case ItemEMPLauncher:
 		return sc.EMPLauncherBasePrice
 	case ItemTurret:
@@ -148,6 +153,8 @@ func SlotItemPower(c *content.Content, itemID string, grade int) int {
 	switch itemID {
 	case ItemShield:
 		return int(math.Round(sc.ShieldPowerK * g))
+	case ItemSeismicOvercharge:
+		return int(math.Round(sc.SeismicOverchargePowerK * g))
 	case ItemEMPLauncher:
 		return int(math.Round(sc.EMPLauncherPowerK * g))
 	case ItemTurret:
@@ -174,6 +181,8 @@ func SlotItemMass(c *content.Content, itemID string, grade int) float64 {
 		return sc.FuelTankMassPerGrade * n
 	case ItemShield:
 		return sc.ShieldMassPerGrade * n
+	case ItemSeismicOvercharge:
+		return sc.SeismicOverchargeMassPerGrade * n
 	case ItemEMPLauncher:
 		return sc.EMPLauncherMassPerGrade * n
 	case ItemTurret:
@@ -350,7 +359,9 @@ func hasOtherDevice(inst *ShipInstance, kind SlotKind, exclude int, itemID strin
 // SlotItemIsUnique declares categories that may be installed only once per
 // ship. Extra cargo/fuel and EMP launchers deliberately stack; weapons stack
 // their damage/heat additively in FireWeapons.
-func SlotItemIsUnique(itemID string) bool { return itemID == ItemShield }
+func SlotItemIsUnique(itemID string) bool {
+	return itemID == ItemShield || itemID == ItemSeismicOvercharge
+}
 
 func validateUniqueSlotItem(inst *ShipInstance, kind SlotKind, index int, itemID string) error {
 	if SlotItemIsUnique(itemID) && hasOtherDevice(inst, kind, index, itemID) {
@@ -699,15 +710,33 @@ func HeatCapacity(s *State, c *content.Content) float64 {
 	return capacity
 }
 
-// FuelMinerRefundPct returns the fraction of a mined Rare+ asteroid's
-// FuelCost refunded while mining it (0 unless Fuel Miner is the active
-// ship's internal module).
-func FuelMinerRefundPct(s *State, c *content.Content) float64 {
+// FuelMinerRecoveryMul returns how much of the fuel a working drill burns is
+// recovered from a fuel asteroid. E returns exactly 1× the actual burn; each
+// higher grade adds a net gain. It is zero unless the active ship has a Fuel
+// Miner in its internal slot.
+func FuelMinerRecoveryMul(s *State, c *content.Content) float64 {
 	inst := ActiveShip(s)
 	if inst == nil || inst.Internal == nil || inst.Internal.ItemID != ItemFuelMiner {
 		return 0
 	}
-	return c.Slots.FuelMinerBasePct + c.Slots.FuelMinerPerGradePct*float64(inst.Internal.Grade)
+	return c.Slots.FuelMinerERecoveryMul + c.Slots.FuelMinerPerGradeGainMul*float64(inst.Internal.Grade)
+}
+
+// MiningSpeedMul returns the drilling multiplier from a single equipped
+// Seismic Overcharge. Its mass and mass-driver-class power requirement are
+// intentionally handled by the normal slot systems, so the speed comes with
+// fuel and loadout tradeoffs rather than a separate runtime cost.
+func MiningSpeedMul(s *State, c *content.Content) float64 {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 1
+	}
+	d := findDevice(inst.Utility, ItemSeismicOvercharge)
+	if d == nil {
+		return 1
+	}
+	return c.Slots.SeismicOverchargeSpeedE +
+		c.Slots.SeismicOverchargeSpeedPerGrade*float64(clampInt(d.Grade, 0, MaxGrade))
 }
 
 // seismicMinTierGuarantee returns the minimum asteroid tier Seismic Sensors

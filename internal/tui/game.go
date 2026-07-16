@@ -454,12 +454,29 @@ func (g *Game) renderChrome() string {
 	title := theme.Cyan.Render("MOON MINER")
 	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
 	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
-	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f/%.0f %.0f%%", fuelAmount, sim.TankSize(&st, g.content), fuelPct)) + " " + theme.FuelBar(fuelPct, 8)
+	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct))
 	hullPct := sim.HullPct(&st, g.content)
 	hull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL %.0f%%", hullPct))
 	shield := g.renderShieldStatus(&st, 0)
+	cargoUnits := st.CargoUnits + sim.RunHeldUnits(st.Run)
+	cargo := theme.Gold.Render(fmt.Sprintf("CARGO %.0f/%.0f", cargoUnits, sim.CargoCapacityUnits(&st, g.content)))
 
-	hud := fmt.Sprintf(" %s — %s — %s  %s  %s  %s ", title, pilot, credits, fuel, hull, shield)
+	// Keep cargo in the shared nav chrome, including live run cargo. The
+	// compact fields guarantee it remains visible even at the 80-column
+	// minimum terminal width rather than falling off the right edge.
+	hud := fmt.Sprintf(" %s · %s · %s · %s · %s · %s · %s ", title, pilot, credits, fuel, hull, shield, cargo)
+	if lipgloss.Width(hud) > g.contentWidth() {
+		// Preserve both defensive charge and cargo in compact mode. The pilot
+		// label and verbose fuel/credit spacing are the expendable chrome.
+		compactPilot := theme.Violet.Render(strings.ToUpper(g.id.Slot))
+		compactCredits := theme.Gold.Render(fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
+		compactFuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL%.0f%%", fuelPct))
+		compactHull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL%.0f%%", hullPct))
+		hud = fmt.Sprintf(" %s · %s · %s · %s · %s · %s · %s ", title, compactPilot, compactCredits, compactFuel, compactHull, shield, cargo)
+	}
+	if lipgloss.Width(hud) > g.contentWidth() {
+		hud = fmt.Sprintf(" %s · %s · %s · %s · %s ", title, pilot, hull, shield, cargo)
+	}
 	hudLine := accentStyle.Render(strings.Repeat("─", g.contentWidth()))
 	return hudLine + "\n" + hud + "\n" + hudLine
 }

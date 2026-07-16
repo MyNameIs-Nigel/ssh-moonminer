@@ -71,45 +71,47 @@ The actor pushes snapshots at 4 Hz during a run (gameplay/02); this screen
 just renders the latest.
 
 ```
-│ ◇ MINING SITE — KR-4711 (◆ UNCOMMON)                       │
-│                                                             │
-│ RESOURCE LEFT    ███████████░░░░░░░░░░░  58%   PIRATE ETA  │
-│ HULL             █████████████████░░░░░  82%   ~34-58s     │
-│ FUEL             ████████████░░░░░░░░░░  54%   ·  ·  ·  ·  │
-│                                                 ·  ●  ·  ·  │
-│ CARGO VALUE IN HOLD  ◈ 2,975  (not sold)        ·  ·  ·  ·  │
-│                                                 ·  ·  ·  ·  │
-│ ⚙ █████████░░░░░░░░░░░░░  2.1s  [SPACE] STABILIZE DRILL     │
-│        [B] BAIL                                            │
-│  flashing yellow until depletion; green DEPART afterward   │
+◇ MINING SITE — KR-4711 (◆ UNCOMMON)
+RESOURCE LEFT  ███████████░░░░░░░░░░░  58%
+HULL           █████████████████░░░░░  82%
+FUEL           ████████████░░░░░░░░░░  54%
+CURRENT CUT VALUE  ◈ 2,975 of ◈ 5,100 (not sold)
+PIRATE SIGNAL ETA ~34-58s  ·····●······
+╭──────────────────────────────────────────────────────────╮
+│                  .-~~~~~-.                               │
+│               .-'   *     '-.       * lit / + hit / x miss│
+│                '-._________.-'                           │
+╰──────────────────────────────────────────────────────────╯
+[B] BAIL — flashing yellow until asteroid depletion
 ```
 
 - Gauges via tui/04 `Bar`, ramped:
   - resource left: blue until depleted;
   - hull: blue→amber(<55)→red(<30);
   - fuel: blue→amber(<40)→red(<20).
-- Bottom-right radar-scope widget (not part of the left-column stat block —
-  joined alongside it so it doesn't shift any hitbox row math): a fixed
-  player anchor (`▲`) and a red pirate blip (`●`) that approaches from a
-  per-run cosmetic bearing as `PirateDistance` closes. Above the scope, a
-  fuzzed `PIRATE ETA ~min-maxs` range — narrowed by high Scanner grades
+- The pirate-distance signal sits immediately below the mining-status block:
+  a red `●` advances through a compact dotted signal beside a fuzzed
+  `PIRATE ETA ~min-maxs` range — narrowed by high Scanner grades
   (gameplay/05, superseding the old Surveyor track),
   replaced with the exact `JAMMED <seconds>` equipment countdown while a
   Pirate Jammer is suppressing approach, then restored when suppression ends,
   replaced with `CONTACT LOST — NO ETA` while a `radar_blackout` event is
   active. The true distance/arrival time is never rendered as an exact
   number anywhere on this screen.
-- Periodically during mining (gated by a per-run cooldown, gameplay/02's
-  `NextSkillCheckIn`/`SkillCheck`), a "stabilize drill" countdown appears: a
-  draining bar plus a seconds-remaining readout, ramped blue→amber→red as it
-  runs out. `Space` or a click on the gauge at any point before it expires is
-  a hit and grants a small mining-progress bonus, speeding up the drill.
-  There is no marker to line up — a press at any point during the window
-  succeeds — and no penalty for missing; letting it expire simply forfeits
-  the bonus.
+- A large, randomly selected ASCII asteroid sprite is centered inside four
+  cyan cockpit corners. Each run has one to three pressure points on that
+  surface. A lit point flashes gold/white with a `Space` prompt; a successful
+  press or asteroid click turns it green and fractures a significant portion
+  of remaining ore, while expiry turns it red. There is no narrow timing zone,
+  no ship penalty for a miss, and no new point after depletion or a full hold.
+- Cargo volume lives in the global top navigation bar at all times, including
+  active-run ore. A Fuel Miner additionally reveals a clear `RICH VEIN` or
+  `NO FUEL VEIN` readout; ships without the module see neither label.
 - The main action button:
-  - while `RemainingUnits > 0`: `[B] BAIL` in flashing yellow/amber;
-  - when depleted: `[ENTER] DEPART` in green;
+  - while asteroid ore remains: `[B] BAIL` in flashing yellow/amber;
+  - when the cargo hold fills first: a steady `HOLD FULL — [B] BAIL WITH
+    CURRENT LOAD`, while resource-left stays non-zero;
+  - when the asteroid itself is depleted: `[ENTER] DEPART` in green;
   - if reduced motion is on, replace flashing with a steady amber `!`.
 - `B` / `Esc` / click BAIL starts escape before depletion. `Enter` / click
   DEPART starts escape after depletion. Both call gameplay/02 `BailOrDepart`.

@@ -38,6 +38,7 @@ func TestDepartAfterDepletion(t *testing.T) {
 	s := sim.New(c, 1, 1000)
 	_ = sim.Depart(s, c, 1)
 	ast := s.Belt[0]
+	ast.Volume = 200 // smaller than the starter hold: exercise true rock depletion
 	ast.DrillSec = 1
 	s.Belt[0] = ast
 	s.Belt[0].Scanned = true
@@ -57,11 +58,10 @@ func TestDepartAfterDepletion(t *testing.T) {
 	if s.Run.Phase != sim.PhaseMining {
 		t.Skip("pirates arrived before depletion in this scenario; not exercising depart path")
 	}
-	// "Depleted" now means the rock's own volume ran out OR the ship's cargo
-	// hold filled first (gameplay/05) — the starter Skiff's hold is smaller
-	// than this test's asteroid volume, so cargo-full is the expected path.
+	// Only actual rock exhaustion enables DEPART. A full hold pauses the drill
+	// but preserves a non-zero resource meter and requires BAIL.
 	if !sim.RunDepleted(s, c, &ast, s.Run) {
-		t.Fatalf("expected depleted (volume or cargo-full), mined %v of volume %v cargo cap %v",
+		t.Fatalf("expected asteroid depletion, mined %v of volume %v cargo cap %v",
 			s.Run.MinedUnits, ast.Volume, sim.CargoCapacityUnits(s, c))
 	}
 	if err := sim.BailOrDepart(s, c, 2000); err != nil {
@@ -629,10 +629,9 @@ func TestLowHullIncreasesEventChance(t *testing.T) {
 	}
 }
 
-// TestCargoCapDepletionStopsMiningAndLeavesRemnant covers a bug where mining
-// stopping early because the cargo hold filled (not because the rock ran out)
-// still hard-deleted the asteroid on Departed, destroying real unmined ore
-// instead of leaving the same kind of remnant a bailed run would.
+// TestCargoCapStopsMiningAndLeavesTruthfulRemnant covers the full-hold edge
+// case: the drill pauses with real ore remaining, the player must BAIL (not
+// DEPART), and the asteroid keeps exactly that remnant.
 func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
@@ -654,14 +653,14 @@ func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	}
 
 	dt := 0.25
-	for i := 0; i < 400 && s.Run != nil && !sim.RunDepleted(s, c, &ast, s.Run); i++ {
+	for i := 0; i < 400 && s.Run != nil && !sim.RunCargoFull(s, c, s.Run); i++ {
 		sim.TickRun(s, c, dt, 1000+int64(i))
 	}
 	if s.Run == nil || s.Run.Phase != sim.PhaseMining {
 		t.Fatal("run ended before the hold filled")
 	}
-	if !sim.RunDepleted(s, c, &ast, s.Run) {
-		t.Fatalf("expected cargo-cap depletion, mined %v of cap %v", s.Run.MinedUnits, cargoCap)
+	if !sim.RunCargoFull(s, c, s.Run) || sim.RunDepleted(s, c, &ast, s.Run) {
+		t.Fatalf("expected a full hold with ore remaining, mined %v of cap %v", s.Run.MinedUnits, cargoCap)
 	}
 	minedBeforeResolve := s.Run.MinedUnits
 	fuelBeforeStop := s.Fuel
@@ -674,8 +673,8 @@ func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	if err := sim.BailOrDepart(s, c, 2000); err != nil {
 		t.Fatal(err)
 	}
-	if s.Run.Intent != sim.OutcomeDeparted {
-		t.Fatalf("expected departed intent once the hold is full, got %v", s.Run.Intent)
+	if s.Run.Intent != sim.OutcomeBailed {
+		t.Fatalf("expected bailed intent once the hold is full, got %v", s.Run.Intent)
 	}
 	s.Run.BaseEscapeSecondsRequired = 0
 	s.Run.EscapeSecondsRequired = 0
@@ -686,7 +685,7 @@ func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 
 	remaining, _ := sim.FindAsteroid(s, ast.ID)
 	if remaining == nil {
-		t.Fatalf("cargo-cap-triggered departure destroyed the whole asteroid — %v units were never mined and should have survived as a remnant", float64(ast.Volume)-minedBeforeResolve)
+		t.Fatalf("cargo-cap-triggered bail destroyed the whole asteroid — %v units were never mined and should have survived as a remnant", float64(ast.Volume)-minedBeforeResolve)
 	}
 	if remaining.Volume >= ast.Volume {
 		t.Fatalf("expected the remnant to shrink below the original volume, got %d (was %d)", remaining.Volume, ast.Volume)
@@ -763,5 +762,143 @@ func TestJammerChargeStartsTimedSuppressionAtLock(t *testing.T) {
 	}
 	if got := s.Ships["skiff"].JammerCharges; got != 0 {
 		t.Fatalf("jammer charges after lock = %d, want 0", got)
+	}
+}
+
+func TestPressurePointsAreDeterministicAndResolveToHitOrMiss(t *testing.T) {
+	c := testContent(t)
+	c.Mining.PressurePointsMin = 3
+	c.Mining.PressurePointsMax = 3
+	s := sim.New(c, 99, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	ast.Scanned = true
+	s.Belt[0] = ast
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Run.PressurePoints) != 3 {
+		t.Fatalf("pressure-point count = %d, want 3", len(s.Run.PressurePoints))
+	}
+	seen := map[int]bool{}
+	for _, point := range s.Run.PressurePoints {
+		if seen[point.Position] {
+			t.Fatalf("duplicate pressure-point position: %+v", s.Run.PressurePoints)
+		}
+		seen[point.Position] = true
+	}
+
+	s.Run.NextSkillCheckIn = 0
+	s.Run.PirateDistance = 1e9
+	sim.TickRun(s, c, 0, 1001)
+	if s.Run.SkillCheck == nil {
+		t.Fatal("expected the first pressure point to light up")
+	}
+	point := s.Run.SkillCheck.PressurePoint
+	if s.Run.PressurePoints[point].Status != sim.PressurePointActive {
+		t.Fatalf("lit point state = %q, want active", s.Run.PressurePoints[point].Status)
+	}
+	before := s.Run.ExtractedUnits
+	if err := sim.AttemptSkillCheck(s, c, 1002); err != nil {
+		t.Fatal(err)
+	}
+	if s.Run.PressurePoints[point].Status != sim.PressurePointHit {
+		t.Fatalf("hit point state = %q, want hit", s.Run.PressurePoints[point].Status)
+	}
+	if s.Run.ExtractedUnits <= before {
+		t.Fatalf("pressure-point hit did not fracture ore: %.1f -> %.1f", before, s.Run.ExtractedUnits)
+	}
+
+	miss := 1
+	s.Run.SkillCheck = &sim.SkillCheck{Window: 1, PressurePoint: miss}
+	s.Run.PressurePoints[miss].Status = sim.PressurePointActive
+	sim.TickRun(s, c, 1, 1003)
+	if s.Run.PressurePoints[miss].Status != sim.PressurePointMissed {
+		t.Fatalf("expired pressure point state = %q, want missed", s.Run.PressurePoints[miss].Status)
+	}
+}
+
+func TestNoPressurePointAppearsAfterMiningStops(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 100, 1000)
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	ast.Volume = 100
+	ast.Scanned = true
+	s.Belt[0] = ast
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	s.Run.ExtractedUnits, s.Run.HeldUnits, s.Run.MinedUnits = 100, 100, 100
+	s.Run.NextSkillCheckIn = 0
+	s.Run.PirateDistance = 1e9
+	sim.TickRun(s, c, 1, 1001)
+	if s.Run.SkillCheck != nil {
+		t.Fatalf("depleted asteroid spawned a pressure point: %+v", s.Run.SkillCheck)
+	}
+}
+
+func TestFuelMinerOnlyRecoversFuelOnConfiguredFuelAsteroids(t *testing.T) {
+	c := testContent(t)
+	c.Mining.FuelAsteroidChance = 1 // proves the chance comes from content, not rarity/distance.
+	s := sim.New(c, 101, 1000)
+	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemFuelMiner, Grade: 0}
+	_ = sim.Depart(s, c, 1)
+	ast := s.Belt[0]
+	ast.Scanned = true
+	s.Belt[0] = ast
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if !s.Run.FuelAsteroid {
+		t.Fatal("fuel chance of 1 did not produce a fuel asteroid")
+	}
+	s.Run.PirateDistance = 1e9
+	fuelBefore := s.Fuel
+	sim.TickRun(s, c, 1, 1001)
+	if math.Abs(s.Fuel-fuelBefore) > 0.000001 {
+		t.Fatalf("E Fuel Miner should exactly offset drill burn: %.6f -> %.6f", fuelBefore, s.Fuel)
+	}
+
+	s.Ships["skiff"].Internal.Grade = 1
+	fuelBefore = s.Fuel
+	sim.TickRun(s, c, 1, 1002)
+	if s.Fuel <= fuelBefore {
+		t.Fatalf("D Fuel Miner should create net fuel on a fuel asteroid: %.6f -> %.6f", fuelBefore, s.Fuel)
+	}
+}
+
+func TestSeismicOverchargeAcceleratesMiningAndIsUnique(t *testing.T) {
+	c := testContent(t)
+	mineAfterSecond := func(overcharge bool) float64 {
+		s := sim.New(c, 102, 1000)
+		if overcharge {
+			s.Credits = 100000
+			if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemSeismicOvercharge, 0); err != nil {
+				t.Fatal(err)
+			}
+		}
+		_ = sim.Depart(s, c, 1)
+		ast := s.Belt[0]
+		ast.Scanned = true
+		s.Belt[0] = ast
+		if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+			t.Fatal(err)
+		}
+		s.Run.PirateDistance = 1e9
+		sim.TickRun(s, c, 1, 1001)
+		return s.Run.ExtractedUnits
+	}
+	if boosted, base := mineAfterSecond(true), mineAfterSecond(false); boosted <= base {
+		t.Fatalf("seismic overcharge did not accelerate mining: base %.2f, boosted %.2f", base, boosted)
+	}
+
+	s := sim.New(c, 103, 1000)
+	s.Credits = 100000
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemSeismicOvercharge, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 1, sim.ItemSeismicOvercharge, 0); err != sim.ErrDuplicateItem {
+		t.Fatalf("second seismic overcharge error = %v, want ErrDuplicateItem", err)
 	}
 }

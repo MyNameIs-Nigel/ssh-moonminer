@@ -103,6 +103,12 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
+	rollPressurePoints(s, c, s.Run)
+	s.Run.AsteroidSprite = runRNG(s, s.Run, 6300).Intn(3)
+	// Fuel content is a separate geological roll: it deliberately does not
+	// reuse tier, distance, value, or flight-cost RNG so those signals cannot
+	// be reverse-engineered into a fuel-asteroid predictor.
+	s.Run.FuelAsteroid = runRNG(s, s.Run, 7200).Float64() < c.Mining.FuelAsteroidChance
 	rollNextSkillCheckIn(s, c, s.Run)
 	updatePirateETA(s, c, s.Run, ast)
 	return nil
@@ -381,7 +387,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 		holdRemaining := math.Max(0, RemainingCargoCapacity(s, c)-run.HeldUnits)
 		remaining := math.Min(extractionRemaining, holdRemaining)
 		if remaining > 0 && s.Fuel > 0 && ast.DrillSec > 0 {
-			mineRate := float64(ast.Volume) / ast.DrillSec
+			mineRate := float64(ast.Volume) / ast.DrillSec * MiningSpeedMul(s, c)
 			mined := math.Min(remaining, mineRate*dt)
 			if mined > 0 {
 				run.ExtractedUnits += mined
@@ -392,17 +398,14 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 			if run.ActiveEvent != nil && run.ActiveEvent.Kind == EventReactorSurge {
 				fuelDrain *= c.Events.ReactorSurgeFuelMul
 			}
-			burn := fuelDrain * dt
-			// Fuel Miner refunds a fraction of a Rare+ asteroid's FuelCost,
-			// spread proportionally to how much of it has been mined so far.
-			if ast.Tier >= 2 && ast.Volume > 0 {
-				if refundPct := FuelMinerRefundPct(s, c); refundPct > 0 {
-					refund := refundPct * float64(ast.FuelCost) * (mined / float64(ast.Volume))
-					burn = math.Max(0, burn-refund)
-				}
-			}
-			consumed := ConsumeFuel(s, c, burn)
+			consumed := ConsumeFuel(s, c, fuelDrain*dt)
 			s.Stats.FuelBurned += consumed
+			// Fuel veins replenish fuel only while the drill is actually running;
+			// a dry, stalled tank cannot self-start. E exactly offsets the fuel
+			// consumed this tick, while higher tiers produce a capped net gain.
+			if run.FuelAsteroid && consumed > 0 {
+				AddFuel(s, c, consumed*FuelMinerRecoveryMul(s, c))
+			}
 		}
 		if ast.Volume > 0 {
 			run.CargoValue = int(math.Round(float64(ast.Value) * run.HeldUnits / float64(ast.Volume)))
@@ -431,15 +434,26 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	}
 }
 
-// RunDepleted reports whether an in-progress run has reached the green
-// DEPART state: the asteroid's own volume is exhausted, or the ship's cargo
-// hold filled up first, whichever comes sooner.
+// RunDepleted reports whether an in-progress run has exhausted the asteroid
+// and may use the green DEPART action. A full hold pauses extraction but does
+// not erase the remaining rock or turn a partial run into a departure.
 func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bool {
 	if ast == nil {
 		return true
 	}
 	normalizeRunAccounting(run)
-	return run.ExtractedUnits >= float64(ast.Volume) || run.HeldUnits >= RemainingCargoCapacity(s, c)
+	return run.ExtractedUnits >= float64(ast.Volume)
+}
+
+// RunCargoFull reports whether the current run has filled all cargo space
+// available when it locked the asteroid. It is intentionally separate from
+// RunDepleted: the remaining asteroid percentage remains truthful.
+func RunCargoFull(s *State, c *content.Content, run *ActiveRun) bool {
+	if run == nil {
+		return false
+	}
+	normalizeRunAccounting(run)
+	return run.HeldUnits >= RemainingCargoCapacity(s, c)
 }
 
 // updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
@@ -657,11 +671,8 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	hullDelta := s.Hull - run.StartHull
 	fuelDelta := s.Fuel - run.StartFuel
 	depleted := RunDepleted(s, c, ast, run)
-	// volumeExhausted (the rock itself has nothing left) is distinct from
-	// depleted (which also goes true when the cargo hold fills up first,
-	// gameplay/05). Only true volume exhaustion removes the asteroid
-	// outright on Departed — a cargo-capped Departed leaves real ore behind
-	// and must go through the same remnant-preservation path as a bail.
+	// Only true volume exhaustion removes the asteroid outright on Departed.
+	// A full hold always enters the BAILED path and preserves its remnant.
 	volumeExhausted := astVolume > 0 && run.ExtractedUnits >= float64(astVolume)
 
 	if ast != nil {

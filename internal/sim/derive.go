@@ -71,9 +71,9 @@ func MiningRunCapacity(s *State, c *content.Content, ast *Asteroid) float64 {
 	return math.Min(float64(ast.Volume), RemainingCargoCapacity(s, c))
 }
 
-// RunMiningCapacity is the resource cap currently shown for an active run.
-// It includes what the run has already extracted plus the hold space it can
-// still occupy, so the resource meter reaches zero exactly with RunDepleted.
+// RunMiningCapacity is retained for callers that need to know how much this
+// run can load before its hold fills. It is deliberately not the resource HUD
+// denominator: a full hold must still show the asteroid's real ore remaining.
 func RunMiningCapacity(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) float64 {
 	if ast == nil {
 		return 0

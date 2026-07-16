@@ -156,8 +156,8 @@ func (s *Session) CombatEscape(now int64) (Snapshot, error) {
 	})
 }
 
-// AttemptSkillCheck resolves a press/click against the active mining
-// "drill calibration" prompt, if any. Misses cost nothing.
+// AttemptSkillCheck resolves a press/click against the active mining pressure
+// point, if any. A miss only spoils that point; it never damages the ship.
 func (s *Session) AttemptSkillCheck(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		return sim.AttemptSkillCheck(st, s.actor.content(), now)
