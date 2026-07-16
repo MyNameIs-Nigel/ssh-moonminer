@@ -110,16 +110,15 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		t.Fatalf("mining cargo display missing %q:\n%s", wantCargo, view.Content)
 	}
 
-	// BAIL is the last content line before the keybar during mining
-	// (no skill check active in this snapshot).
-	bailY := bodyLineY(8)
+	// BAIL remains with the left mining controls; the right viewport is
+	// reserved for scanner and asteroid art.
+	bailY := bodyLineY(5)
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}
 
-	// Radar-widget columns (right of the stat bars) must not steal any of
-	// the left column's hitboxes — re-check at a column comfortably inside
-	// the radar box and confirm it isn't btn:bail.
+	// The asteroid click target covers the field, but BAIL itself remains a
+	// narrow control line rather than a full-width target.
 	if b, ok := g.hits.At(60, bailY); ok && b.ID == "btn:bail" {
 		t.Fatalf("btn:bail hitbox unexpectedly wide, found at (60,%d)", bailY)
 	}
@@ -152,13 +151,13 @@ func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
 	}
 	g.View()
 
-	// Skill-check gauge sits where the RADAR row used to be; BAIL moves
-	// down two more lines (gauge line + its trailing blank) beneath it.
-	gaugeY := bodyLineY(8)
+	// The countdown is back in the left status column, while the viewport also
+	// accepts a click directly on the lit pressure point.
+	gaugeY := bodyLineY(5)
 	if b, ok := g.hits.At(1, gaugeY); !ok || b.ID != "btn:skillcheck" {
 		t.Fatalf("btn:skillcheck hitbox missing at (1,%d), got %#v", gaugeY, b)
 	}
-	bailY := bodyLineY(10)
+	bailY := bodyLineY(7)
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}

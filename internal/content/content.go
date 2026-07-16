@@ -163,19 +163,23 @@ type MiningConfig struct {
 	// being swept away as "too scattered to reacquire."
 	RemnantKeepThreshold float64 `toml:"remnant_keep_threshold"`
 
-	// Skill-check "drill calibration" minigame during mining: a countdown
-	// appears every so often, and pressing the hotkey before it expires
-	// grants the mining-progress bonus below. There is no moving target to
-	// track — over SSH, timing a press against a sweeping marker is a
-	// latency test, not a skill test.
+	// Pressure-point skill checks during mining. Every run rolls one to three
+	// points on the asteroid; each point gets one timed interaction and a hit
+	// removes a meaningful fraction of the ore still left in the rock.
 	SkillCheckMinIntervalSeconds float64 `toml:"skill_check_min_interval_seconds"`
 	SkillCheckMaxIntervalSeconds float64 `toml:"skill_check_max_interval_seconds"`
 	SkillCheckWindowSeconds      float64 `toml:"skill_check_window_seconds"`
-	// SkillCheckBonusPct is a fraction of the asteroid's *remaining* volume,
-	// not a flat time amount — a flat "seconds of mining" bonus scales
-	// inversely with drill speed and would gut small/fast asteroids almost
-	// instantly while barely denting slow/large ones.
+	PressurePointsMin            int     `toml:"pressure_points_min"`
+	PressurePointsMax            int     `toml:"pressure_points_max"`
+	// SkillCheckBonusPct is a fraction of the asteroid's remaining volume.
+	// This makes every successful pressure point substantial without making a
+	// small or fast asteroid disproportionately valuable.
 	SkillCheckBonusPct float64 `toml:"skill_check_bonus_pct"`
+
+	// FuelAsteroidChance is independent of distance and rarity. The roll is
+	// deterministic for a generated belt, but only an equipped Fuel Miner can
+	// identify the result on the mining screen.
+	FuelAsteroidChance float64 `toml:"fuel_asteroid_chance"`
 
 	// Fuzzed pirate ETA range shown on the mining-screen radar.
 	EtaBaseUncertaintyPct   float64 `toml:"eta_base_uncertainty_pct"`
@@ -316,6 +320,12 @@ type SlotsConfig struct {
 	// is serviced at dock.
 	ShieldBurstReturnPct float64 `toml:"shield_burst_return_pct"`
 
+	SeismicOverchargeBasePrice     int     `toml:"seismic_overcharge_base_price"`
+	SeismicOverchargePowerK        float64 `toml:"seismic_overcharge_power_k"`
+	SeismicOverchargeMassPerGrade  float64 `toml:"seismic_overcharge_mass_per_grade"`
+	SeismicOverchargeSpeedE        float64 `toml:"seismic_overcharge_speed_e"`
+	SeismicOverchargeSpeedPerGrade float64 `toml:"seismic_overcharge_speed_per_grade"`
+
 	EMPLauncherBasePrice      int     `toml:"emp_launcher_base_price"`
 	EMPLauncherPowerK         float64 `toml:"emp_launcher_power_k"`
 	EMPLauncherMassPerGrade   float64 `toml:"emp_launcher_mass_per_grade"`
@@ -354,9 +364,9 @@ type SlotsConfig struct {
 	SeismicBasePrice int `toml:"seismic_base_price"`
 	SeismicScanCount int `toml:"seismic_scan_count"`
 
-	FuelMinerBasePrice   int     `toml:"fuel_miner_base_price"`
-	FuelMinerBasePct     float64 `toml:"fuel_miner_base_pct"`
-	FuelMinerPerGradePct float64 `toml:"fuel_miner_per_grade_pct"`
+	FuelMinerBasePrice       int     `toml:"fuel_miner_base_price"`
+	FuelMinerERecoveryMul    float64 `toml:"fuel_miner_e_recovery_mul"`
+	FuelMinerPerGradeGainMul float64 `toml:"fuel_miner_per_grade_gain_mul"`
 
 	JammerBasePrice       int     `toml:"jammer_base_price"`
 	JammerGradeUsesStep   int     `toml:"jammer_grade_uses_step"`
@@ -586,8 +596,14 @@ func (c *Content) validate() error {
 	if c.Mining.SkillCheckWindowSeconds <= 0 {
 		return fmt.Errorf("content: mining skill_check_window_seconds must be positive")
 	}
+	if c.Mining.PressurePointsMin < 1 || c.Mining.PressurePointsMax < c.Mining.PressurePointsMin || c.Mining.PressurePointsMax > 3 {
+		return fmt.Errorf("content: mining pressure_points_min/max must be 1..3 and ascending")
+	}
 	if c.Mining.SkillCheckBonusPct <= 0 || c.Mining.SkillCheckBonusPct > 1 {
 		return fmt.Errorf("content: mining skill_check_bonus_pct must be within (0..1]")
+	}
+	if c.Mining.FuelAsteroidChance < 0 || c.Mining.FuelAsteroidChance > 1 {
+		return fmt.Errorf("content: mining fuel_asteroid_chance must be within 0..1")
 	}
 	if c.Mining.EtaBaseUncertaintyPct < c.Mining.EtaMinUncertaintyPct || c.Mining.EtaMinUncertaintyPct < 0 {
 		return fmt.Errorf("content: mining eta_base_uncertainty_pct must be >= eta_min_uncertainty_pct >= 0")
@@ -710,6 +726,14 @@ func (c *Content) validateFleet() error {
 	}
 	if c.Slots.ShieldBurstReturnPct <= 0 || c.Slots.ShieldBurstReturnPct > 1 {
 		return fmt.Errorf("content: shield_burst_return_pct must be within (0..1]")
+	}
+	if c.Slots.SeismicOverchargeBasePrice <= 0 || c.Slots.SeismicOverchargePowerK <= 0 ||
+		c.Slots.SeismicOverchargeMassPerGrade <= 0 || c.Slots.SeismicOverchargeSpeedE <= 1 ||
+		c.Slots.SeismicOverchargeSpeedPerGrade < 0 {
+		return fmt.Errorf("content: seismic overcharge price/power/mass/speed values are invalid")
+	}
+	if c.Slots.FuelMinerBasePrice <= 0 || c.Slots.FuelMinerERecoveryMul <= 0 || c.Slots.FuelMinerPerGradeGainMul < 0 {
+		return fmt.Errorf("content: fuel miner price/recovery values are invalid")
 	}
 	if c.Slots.EMPLauncherDeployESeconds <= 0 || c.Slots.EMPLauncherDeploySSeconds < c.Slots.EMPLauncherDeployESeconds {
 		return fmt.Errorf("content: EMP launcher deploy seconds must be positive and slowest at S")

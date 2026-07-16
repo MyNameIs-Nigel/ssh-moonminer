@@ -55,12 +55,18 @@ attack_hull_damage_per_second = 6.0
 
 remnant_keep_threshold = 0.2
 
-# Skill-check "drill calibration" minigame during mining: a countdown
-# appears, press the hotkey before it hits zero. No moving target to track.
+# Each run exposes one to three pressure points. A hit fractures 18% of the
+# ore still in the rock; a miss permanently spoils just that point.
 skill_check_min_interval_seconds = 5.0
 skill_check_max_interval_seconds = 9.0
 skill_check_window_seconds = 3.0
-skill_check_bonus_pct = 0.12
+pressure_points_min = 1
+pressure_points_max = 3
+skill_check_bonus_pct = 0.18
+
+# Rolled independently of distance and rarity. Fuel veins are hidden unless a
+# Fuel Miner is installed.
+fuel_asteroid_chance = 0.33
 
 # Fuzzed pirate ETA range shown on the mining-screen radar.
 eta_base_uncertainty_pct = 0.5
@@ -167,7 +173,14 @@ shield_power_k = 2.7
   # returns to dock for a full service.
   shield_recharge_e_seconds = 90
   shield_recharge_s_seconds = 15
-  shield_burst_return_pct = 0.25
+shield_burst_return_pct = 0.25
+# Seismic Overcharge has mass-driver-class power draw (2/6/11/18/25/36) and
+# high mass, in exchange for 45–120% faster drilling by grade E–S.
+seismic_overcharge_base_price = 1300
+seismic_overcharge_power_k = 2.2
+seismic_overcharge_mass_per_grade = 9
+seismic_overcharge_speed_e = 1.45
+seismic_overcharge_speed_per_grade = 0.15
 emp_launcher_base_price = 250
 emp_launcher_power_k = 0.6
 emp_launcher_mass_per_grade = 2
@@ -201,8 +214,10 @@ internal_mass_per_grade = 4
 seismic_base_price = 600
 seismic_scan_count = 3
 fuel_miner_base_price = 750
-fuel_miner_base_pct = 0.25
-fuel_miner_per_grade_pct = 0.15
+# On a fuel vein, E recovers exactly the fuel used by the drill. Each grade
+# above E turns 25% of that burn into net fuel, subject to tank capacity.
+fuel_miner_e_recovery_mul = 1.0
+fuel_miner_per_grade_gain_mul = 0.25
 jammer_base_price = 850
 # uses_per_trip = 1 + grade/step: step=2 gives the first bonus charge at
 # grade C (2), matching docs/gameplay/05's "grade C+ grants an extra use".

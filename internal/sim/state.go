@@ -241,13 +241,33 @@ type CombatState struct {
 	ShotsHit      int      `json:"shots_hit"`
 }
 
-// SkillCheck is a periodic "drill calibration" prompt during mining: a
-// countdown of Window seconds starts, and hitting AttemptSkillCheck any time
-// before Elapsed reaches Window grants a mining-progress bonus. Missing
-// costs nothing — it just auto-expires.
+// PressurePointStatus is the visible result of one fracture point on an
+// asteroid. Points are transient run state: a fresh visit generates a fresh
+// surface, and an interrupted run is never restored from disk.
+type PressurePointStatus string
+
+const (
+	PressurePointDormant PressurePointStatus = "dormant"
+	PressurePointActive  PressurePointStatus = "active"
+	PressurePointHit     PressurePointStatus = "hit"
+	PressurePointMissed  PressurePointStatus = "missed"
+)
+
+// PressurePoint is one marked surface location. Position is a 0..7 index on
+// the rendered asteroid perimeter; Status is authored by the pure sim and
+// merely displayed by the TUI.
+type PressurePoint struct {
+	Position int                 `json:"position"`
+	Status   PressurePointStatus `json:"status"`
+}
+
+// SkillCheck is the timed interaction for the currently active pressure
+// point. Any press before Elapsed reaches Window is a hit; a timeout marks
+// that point missed and does not damage the ship.
 type SkillCheck struct {
-	Elapsed float64 `json:"elapsed"`
-	Window  float64 `json:"window"`
+	Elapsed       float64 `json:"elapsed"`
+	Window        float64 `json:"window"`
+	PressurePoint int     `json:"pressure_point,omitempty"`
 }
 
 // ActiveRun is in-progress mining state (never persisted non-nil).
@@ -296,10 +316,15 @@ type ActiveRun struct {
 	Intent      OutcomeKind `json:"intent"` // bailed/departed decided when escape starts
 	TributePaid bool        `json:"tribute_paid"`
 
-	// SkillCheck is the currently active "drill calibration" minigame
-	// prompt, if any. NextSkillCheckIn counts down to the next prompt.
-	SkillCheck       *SkillCheck `json:"skill_check,omitempty"`
-	NextSkillCheckIn float64     `json:"next_skill_check_in"`
+	// PressurePoints are generated deterministically at Lock. SkillCheck is
+	// the currently lit point, while NextSkillCheckIn spaces out the reveals.
+	PressurePoints   []PressurePoint `json:"pressure_points,omitempty"`
+	SkillCheck       *SkillCheck     `json:"skill_check,omitempty"`
+	NextSkillCheckIn float64         `json:"next_skill_check_in"`
+	// FuelAsteroid is rolled independently from the asteroid's rarity and
+	// distance. It is only rendered for an equipped Fuel Miner.
+	FuelAsteroid   bool `json:"fuel_asteroid,omitempty"`
+	AsteroidSprite int  `json:"asteroid_sprite,omitempty"`
 
 	EscapeSecondsRequired     float64 `json:"escape_seconds_required"`
 	BaseEscapeSecondsRequired float64 `json:"base_escape_seconds_required"`

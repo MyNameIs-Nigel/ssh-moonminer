@@ -52,8 +52,10 @@ type ActiveRun struct {
     EscapeSecondsElapsed      float64
     UnderAttack               bool
 
-    SkillCheck       *SkillCheck // active "drill calibration" prompt, if any
+    PressurePoints   []PressurePoint // 1..3 deterministic surface targets
+    SkillCheck       *SkillCheck     // currently lit pressure point, if any
     NextSkillCheckIn float64
+    FuelAsteroid     bool // hidden unless the active ship equips a Fuel Miner
 
     ActiveEvent *RunEvent
     EventLog    []RunEventRecord
@@ -84,19 +86,31 @@ radar replaces the ETA with `JAMMED <seconds>`; once it expires, approach
 resumes and the fuzzed ETA appears. The jammer countdown itself is exact
 because it describes the player's equipment, not the pirate's arrival time.
 
-### Mining skill-check ("stabilize drill")
+### Pressure-point mining
 
-During `PhaseMining`, a periodic prompt (`ActiveRun.SkillCheck`, gated by
-`NextSkillCheckIn`) opens a plain countdown: `SkillCheck.Window` seconds to
-press the hotkey before `Elapsed` catches up. Any press while the check is
-active — `AttemptSkillCheck` — is a hit and grants a flat mining-progress
-bonus (`remaining asteroid volume * SkillCheckBonusPct`), i.e. the drill
-"speeds up." There is deliberately no moving target or precise zone to line
-up: timing a press against a sweeping marker over a laggy SSH connection
-tests round-trip latency, not player skill. Missing (letting the countdown
-expire without pressing) costs nothing — no hull, fuel, or time penalty — the
-check simply clears and a new one is rolled. This does not pause or replace
-the pirate timer/event rolls; it is a purely additive mining accelerant.
+When a target is locked, it deterministically receives **one to three**
+`PressurePoint`s at distinct positions on its surface. They have visible
+states: `dormant`, `active`, `hit`, and `missed`. The periodic gate
+(`NextSkillCheckIn`) lights one dormant point and opens a `SkillCheck.Window`
+countdown. `AttemptSkillCheck` / `Space` hits the lit point before expiry,
+turns it green, and fractures `SkillCheckBonusPct` of the asteroid's
+**remaining** ore into the hold. A timeout turns that point red; it costs no
+hull, fuel, or extra time.
+
+There is deliberately no narrow timing marker: press at any point while a
+surface point is lit. This avoids turning SSH latency into the real skill
+test. Points never appear when the asteroid is exhausted or the cargo hold is
+full, and each point resolves only once. Pirate/event timing remains live.
+
+### Fuel asteroids
+
+At lock, a separate deterministic roll compares against
+`Mining.FuelAsteroidChance` (default 33%). It uses neither asteroid rarity nor
+distance, and only an equipped **Fuel Miner** reveals `RICH VEIN` or `NO FUEL
+VEIN` on the mining screen. On a fuel asteroid, an E-grade Fuel Miner restores
+exactly the fuel consumed by active drilling; each higher grade increases the
+recovery multiplier, creating net fuel subject to tank capacity. A stalled
+empty tank cannot self-start from a vein.
 
 ### Locking a target — `Lock(state, content, asteroidID) error`
 
@@ -145,14 +159,18 @@ operations do not need 8 Hz precision):
 #### Mining phase
 
 - Move `mineRate * dt` units from asteroid to cargo, clamped by remaining
-  asteroid units and remaining cargo capacity.
+  asteroid units and remaining cargo capacity. An equipped Seismic Overcharge
+  multiplies this rate; its high utility-slot power draw and mass apply through
+  the ordinary power/mass systems.
 - Update `CargoValue = round(asteroid.Value * MinedUnits / asteroid.Units)`.
 - Drain normal mining fuel.
 - Advance pirate radar distance toward 0 based on the true arrival timer.
 - Roll at most one random event when the event cooldown allows it.
 - Do **not** auto-resolve when the asteroid is depleted. Depletion only changes
   the available player action from flashing yellow `BAIL` to green `DEPART`.
-- If cargo is full, mining pauses but pirates continue approaching.
+- If cargo is full, mining pauses but pirates continue approaching. The HUD
+  continues to show the asteroid's actual remaining ore percentage; the player
+  must **BAIL** with the partial hold, never receives a false `DEPART` state.
 - If pirates reach distance 0, roll `PirateAction`.
 
 #### Tribute phase
@@ -170,8 +188,9 @@ operations do not need 8 Hz precision):
 
 #### Escape phase
 
-- `BailOrDepart` starts escape. If `RemainingUnits > 0`, outcome intent is
-  `bailed`; if `RemainingUnits == 0`, intent is `departed`.
+- `BailOrDepart` starts escape. If asteroid ore remains (including a
+  cargo-full pause), outcome intent is `bailed`; only a fully exhausted
+  asteroid produces `departed`.
 - Escape duration is derived from ship class and cargo load. Full ships should
   feel dangerous: a full Hauler may take several times longer to escape than an
   empty Skiff. With no pirates in play, escape is meant to read as a short
