@@ -71,7 +71,7 @@ func (g *Game) helpLines() []string {
 			"F fight (armed ships only) instead of dropping or running",
 			"In combat: autocannons fire continuously; F fires manual weapons on the arc; B/Enter starts the escape burn",
 			"No input once escaping unarmed — the ship flees or dies",
-			"Cargo stays in the top nav; watch status and the pirate signal",
+			"Cargo stays in the top nav; watch the right-hand pirate scanner",
 		}
 	case scrDeath:
 		screen = []string{

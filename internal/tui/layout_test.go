@@ -110,8 +110,9 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		t.Fatalf("mining cargo display missing %q:\n%s", wantCargo, view.Content)
 	}
 
-	// BAIL sits below the 10-row framed asteroid field.
-	bailY := bodyLineY(16)
+	// BAIL remains with the left mining controls; the right viewport is
+	// reserved for scanner and asteroid art.
+	bailY := bodyLineY(5)
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}
@@ -150,12 +151,13 @@ func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
 	}
 	g.View()
 
-	// A lit pressure point makes the framed asteroid itself the skill target.
-	gaugeY := bodyLineY(6)
+	// The countdown is back in the left status column, while the viewport also
+	// accepts a click directly on the lit pressure point.
+	gaugeY := bodyLineY(5)
 	if b, ok := g.hits.At(1, gaugeY); !ok || b.ID != "btn:skillcheck" {
 		t.Fatalf("btn:skillcheck hitbox missing at (1,%d), got %#v", gaugeY, b)
 	}
-	bailY := bodyLineY(16)
+	bailY := bodyLineY(7)
 	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
 		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
 	}

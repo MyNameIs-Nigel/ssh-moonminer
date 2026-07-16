@@ -76,21 +76,26 @@ RESOURCE LEFT  ███████████░░░░░░░░░░�
 HULL           █████████████████░░░░░  82%
 FUEL           ████████████░░░░░░░░░░  54%
 CURRENT CUT VALUE  ◈ 2,975 of ◈ 5,100 (not sold)
-PIRATE SIGNAL ETA ~34-58s  ·····●······
-╭──────────────────────────────────────────────────────────╮
-│                  .-~~~~~-.                               │
-│               .-'   *     '-.       * lit / + hit / x miss│
-│                '-._________.-'                           │
-╰──────────────────────────────────────────────────────────╯
-[B] BAIL — flashing yellow until asteroid depletion
+⚙ PRESSURE POINT ACTIVE
+  ███████████░░░░░░  2.1s  [SPACE] FRACTURE
+[B] BAIL
+                                      ╭──                    ──╮
+                                      │ PIRATE ETA ~34-58s       │
+                                      │ · · · ● · · · ·          │
+                                      │       ▲                  │
+                                      │       .-~~~~~-.          │
+                                      │    .-'   *     '-.       │
+                                      │     '-._________.-'      │
+                                      ╰──                    ──╯
 ```
 
 - Gauges via tui/04 `Bar`, ramped:
   - resource left: blue until depleted;
   - hull: blue→amber(<55)→red(<30);
   - fuel: blue→amber(<40)→red(<20).
-- The pirate-distance signal sits immediately below the mining-status block:
-  a red `●` advances through a compact dotted signal beside a fuzzed
+- The pirate scanner stays at the upper-left of the large **right-hand**
+  cockpit viewport, above the asteroid, with a fixed player anchor (`▲`) and
+  a red pirate blip (`●`) at a per-run cosmetic bearing. It shows a fuzzed
   `PIRATE ETA ~min-maxs` range — narrowed by high Scanner grades
   (gameplay/05, superseding the old Surveyor track),
   replaced with the exact `JAMMED <seconds>` equipment countdown while a
@@ -99,11 +104,13 @@ PIRATE SIGNAL ETA ~34-58s  ·····●······
   active. The true distance/arrival time is never rendered as an exact
   number anywhere on this screen.
 - A large, randomly selected ASCII asteroid sprite is centered inside four
-  cyan cockpit corners. Each run has one to three pressure points on that
-  surface. A lit point flashes gold/white with a `Space` prompt; a successful
-  press or asteroid click turns it green and fractures a significant portion
-  of remaining ore, while expiry turns it red. There is no narrow timing zone,
-  no ship penalty for a miss, and no new point after depletion or a full hold.
+  cyan cockpit corners in that right-hand viewport. Each run has one to three
+  pressure points on that surface. A lit point flashes gold/white; its
+  countdown and `Space` prompt stay in the **left** status column. A
+  successful keypress or asteroid click turns the point green and fractures a
+  significant portion of remaining ore, while expiry turns it red. There is no
+  narrow timing zone, no ship penalty for a miss, and no new point after
+  depletion or a full hold.
 - Cargo volume lives in the global top navigation bar at all times, including
   active-run ore. A Fuel Miner additionally reveals a clear `RICH VEIN` or
   `NO FUEL VEIN` readout; ships without the module see neither label.

@@ -58,9 +58,47 @@ func TestPressurePointAsteroidRendersAllStates(t *testing.T) {
 			{Position: 2, Status: sim.PressurePointMissed},
 		},
 	}
-	out, active := g.renderAsteroidField(&g.snap.State, run, 10)
+	out, active := g.renderAsteroidField(&g.snap.State, run, 19)
 	plain := ansi.Strip(out)
 	if !active || !strings.Contains(plain, "*") || !strings.Contains(plain, "+") || !strings.Contains(plain, "x") {
 		t.Fatalf("asteroid did not render active/hit/missed pressure points:\n%s", plain)
+	}
+}
+
+func TestMiningUsesRightCockpitViewportForScannerAndAsteroid(t *testing.T) {
+	g := newChartGame(t, 100, 24)
+	st := &g.snap.State
+	if err := sim.Depart(st, g.content, 1); err != nil {
+		t.Fatal(err)
+	}
+	ast := st.Belt[0]
+	ast.Scanned = true
+	st.Belt[0] = ast
+	st.Run = &sim.ActiveRun{
+		AsteroidID:     ast.ID,
+		Phase:          sim.PhaseMining,
+		AsteroidSprite: 0,
+		SkillCheck:     &sim.SkillCheck{Window: 3},
+	}
+
+	plain := ansi.Strip(g.renderDrilling(st, st.Run, &ast, ast.Name, ast.Tier, ast.Value))
+	lines := strings.Split(plain, "\n")
+	leftW, _ := g.miningColumnWidths()
+	var scannerLine, artLine, countdownLine string
+	for _, line := range lines {
+		switch {
+		case strings.Contains(line, "PIRATE ETA"):
+			scannerLine = line
+		case strings.Contains(line, ".-~~~~"):
+			artLine = line
+		case strings.Contains(line, "PRESSURE POINT ACTIVE"):
+			countdownLine = line
+		}
+	}
+	if strings.Index(scannerLine, "PIRATE ETA") <= leftW || strings.Index(artLine, ".-~~~~") <= leftW {
+		t.Fatalf("scanner/asteroid escaped the right cockpit viewport:\n%s", plain)
+	}
+	if idx := strings.Index(countdownLine, "PRESSURE POINT ACTIVE"); idx < 0 || idx >= leftW {
+		t.Fatalf("pressure-point countdown was not kept in the left status column:\n%s", plain)
 	}
 }

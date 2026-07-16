@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
@@ -126,21 +127,22 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
-	lines := []string{title}
+	leftW, rightW := g.miningColumnWidths()
+	leftLines := []string{title}
 	if sim.FuelMinerRecoveryMul(st, g.content) > 0 {
 		if run.FuelAsteroid {
-			lines = append(lines, theme.Green.Render("FUEL SCAN: RICH VEIN — FUEL MINER RECOVERING DRILL BURN"))
+			leftLines = append(leftLines, theme.Green.Render("FUEL SCAN: RICH VEIN — FUEL MINER RECOVERING DRILL BURN"))
 		} else {
-			lines = append(lines, theme.DimStyle.Render("FUEL SCAN: NO FUEL VEIN DETECTED"))
+			leftLines = append(leftLines, theme.DimStyle.Render("FUEL SCAN: NO FUEL VEIN DETECTED"))
 		}
 	}
 	if badge := g.renderEventBadge(st, run); badge != "" {
-		lines = append(lines, badge)
+		leftLines = append(leftLines, badge)
 	}
 	if run.EMPActive {
-		lines = append(lines, theme.Cyan.Render(fmt.Sprintf("EMP LAUNCHER DEPLOYED — PIRATES STALLED %.0fs", run.EMPRemaining)))
+		leftLines = append(leftLines, theme.Cyan.Render(fmt.Sprintf("EMP LAUNCHER DEPLOYED — PIRATES STALLED %.0fs", run.EMPRemaining)))
 	}
-	lines = append(lines,
+	leftLines = append(leftLines,
 		fmt.Sprintf("%s RESOURCE LEFT %s %s",
 			theme.Glyph("drill", st.Settings.ASCIISafe),
 			theme.DrillBar(resourcePct, 26),
@@ -153,26 +155,27 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		fmt.Sprintf("CURRENT CUT VALUE  %s %s of %s %s (not sold)",
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.Gold.Render(fmt.Sprintf("%d", run.CargoValue)),
 			theme.Glyph("credit", st.Settings.ASCIISafe), theme.TxtStyle.Render(fmt.Sprintf("%d", value))),
-		g.renderPirateSignal(run),
 	)
 
-	// The asteroid occupies the center of the mining screen. Its pressure
-	// points are attached to the surface rather than rendered as a detached
-	// countdown, so their lit/hit/missed states stay readable at a glance.
-	bodyH := g.height - chromeH - 2
-	fieldH := bodyH - len(lines) - 1 // leave one line for BAIL/DEPART
-	if fieldH > 10 {
-		fieldH = 10
-	}
-	if fieldH < 6 {
-		fieldH = 6
-	}
-	fieldStartLine := len(lines)
-	field, activePoint := g.renderAsteroidField(st, run, fieldH)
-	lines = append(lines, field)
-	if activePoint {
-		// The hitbox covers the visible asteroid instead of an abstract gauge.
-		g.addHit(g.contentX(), bodyLineY(fieldStartLine), g.contentWidth(), fieldH, "btn:skillcheck", nil)
+	// Keep the countdown in the left status column. The pressure point itself
+	// still flashes on the asteroid, but its timer must remain readable without
+	// crossing the cockpit to the right-hand scanner/asteroid viewport.
+	skillRow := -1
+	if sc := run.SkillCheck; sc != nil {
+		remainingPct := clampF(100*(1-sc.Elapsed/sc.Window), 0, 100)
+		remainingSecs := math.Max(0, sc.Window-sc.Elapsed)
+		skillRow = len(leftLines)
+		label := "[SPACE] FRACTURE"
+		if !st.Settings.ReducedMotion && g.tickCount%2 == 0 {
+			label = theme.Gold.Bold(true).Render(label)
+		} else {
+			label = theme.Gold.Render(label)
+		}
+		leftLines = append(leftLines,
+			theme.Gold.Render("⚙ PRESSURE POINT ACTIVE"),
+			fmt.Sprintf("  %s %s %s", theme.RampBar(remainingPct, 16, false),
+				theme.GaugeStyle(remainingPct, false).Render(fmt.Sprintf("%.1fs", remainingSecs)), label),
+		)
 	}
 
 	var actionLine string
@@ -187,10 +190,25 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	} else {
 		actionLine = theme.Gold.Render("[B] BAIL")
 	}
-	lines = append(lines, actionLine)
-	// field is one string containing fieldH physical rows, so its slice index
-	// is not its terminal row. Register BAIL below the full framed asteroid.
-	g.hitBodyLine(fieldStartLine+fieldH, 1, actionLine, "btn:bail", nil)
+	actionRow := len(leftLines)
+	leftLines = append(leftLines, actionLine)
+
+	bodyH := g.height - chromeH - 2
+	leftLines = fitMiningColumn(leftLines, leftW)
+	for len(leftLines) < bodyH {
+		leftLines = append(leftLines, "")
+	}
+	if skillRow >= 0 {
+		g.addHit(g.contentX(), bodyLineY(skillRow), leftW, 2, "btn:skillcheck", nil)
+	}
+	g.hitBodyLine(actionRow, 1, actionLine, "btn:bail", nil)
+
+	viewport, activePoint := g.renderAsteroidViewport(st, run, rightW, bodyH)
+	if activePoint {
+		// The right-hand cockpit viewport — the area bounded by the four blue
+		// corners — is the mouse target for the currently lit surface point.
+		g.addHit(g.contentX()+leftW+1, bodyLineY(0), rightW, bodyH, "btn:skillcheck", nil)
+	}
 
 	hint := "B BAIL"
 	if depleted {
@@ -206,31 +224,24 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		hint = theme.Red.Render("▼ TANKS DRY — DRILL PAUSED, DECIDE NOW")
 	}
 
-	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
+	body := lipgloss.JoinHorizontal(lipgloss.Top,
+		strings.Join(leftLines, "\n"), " ", viewport)
+	return g.renderBottomKeybar(body, hint)
 }
 
-// renderPirateSignal keeps the distance/ETA signal directly below mining
-// status rather than quarantining it in a far-right widget. The signal remains
-// intentionally fuzzy: it is presentation only, never the exact distance.
-func (g *Game) renderPirateSignal(run *sim.ActiveRun) string {
-	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == sim.EventRadarBlackout
-	eta := fmt.Sprintf("ETA ~%.0f-%.0fs", run.PirateETAMin, run.PirateETAMax)
-	if run.JammerRemaining > 0 {
-		eta = fmt.Sprintf("JAMMED %.0fs", run.JammerRemaining)
-	} else if blackout {
-		eta = "CONTACT LOST"
+func (g *Game) miningColumnWidths() (left, right int) {
+	// Reserve a 33-column viewport at the 80-column minimum: it fits the
+	// 30-column asteroid art while leaving a stable, readable status column.
+	left = min(50, max(46, g.contentWidth()-34))
+	right = g.contentWidth() - left - 1
+	return left, right
+}
+
+func fitMiningColumn(lines []string, width int) []string {
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], width, "")
 	}
-	if run.EMPActive {
-		eta = fmt.Sprintf("EMP DELAY ~%.0fs", run.EMPRemaining)
-	}
-	steps := 12
-	approach := clampInt(int((100-clampF(run.PirateDistance, 0, 100))/100*float64(steps-1)), 0, steps-1)
-	signal := make([]rune, steps)
-	for i := range signal {
-		signal[i] = '·'
-	}
-	signal[approach] = '●'
-	return theme.GaugeStyle(100-run.PirateDistance, true).Render("PIRATE SIGNAL " + eta + "  " + string(signal))
+	return lines
 }
 
 var asteroidSprites = [][]string{
@@ -270,16 +281,44 @@ var pressurePointAnchors = [8]struct{ row, col int }{
 	{0, 15}, {1, 23}, {3, 27}, {6, 22}, {7, 10}, {4, 4}, {2, 7}, {3, 15},
 }
 
-// renderAsteroidField puts a randomly selected ASCII sprite inside the four
-// blue cockpit corners, then overlays pressure-point state on its surface.
+// renderAsteroidField remains a test-friendly full-width wrapper around the
+// cockpit viewport used by the real mining layout.
 func (g *Game) renderAsteroidField(st *sim.State, run *sim.ActiveRun, height int) (string, bool) {
-	width := g.contentWidth()
+	return g.renderAsteroidViewport(st, run, g.contentWidth(), height)
+}
+
+// renderAsteroidViewport places the scanner and randomly selected ASCII
+// asteroid inside the large right-hand four-corner cockpit area. Only the
+// corners are drawn: the space between them stays open for the asteroid.
+func (g *Game) renderAsteroidViewport(st *sim.State, run *sim.ActiveRun, width, height int) (string, bool) {
 	if width < 4 || height < 3 {
 		return "", false
 	}
-	innerW, innerH := width-2, height-2
+	innerW := width - 2
 	border := theme.Cyan
-	lines := []string{border.Render("╭") + border.Render(strings.Repeat("─", innerW)) + border.Render("╮")}
+	lines := make([]string, height)
+	lines[0] = border.Render("╭──") + strings.Repeat(" ", max(0, width-6)) + border.Render("──╮")
+	lines[height-1] = border.Render("╰──") + strings.Repeat(" ", max(0, width-6)) + border.Render("──╯")
+	if height > 3 {
+		lines[1] = border.Render("│") + strings.Repeat(" ", innerW) + border.Render("│")
+		lines[height-2] = border.Render("│") + strings.Repeat(" ", innerW) + border.Render("│")
+	}
+	for i := 1; i < height-1; i++ {
+		if lines[i] == "" {
+			lines[i] = strings.Repeat(" ", width)
+		}
+	}
+
+	// Restore the scanner to the upper part of the right-hand viewport — the
+	// visual position called out in the original layout — rather than turning
+	// it into a left-column status line.
+	for row, scannerLine := range strings.Split(g.renderPirateRadar(run), "\n") {
+		if row+1 >= height-2 {
+			break
+		}
+		lines[row+1] = placeMiningViewportLine(scannerLine, width, 2, border)
+	}
+
 	sprite := asteroidSprites[run.AsteroidSprite%len(asteroidSprites)]
 	pointAt := make(map[[2]int]sim.PressurePointStatus, len(run.PressurePoints))
 	for _, point := range run.PressurePoints {
@@ -287,20 +326,28 @@ func (g *Game) renderAsteroidField(st *sim.State, run *sim.ActiveRun, height int
 		pointAt[[2]int{anchor.row, anchor.col}] = point.Status
 	}
 	active := run.SkillCheck != nil
-	startRow := max(0, (innerH-len(sprite))/2)
-	for row := 0; row < innerH; row++ {
-		body := ""
-		artRow := row - startRow
-		if artRow >= 0 && artRow < len(sprite) {
-			body = g.renderAsteroidArt(sprite[artRow], artRow, pointAt, st.Settings.ReducedMotion)
-		}
-		pad := max(0, (innerW-visibleWidth(body))/2)
-		body = strings.Repeat(" ", pad) + body
-		body += strings.Repeat(" ", max(0, innerW-visibleWidth(body)))
-		lines = append(lines, border.Render("│")+body+border.Render("│"))
+	scannerH := len(strings.Split(g.renderPirateRadar(run), "\n"))
+	artStart := scannerH + 2
+	if available := height - 1 - artStart - len(sprite); available > 0 {
+		artStart += available / 2
 	}
-	lines = append(lines, border.Render("╰")+border.Render(strings.Repeat("─", innerW))+border.Render("╯"))
+	for artRow, raw := range sprite {
+		row := artStart + artRow
+		if row >= height-2 {
+			break
+		}
+		art := g.renderAsteroidArt(raw, artRow, pointAt, st.Settings.ReducedMotion)
+		lines[row] = placeMiningViewportLine(art, width, max(0, (innerW-visibleWidth(art))/2), border)
+	}
 	return strings.Join(lines, "\n"), active
+}
+
+func placeMiningViewportLine(content string, width, desiredPad int, border lipgloss.Style) string {
+	innerW := width - 2
+	pad := min(max(0, desiredPad), max(0, innerW-visibleWidth(content)))
+	body := strings.Repeat(" ", pad) + content
+	body += strings.Repeat(" ", max(0, innerW-visibleWidth(body)))
+	return border.Render("│") + body + border.Render("│")
 }
 
 func (g *Game) renderAsteroidArt(line string, row int, points map[[2]int]sim.PressurePointStatus, reducedMotion bool) string {
