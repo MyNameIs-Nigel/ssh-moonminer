@@ -69,7 +69,7 @@ func (g *Game) helpLines() []string {
 			"Space or click a lit pressure point to fracture the asteroid",
 			"D drop cargo / R refuse if pirates demand tribute",
 			"F fight (armed ships only) instead of dropping or running",
-			"In combat: autocannons fire continuously; F fires manual weapons on the arc; B/Enter starts the escape burn",
+			"In combat: autocannons fire continuously; F fires Pulse Lasers on the arc; G fires guided missiles; B/Enter starts escape",
 			"No input once escaping unarmed — the ship flees or dies",
 			"Cargo stays in the top nav; watch the right-hand pirate scanner",
 		}

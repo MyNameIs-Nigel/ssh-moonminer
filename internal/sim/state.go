@@ -7,9 +7,9 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Version 6 moves hull and
-// fuel condition onto individual ships and fuel tanks.
-const StateVersion = 6
+// StateVersion is the current save schema version. Version 7 adds a dedicated
+// Jump Drive slot and converts legacy Mass Drivers into missile launchers.
+const StateVersion = 7
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -43,12 +43,15 @@ type TrackGrades struct {
 	Scanner   int `json:"scanner"`
 }
 
-// SlotDevice is one installed Utility/Weapon/Internal item and its grade
-// (0..5, E..S).
+// SlotDevice is one installed Utility/Weapon/Internal/Jump Drive item and
+// its grade (0..5, E..S).
 type SlotDevice struct {
 	ItemID   string `json:"item_id"`
 	Grade    int    `json:"grade"`
 	EMPArmed bool   `json:"emp_armed,omitempty"`
+	// Missiles is the loaded ammunition for a Missile Launcher. It is ignored
+	// for every other device and is refilled when the fitted ship docks.
+	Missiles int `json:"missiles,omitempty"`
 	// Fuel belongs to an Extra Fuel Tank, never to a generic pilot pool.
 	// It is ignored for all other device types.
 	Fuel float64 `json:"fuel,omitempty"`
@@ -57,7 +60,7 @@ type SlotDevice struct {
 // ShipInstance is one owned, persistent hangar ship: its model, its own
 // stat grades, and its own slot loadout. Utility/Weapon slices are
 // fixed-length (model.UtilitySlots/WeaponSlots) with nil entries for empty
-// slots; Internal is always exactly one slot per ship.
+// slots; Internal and JumpDrive are each exactly one slot per ship.
 type ShipInstance struct {
 	ModelID string `json:"model_id"`
 	// Hull and BaseFuel are physical condition on this specific hull. Extra
@@ -65,10 +68,11 @@ type ShipInstance struct {
 	Hull     int     `json:"hull"`
 	BaseFuel float64 `json:"base_fuel"`
 
-	Grades   TrackGrades   `json:"grades"`
-	Utility  []*SlotDevice `json:"utility,omitempty"`
-	Weapon   []*SlotDevice `json:"weapon,omitempty"`
-	Internal *SlotDevice   `json:"internal,omitempty"`
+	Grades    TrackGrades   `json:"grades"`
+	Utility   []*SlotDevice `json:"utility,omitempty"`
+	Weapon    []*SlotDevice `json:"weapon,omitempty"`
+	Internal  *SlotDevice   `json:"internal,omitempty"`
+	JumpDrive *SlotDevice   `json:"jump_drive,omitempty"`
 
 	// JammerCharges is how many more asteroids this run's Pirate Jammer
 	// internal module can suppress before it must be rearmed at dock.
@@ -229,6 +233,10 @@ type CombatState struct {
 	Heat     float64 `json:"heat"`
 	// LockRemaining > 0 means weapons are overheat-locked.
 	LockRemaining float64 `json:"lock_remaining"`
+	// MissileCooldown is independent of the laser heat capacitor. It is
+	// transient with the combat encounter, while ammunition lives on the
+	// fitted launcher device.
+	MissileCooldown float64 `json:"missile_cooldown"`
 	// Phase1/Phase2 are maneuver phase offsets rolled once at combat start.
 	Phase1 float64 `json:"phase1"`
 	Phase2 float64 `json:"phase2"`
@@ -569,6 +577,14 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 		}
 		syncActiveConditionMirror(&s, c)
 	}
+	if savedVersion < 7 {
+		migrateUpgradeRework(&s, c)
+	} else {
+		for shipID := range s.Ships {
+			normalizeShipMissiles(&s, c, shipID)
+		}
+	}
+	syncActiveConditionMirror(&s, c)
 	return &s, nil
 }
 
@@ -620,6 +636,44 @@ func migrateEMPLaunchers(s *State) {
 			migrateDevice(d)
 		}
 		migrateDevice(ship.Internal)
+	}
+	for _, d := range s.Inventory {
+		migrateDevice(d)
+	}
+}
+
+// migrateUpgradeRework keeps v6 loadouts usable after the v1.6.1 equipment
+// changes. A legacy Mass Driver becomes a loaded Missile Launcher, while an
+// old Internal-slot Jump Drive moves to its permanent dedicated slot. The
+// defensive inventory fallback preserves a corrupted duplicate instead of
+// silently overwriting either device.
+func migrateUpgradeRework(s *State, c *content.Content) {
+	migrateDevice := func(d *SlotDevice) {
+		if d != nil && d.ItemID == legacyItemMassDriver {
+			d.ItemID = ItemMissileLauncher
+			d.Missiles = MissileCapacity(c, d.Grade)
+		}
+	}
+	for shipID, ship := range s.Ships {
+		if ship == nil {
+			continue
+		}
+		for _, d := range ship.Utility {
+			migrateDevice(d)
+		}
+		for _, d := range ship.Weapon {
+			migrateDevice(d)
+		}
+		migrateDevice(ship.JumpDrive)
+		if ship.Internal != nil && ship.Internal.ItemID == ItemJumpDrive {
+			if ship.JumpDrive == nil {
+				ship.JumpDrive, ship.Internal = ship.Internal, nil
+			} else {
+				s.Inventory = append(s.Inventory, ship.Internal)
+				ship.Internal = nil
+			}
+		}
+		RearmMissilesForShip(s, c, shipID)
 	}
 	for _, d := range s.Inventory {
 		migrateDevice(d)

@@ -229,30 +229,32 @@ installed):
 
 | Track | Effect at grade *g* (0..5) |
 | --- | --- |
-| **Thrusters** | Escape-time multiplier `0.94^g` (S = ~27% faster escape) |
+| **Thrusters** | Escape-time multiplier `0.88^g` (S = ~47% faster escape before mass effects) |
 | **Hull** | Max hull pool `100 + 20*g` (S = 200, double the starter pool) |
 | **Fuel Efficiency** | Fuel-drain multiplier `0.92^g` (S = ~34% less fuel burn) |
 | **Power Generator** | Power capacity `10 + 8*g` (E=10 … S=50) |
-| **Scanner** | Distance lock `min(10, 4 + 2*g)` km (B already reaches the 10km belt max); at grade **A/S** additionally narrows pirate ETA uncertainty by an extra 5 percentage points per grade beyond B, mirroring the retired Surveyor's ETA effect |
+| **Scanner** | Distance lock `min(10, 4 + 2*g)` km (B already reaches the 10km belt max), scan-time multiplier `0.80^g`, and the existing A/S pirate-ETA narrowing. An **S** scanner resolves scans strictly under 2km instantly (the normal scan fuel cost still applies). |
 
 ### Slots, power, and mass
 
-Every ship has three slot *kinds*. Utility and Weapon slot **counts** are
-per-ship (table above); Internal is always exactly **one** slot on every ship
-— it holds a single swappable core module.
+Every ship has four slot *kinds*. Utility and Weapon slot **counts** are
+per-ship; Internal and the dedicated Jump Drive slot are each exactly **one**
+slot on every ship. The Jump Drive no longer competes with core equipment.
 
 - **Utility slot** — Extra Cargo, Extra Fuel Tank, Shield, **Seismic
   Overcharge**, EMP Launcher.
-- **Weapon slot** — Defense Turret (only item today; not every ship has this
-  slot at all).
-- **Internal slot** — exactly one of: Seismic Sensors, Jump Drive,
-  Fuel Miner, Pirate Jammer, Heat Sink. Swapping the installed module is a
+- **Weapon slot** — Autocannon Turret, Missile Launcher, Pulse Laser (not
+  every ship has this slot at all).
+- **Internal slot** — exactly one of: Seismic Sensors, Fuel Miner, Pirate
+  Jammer, Heat Sink. Swapping the installed module is a
   docked action like any other slot change.
+- **Jump Drive slot** — Jump Drive only. It is a docked, swappable route key
+  that leaves the Internal slot free.
 
 **Power.** A ship's Power Generator grade sets its power *capacity*
 (`10 + 8*g`, above). Every installed device draws power **except** Extra Cargo
-and Extra Fuel Tank, which are pure structural additions with zero power draw
-— this is the one explicit exception in "every slot costs power." The sum of
+and Extra Fuel Tank, which are pure structural additions with zero power draw;
+the unpowered Jump Drive is the other explicit exception. The sum of
 all installed devices' power draw must never exceed the ship's capacity;
 installing a device that would exceed capacity is rejected outright (no
 brownout mechanic — the shipyard simply won't let you equip it until you free
@@ -264,16 +266,17 @@ powerCost(deviceType, grade) = round(k[deviceType] * (grade+1)^1.5)
 
 | Device | k | Power cost by grade (E,D,C,B,A,S) |
 | --- | --- | --- |
-| Shield | 2.7 | 3, 8, 14, 22, 30, 40 |
+| Shield | 2.0 | 2, 6, 10, 16, 22, 29 |
 | EMP Launcher | 0.6 | 1, 2, 3, 5, 7, 9 |
-| Defense Turret | 1.6 | 2, 5, 8, 13, 18, 24 |
+| Autocannon Turret | 2.0 | 2, 6, 10, 16, 22, 29 |
+| Missile Launcher | 2.2 | 2, 8, 11, 18, 25, 32 |
 | Seismic Sensors / Fuel Miner / Pirate Jammer / Heat Sink | 1.0 | 1, 3, 5, 8, 11, 15 |
 | Seismic Overcharge | 2.2 | 2, 6, 11, 18, 25, 36 |
-| Extra Cargo / Extra Fuel Tank | — | 0 at every grade |
+| Extra Cargo / Extra Fuel Tank / Jump Drive | — | 0 at every grade |
 
 A fully-upgraded MULE (Power Generator A = 42 capacity) can run an S-grade
-Shield (40) alone, or comfortably mix a B-grade Shield (22) with a B-grade
-Turret (13) and an E-grade internal module (1) at 36/42 — but never an S
+Shield (29) alone, or comfortably mix a B-grade Shield (16) with a B-grade
+Autocannon (16) and an E-grade internal module (1) at 33/42 — but never an S
 Shield *and* anything else. This is the intended "opt for more cargo instead
 of a better weapon" tension: Extra Cargo costs mass but no power, so it's
 always available headroom once the power-hungry choice is made.
@@ -291,7 +294,9 @@ mass(deviceType, grade) = massPerGrade[deviceType] * (grade + 1)
 | Seismic Overcharge | 9 |
 | Extra Cargo | 6 |
 | Extra Fuel Tank | 5 |
-| Defense Turret | 7 |
+| Autocannon Turret | 7 |
+| Missile Launcher | 10 |
+| Pulse Laser | 5 |
 | Internal modules | 4 |
 | EMP Launcher | 2 |
 
@@ -319,15 +324,17 @@ round(itemBase * 2.2^grade)`.
 | --- | --- | --- | --- |
 | **Extra Cargo** | Utility | 300 | Cargo capacity `+15*(g+1)` |
 | **Extra Fuel Tank** | Utility | 350 | Fuel capacity `+10*(g+1)` |
-| **Shield** | Utility | 900 | Absorbs `20*(g+1)` pirate-attack damage before hull itself takes damage. Its blue charge overlays the hull bar and recharges in the belt between runs: E takes 90s from empty, S takes 15s (linear between grades). A shield that fully bursts returns with only a 25% emergency charge and `DAMAGED` status until dock service restores it to 100%. |
+| **Shield** | Utility | 900 | Absorbs `30*(g+1)` pirate-attack damage before hull itself takes damage. Its reduced power draw is `2.0*(g+1)^1.5`, rounded. Its blue charge overlays the hull bar and recharges in the belt between runs: E takes 90s from empty, S takes 15s (linear between grades). A shield that fully bursts returns with only a 25% emergency charge and `DAMAGED` status until dock service restores it to 100%. |
 | **Seismic Overcharge** | Utility | 1,300 | Unique, one per ship. Raises drill speed from `1.45x` at E to `2.20x` at S. It uses mass-driver-class power (2–36) and `9*(g+1)` mass, so high-grade rigs compete directly with shields/weapons for generator capacity and worsen fuel/escape mass penalties. |
 | **EMP Launcher** | Utility | 250 | Auto-deploys when pirates arrive, delaying their action while mining continues. E delays them 1 second and S 10 seconds (linearly between grades). Each launcher is spent after deployment until docked; only one launcher may deploy per asteroid run, choosing the highest-grade armed launcher first. |
-| **Defense Turret** | Weapon | 700 | Reduces `AttackHullDamagePerSecond` by `8%*(g+1)` (cumulative multiplier `1 - 0.08*(g+1)`) |
+| **Autocannon Turret** | Weapon | 700 | Fires continuously at `0.82` shots/s for `8 + 3g` deterministic damage per shot. Its higher `2.0` power coefficient is the counterweight to passive damage. |
+| **Missile Launcher** | Weapon | 1,100 | Replaces the Mass Driver. G fires one guided, **100% accurate** missile for `60 + 20g` damage. Each launcher holds E..S magazines of `3, 4, 6, 7, 9, 10`; it has a 2s launcher-only cooldown, no heat cost, and refills at dock. If several launchers are fitted, G consumes the highest-grade loaded launcher first. |
+| **Pulse Laser** | Weapon | 900 | F fires all fitted Pulse Lasers as one heat-limited, firing-solution volley: `5 + 2g` damage, 12 heat, +0.10 solution bonus per laser. |
 | **Seismic Sensors** | Internal | 600 | 3 random *in-range* belt asteroids (respects the ship's own Scanner lock — this is a free convenience pre-scan, not a way to see past it) arrive pre-scanned at zero fuel cost; at grade C+ at least one of the 3 is guaranteed Uncommon+, at grade A+ at least one is guaranteed Rare+ |
 | **Fuel Miner** | Internal | 750 | Reveals a separate 33%-by-content fuel-vein roll after lock (unrelated to rarity or distance). On a vein, E restores exactly active drill fuel consumption; each grade above E adds `0.25×` the burn as net fuel, capped by tank capacity. |
-| **Pirate Jammer** | Internal | 850 | Consumes one charge at lock and suppresses pirate approach for 10 seconds. The radar shows the exact `JAMMED` countdown, then reveals the ordinary fuzzed ETA when suppression expires. Docking rearms it; switching ships does not. Grade C+ grants `1 + floor(g/2)` charges per dock visit. |
+| **Pirate Jammer** | Internal | 850 | Consumes one charge at lock and suppresses pirate approach for E..S durations `3, 5, 8, 12, 15, 25` seconds. The radar shows the exact `JAMMED` countdown, then reveals the ordinary fuzzed ETA when suppression expires. Docking rearms it; switching ships does not. Grade C+ grants `1 + floor(g/2)` charges per dock visit. |
 | **Heat Sink** | Internal | 1,000 | Raises the shared manual-weapon heat capacity by `25*(g+1)` above the base 100, allowing longer volleys before overheat lock. It does not change heat decay. |
-| **Jump Drive** | Internal | 25,000 | Opens Eridani Drift while installed. It draws no power, but occupies the ship's sole Internal slot; removing it locks the route again. |
+| **Jump Drive** | Dedicated Jump Drive | 25,000 | Opens Eridani Drift while installed. It draws no power and occupies only its dedicated slot; removing it locks the route again. |
 
 ### Buyback
 
@@ -348,7 +355,9 @@ Asteroids at or beyond the active ship's Scanner lock distance
 (`min(10, 4 + 2*grade)` km, see track table) cannot be scanned or targeted —
 the belt view renders them as an `OUT OF RANGE` contact instead of a normal
 one. This is a hard gate, not a fuel/time surcharge (which already exists via
-`scan_fuel_cost`/`scan_sec_per_km` for in-range contacts). A stock ship
+`scan_fuel_cost`/`scan_sec_per_km` for in-range contacts). Scanner grade also
+reduces scan time by `0.80^g`; S grade scans strictly under 2km immediately.
+A stock ship
 (Scanner grade E, 4km lock) cannot see roughly the far half of a belt
 (`distance_max` is 10km); grade B (8 or 10km, ship-dependent cap) opens
 essentially the whole belt.
@@ -409,7 +418,7 @@ gameplay/03's "Balance invariants" pattern):
    programmatically from the ship table (every row has at least two tracks
    capped below S).
 4. WARDEN with a maxed Power Generator (B = 34) cannot run two S-grade weapon
-   devices simultaneously even if it had two Turrets to install (24+24 > 34) —
+   devices simultaneously even if it had two Autocannons to install (29+29 > 34) —
    the power system meaningfully constrains double-stacking even the ship
    built for combat.
 5. Buyback price for every non-free ship is strictly less than 30% of its

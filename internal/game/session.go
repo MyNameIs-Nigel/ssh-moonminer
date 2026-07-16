@@ -136,11 +136,23 @@ func (s *Session) FightPirates(now int64) (Snapshot, error) {
 	})
 }
 
-// FireWeapons fires the pilot-triggered weapons in PhaseCombat. If the volley
+// FireWeapons fires the F-key Pulse Laser volley in PhaseCombat. If the volley
 // destroys the pirate, retain the immediate outcome for the TUI summary.
 func (s *Session) FireWeapons(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		out, err := sim.FireWeaponsWithOutcome(st, s.actor.content(), now)
+		if out != nil {
+			s.lastOutcome = out
+		}
+		return err
+	})
+}
+
+// FireMissile fires one G-key guided missile in PhaseCombat. Its ammunition
+// and cooldown are independent of the Pulse Laser heat capacitor.
+func (s *Session) FireMissile(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		out, err := sim.FireMissileWithOutcome(st, s.actor.content(), now)
 		if out != nil {
 			s.lastOutcome = out
 		}

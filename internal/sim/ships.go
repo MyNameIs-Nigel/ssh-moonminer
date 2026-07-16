@@ -440,6 +440,24 @@ func fuelEffMul(s *State, c *content.Content) float64 {
 	return math.Pow(c.Fleet.FuelEffMul, float64(inst.Grades.FuelEff))
 }
 
+// ScannerScanSeconds returns the active ship's sensor scan duration at a
+// distance. Every Scanner grade compounds the configured speed multiplier;
+// an S-grade scanner resolves contacts inside the configured instant range
+// immediately (the flat scan fuel cost still applies).
+func ScannerScanSeconds(s *State, c *content.Content, distanceKm float64) float64 {
+	if distanceKm <= 0 {
+		return 0
+	}
+	grade := 0
+	if inst := ActiveShip(s); inst != nil {
+		grade = clampInt(inst.Grades.Scanner, 0, MaxGrade)
+	}
+	if grade == MaxGrade && distanceKm < c.Fleet.ScannerInstantScanKm {
+		return 0
+	}
+	return distanceKm * c.Belt.ScanSecPerKm * math.Pow(c.Fleet.ScannerScanMul, float64(grade))
+}
+
 // ScannerLockKm returns the farthest distance the active ship's Scanner can
 // target: min(scanner_lock_max_km, base + per_grade*grade).
 func ScannerLockKm(s *State, c *content.Content) float64 {

@@ -13,6 +13,31 @@ spec separately.
 
 ## Goal
 
+### v1.6.1 equipment balance update
+
+This update supersedes the Mass Driver portions of this document and the
+single-manual-fire-key wording below:
+
+- Legacy `mass_driver` devices migrate at the same grade to
+  `missile_launcher`; installed and stored launchers begin with a full
+  magazine. The save schema is version 7.
+- **G** fires one guided Missile Launcher shot: it is a 100% hit, deals
+  `60 + 20*grade` damage, spends one missile, and begins a 2-second
+  launcher-only cooldown. It never uses the shared laser heat capacitor.
+  Each launcher carries E..S magazines of **3, 4, 6, 7, 9, 10** and fitted
+  launchers are reloaded at dock. With several fitted launchers, the
+  highest-grade loaded launcher fires first (fitted-slot order breaks ties).
+- **F** now fires only the heat- and solution-limited Pulse Laser volley, so a
+  ship can fit and independently use both weapon types. Autocannons remain
+  continuous and their higher 2.0 power coefficient is their balancing cost.
+- An installed Jump Drive migrates from Internal to a dedicated one-per-ship
+  Jump Drive slot. It still draws no power and still gates Eridani Drift, but
+  it no longer consumes the Internal slot.
+- Pirate Jammer suppression lasts E..S **3, 5, 8, 12, 15, 25 seconds**.
+
+The combat HUD renders missile ammunition, its cooldown, and the separate
+F/G controls; empty magazines explicitly direct the pilot to dock and reload.
+
 Turn pirates from anonymous flee-only pressure into **named ships with a
 price on their hull**. Every encounter rolls a specific pirate from a TOML
 roster — with hull, damage, maneuvering profile and a **bounty**. A ship with

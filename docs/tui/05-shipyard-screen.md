@@ -57,7 +57,7 @@ screen currently keeps to itself.
 ### Layout
 
 Three panels: a left **HANGAR** rail (owned ships + a switch/buy toggle), a
-center **LOADOUT** panel (the selected ship's track grades and three slot
+center **LOADOUT** panel (the selected ship's track grades and four slot
 groups), and a right **STATUS** rail (power meter, mass meter, credits,
 buyback prompt if the selected ship is currently destroyed-and-buyable). This
 is a genuinely different layout from the chart's two-column world-list/
@@ -76,6 +76,7 @@ services split — that's the point of giving it its own screen.
 │                       ││ WEAPON  1  [ TURRET    ●●●○○ B ]  ⚡13   ││          │
 │                       ││ WEAPON  2  [ empty            ]         ││          │
 │                       ││ INTERNAL   [ FUEL MINER ●●○○○ C ]  ⚡5   ││          │
+│                       ││ JUMP DRIVE [ empty            ]         ││          │
 └───────────────────────┘└──────────────────────────────────────────┘└──────────┘
  ↑/↓ SHIP · TAB PANE · ←/→ SELECT · ENTER BUY/EQUIP · B BUY SHIP · Q CHART ─ █
 ```
@@ -89,10 +90,13 @@ services split — that's the point of giving it its own screen.
   rebuyable at a discount."
 - **LOADOUT panel** title bar shows the selected ship's name/brand/class.
   Five track rows (grade dots at fixed width 5, current letter, price or
-  `MAXED` at cap) followed by the three slot groups. Utility/Weapon row count
+  `MAXED` at cap) followed by the four slot groups. Utility/Weapon row count
   matches that ship's slot counts (table in gameplay/05); a ship with zero
   weapon slots (any Miner) omits the WEAPON rows entirely rather than showing
   them disabled — Miners simply don't have that row.
+- Every ship also has a single **JUMP DRIVE** row after **INTERNAL**. Its
+  picker contains only Jump Drives, making route progression visible without
+  forcing a choice against sensors, fuel mining, jamming, or a heat sink.
 - Each installed slot row shows item name, its own grade dots, and its power
   draw (`⚡14`) except Extra Cargo/Extra Fuel Tank, which show a capacity
   value instead of a power glyph (they cost none — make that visually obvious,
@@ -117,7 +121,7 @@ services split — that's the point of giving it its own screen.
 - In LOADOUT: `↑/↓` selects a track or slot row; `Enter`/`→` on a track row
   buys the next grade (present-but-disabled at cap, rendered `MAXED`);
   `Enter` on a slot row opens an item picker overlay scoped to that slot kind
-  (Utility/Weapon/Internal): every catalog item with an adjustable grade
+  (Utility/Weapon/Internal/Jump Drive): every catalog item with an adjustable grade
   cursor (`←/→` changes grade, showing that grade's price/power live), plus
   a separate "in storage" section listing any device previously removed via
   `[X] REMOVE`'s **Store** choice (free to re-equip — already paid for).

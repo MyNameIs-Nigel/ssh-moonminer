@@ -56,6 +56,8 @@ func pickerRowLabel(row shipyardRow) string {
 		return fmt.Sprintf("UTILITY %d", row.index+1)
 	case rowWeapon:
 		return fmt.Sprintf("WEAPON %d", row.index+1)
+	case rowJumpDrive:
+		return "JUMP DRIVE"
 	default:
 		return "INTERNAL"
 	}

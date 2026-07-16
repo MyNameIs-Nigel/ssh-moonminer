@@ -29,6 +29,7 @@ const (
 	rowUtility
 	rowWeapon
 	rowInternal
+	rowJumpDrive
 )
 
 type shipyardRow struct {
@@ -45,6 +46,8 @@ func (row shipyardRow) slotKind() sim.SlotKind {
 		return sim.SlotUtility
 	case rowWeapon:
 		return sim.SlotWeapon
+	case rowJumpDrive:
+		return sim.SlotJumpDrive
 	default:
 		return sim.SlotInternal
 	}
@@ -55,7 +58,7 @@ var shipyardTracks = []sim.Track{
 }
 
 func shipyardRows(model *content.ShipModel) []shipyardRow {
-	rows := make([]shipyardRow, 0, 5+model.UtilitySlots+model.WeaponSlots+1)
+	rows := make([]shipyardRow, 0, 5+model.UtilitySlots+model.WeaponSlots+2)
 	for _, t := range shipyardTracks {
 		rows = append(rows, shipyardRow{kind: rowTrack, track: t})
 	}
@@ -66,6 +69,7 @@ func shipyardRows(model *content.ShipModel) []shipyardRow {
 		rows = append(rows, shipyardRow{kind: rowWeapon, index: i})
 	}
 	rows = append(rows, shipyardRow{kind: rowInternal})
+	rows = append(rows, shipyardRow{kind: rowJumpDrive})
 	return rows
 }
 
@@ -143,9 +147,13 @@ func (g *Game) shipyardSlotTarget(inst *sim.ShipInstance, row shipyardRow) (sim.
 		if inst != nil && row.index < len(inst.Weapon) {
 			current = inst.Weapon[row.index]
 		}
-	default:
+	case rowInternal:
 		if inst != nil {
 			current = inst.Internal
+		}
+	case rowJumpDrive:
+		if inst != nil {
+			current = inst.JumpDrive
 		}
 	}
 	items := sim.SlotItemsFor(kind)
@@ -259,6 +267,8 @@ func slotDeviceAt(inst *sim.ShipInstance, row shipyardRow) *sim.SlotDevice {
 		}
 	case rowInternal:
 		return inst.Internal
+	case rowJumpDrive:
+		return inst.JumpDrive
 	}
 	return nil
 }
@@ -367,7 +377,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			theme.DimStyle.Render("New hull starts fully serviced."),
 			theme.DimStyle.Render("Purchase does not switch ships."),
 			"",
-			fmt.Sprintf("SLOTS  U%d  W%d  I1", model.UtilitySlots, model.WeaponSlots),
+			fmt.Sprintf("SLOTS  U%d  W%d  I1  J1", model.UtilitySlots, model.WeaponSlots),
 		}, "\n")
 		return loadout, status
 	}
@@ -420,6 +430,18 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			single = []*sim.SlotDevice{nil}
 		}
 		lines = append(lines, g.renderSlotRow(st, single, 0, rowIdx, "I"))
+		g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
+		rowIdx++
+	}
+	lines = append(lines, theme.DimStyle.Render("JUMP DRIVE"))
+	{
+		var single []*sim.SlotDevice
+		if inst.JumpDrive != nil {
+			single = []*sim.SlotDevice{inst.JumpDrive}
+		} else {
+			single = []*sim.SlotDevice{nil}
+		}
+		lines = append(lines, g.renderSlotRow(st, single, 0, rowIdx, "J"))
 		g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
 	}
 	loadoutBody := strings.Join(lines, "\n")

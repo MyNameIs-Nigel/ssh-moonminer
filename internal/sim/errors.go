@@ -42,6 +42,9 @@ var (
 	ErrDuplicateItem    = errors.New("that module is already installed on this ship")
 
 	// Combat errors (gameplay/07-pirate-combat-and-bounties.md).
-	ErrNoWeaponInstalled = errors.New("no weapon installed")
-	ErrWeaponsLocked     = errors.New("weapons overheated — locked")
+	ErrNoWeaponInstalled  = errors.New("no weapon installed")
+	ErrWeaponsLocked      = errors.New("weapons overheated — locked")
+	ErrNoMissileLauncher  = errors.New("no missile launcher installed")
+	ErrNoMissiles         = errors.New("missiles depleted — dock to reload")
+	ErrMissileCoolingDown = errors.New("missile launcher cooling down")
 )

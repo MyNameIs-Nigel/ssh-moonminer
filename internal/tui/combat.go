@@ -85,10 +85,16 @@ func (g *Game) keyCombat(m tea.KeyPressMsg) []tea.Cmd {
 	}
 	switch k {
 	case "f":
-		if !sim.HasManualWeapon(&g.snap.State) {
+		if !sim.HasPulseLaser(&g.snap.State) {
 			return nil
 		}
 		snap, err := g.sess.FireWeapons(g.now)
+		return g.refreshSnap(snap, err)
+	case "g":
+		if !sim.HasMissileLauncher(&g.snap.State) {
+			return nil
+		}
+		snap, err := g.sess.FireMissile(g.now)
 		return g.refreshSnap(snap, err)
 	case "b", "esc", "enter":
 		snap, err := g.sess.CombatEscape(g.now)
@@ -143,15 +149,17 @@ func (g *Game) renderCombatScope(cs *sim.CombatState) string {
 
 // renderCombat draws the tactical-scope combat screen shown for the
 // duration of ActiveRun.Phase == PhaseCombat, replacing the escape-burn
-// screen. Autocannons track and damage the pirate continuously; mass drivers
-// and pulse lasers keep the manual firing controls. Weaponless ships see only
-// the escape-burn option.
+// screen. Autocannons track continuously; Pulse Lasers use F and guided
+// Missile Launchers use G. Weaponless ships see only the escape-burn option.
 func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	cs := run.Combat
 	if cs == nil {
 		return g.renderBelt()
 	}
-	manualArmed := sim.HasManualWeapon(st)
+	pulseArmed := sim.HasPulseLaser(st)
+	missileFitted := sim.HasMissileLauncher(st)
+	missileAmmo := sim.MissileAmmo(st)
+	missileCapacity := sim.MissileCapacityFor(st, g.content, st.ActiveShipID)
 	autocannonDPS := sim.AutocannonDamagePerSecond(st, g.content)
 
 	titleText := fmt.Sprintf("%s %s — BOUNTY %s %d — EST. ODDS %d%%",
@@ -181,11 +189,14 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		theme.Bright.Render("YOU"),
 		g.renderHullLine(st, hullPct, 16),
 	}
-	if manualArmed {
+	if pulseArmed {
 		statLines = append(statLines, heatLine)
 	}
 	if autocannonDPS > 0 {
 		statLines = append(statLines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON %.1f DPS", autocannonDPS)))
+	}
+	if missileFitted {
+		statLines = append(statLines, theme.Red.Render(fmt.Sprintf("MISSILES %d/%d", missileAmmo, missileCapacity)))
 	}
 	statLines = append(statLines,
 		"",
@@ -201,9 +212,9 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	if autocannonDPS > 0 {
 		lines = append(lines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON ONLINE — CONSTANT DAMAGE %.1f DPS", autocannonDPS)))
 	}
-	if manualArmed {
+	if pulseArmed {
 		solutionText := fmt.Sprintf("SOLUTION %3.0f%%", cs.Solution*100)
-		fireLabel := "[F] FIRE"
+		fireLabel := "[F] FIRE PULSE"
 		switch {
 		case cs.LockRemaining > 0:
 			fireLabel = theme.DimStyle.Render(fireLabel + " — LOCKED")
@@ -215,7 +226,25 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		fireLine := fireLabel + "   " + theme.TxtStyle.Render(solutionText)
 		lines = append(lines, fireLine)
 		g.hitBodyLine(len(lines)-1, 1, fireLine, "btn:combat:fire", nil)
-	} else if autocannonDPS <= 0 {
+	}
+	if missileFitted {
+		missileLabel := "[G] FIRE MISSILE"
+		status := fmt.Sprintf("GUIDED 100%% · %d/%d", missileAmmo, missileCapacity)
+		switch {
+		case missileAmmo == 0:
+			missileLabel = theme.DimStyle.Render(missileLabel + " — RELOAD AT DOCK")
+		case cs.MissileCooldown > 0:
+			missileLabel = theme.DimStyle.Render(fmt.Sprintf("%s — COOLDOWN %.1fs", missileLabel, cs.MissileCooldown))
+		default:
+			missileLabel = theme.Red.Render(missileLabel)
+		}
+		missileLine := missileLabel + "   " + theme.TxtStyle.Render(status)
+		lines = append(lines, missileLine)
+		if missileAmmo > 0 && cs.MissileCooldown <= 0 {
+			g.hitBodyLine(len(lines)-1, 1, missileLine, "btn:combat:missile", nil)
+		}
+	}
+	if !pulseArmed && !missileFitted && autocannonDPS <= 0 {
 		banner := "NO WEAPONS — ESCAPE BURN RUNNING"
 		if !cs.EscapeStarted {
 			banner = "NO WEAPONS — PRESS B TO RUN"
@@ -273,13 +302,24 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	}
 
 	hint := "B BAIL"
-	if manualArmed {
-		hint = "F FIRE · B BAIL"
+	if pulseArmed {
+		hint = "F PULSE · B BAIL"
+	}
+	if missileFitted {
+		if pulseArmed {
+			hint = "F PULSE · G MISSILE · B BAIL"
+		} else {
+			hint = "G MISSILE · B BAIL"
+		}
 	}
 	if cs.EscapeStarted {
 		hint = "ESCAPE BURN RUNNING"
-		if manualArmed {
-			hint = "F FIRE · ESCAPE BURN RUNNING"
+		if pulseArmed && missileFitted {
+			hint = "F PULSE · G MISSILE · ESCAPE BURN RUNNING"
+		} else if pulseArmed {
+			hint = "F PULSE · ESCAPE BURN RUNNING"
+		} else if missileFitted {
+			hint = "G MISSILE · ESCAPE BURN RUNNING"
 		}
 	}
 	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)

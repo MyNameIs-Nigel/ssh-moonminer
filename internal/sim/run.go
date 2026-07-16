@@ -99,7 +99,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	}
 	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
 		inst.JammerCharges--
-		s.Run.JammerRemaining = c.Slots.JammerDurationSeconds
+		s.Run.JammerRemaining = JammerDurationSeconds(c, inst.Internal.Grade)
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
@@ -144,10 +144,14 @@ func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 		return ErrInsufficientFuel
 	}
 	ConsumeFuel(s, c, cost)
-	s.Scan = &ActiveScan{
-		AsteroidID: asteroidID,
-		Duration:   ast.Distance * c.Belt.ScanSecPerKm,
+	duration := ScannerScanSeconds(s, c, ast.Distance)
+	if duration <= 0 {
+		// An S scanner's close-range instant scan must complete in the same
+		// intent, not wait for the actor's next 250 ms tick.
+		ast.Scanned = true
+		return nil
 	}
+	s.Scan = &ActiveScan{AsteroidID: asteroidID, Duration: duration}
 	return nil
 }
 
