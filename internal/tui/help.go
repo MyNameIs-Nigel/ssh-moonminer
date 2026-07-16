@@ -69,7 +69,7 @@ func (g *Game) helpLines() []string {
 			"Space or click the gauge to hit a drill calibration check",
 			"D drop cargo / R refuse if pirates demand tribute",
 			"F fight (armed ships only) instead of dropping or running",
-			"In combat: F fire on the pirate's arc, B/Enter starts the escape burn",
+			"In combat: autocannons fire continuously; F fires manual weapons on the arc; B/Enter starts the escape burn",
 			"No input once escaping unarmed — the ship flees or dies",
 			"Watch resource, hull, fuel, and the pirate radar/ETA widget",
 		}

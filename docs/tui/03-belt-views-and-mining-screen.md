@@ -94,6 +94,8 @@ just renders the latest.
   per-run cosmetic bearing as `PirateDistance` closes. Above the scope, a
   fuzzed `PIRATE ETA ~min-maxs` range — narrowed by high Scanner grades
   (gameplay/05, superseding the old Surveyor track),
+  replaced with the exact `JAMMED <seconds>` equipment countdown while a
+  Pirate Jammer is suppressing approach, then restored when suppression ends,
   replaced with `CONTACT LOST — NO ETA` while a `radar_blackout` event is
   active. The true distance/arrival time is never rendered as an exact
   number anywhere on this screen.

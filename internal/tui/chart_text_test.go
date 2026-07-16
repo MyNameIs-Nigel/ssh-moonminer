@@ -61,6 +61,34 @@ func TestChartFootersShareTheBottomRow(t *testing.T) {
 	}
 }
 
+func TestChartMarksOnlyCurrentSystemWithSolidDiamond(t *testing.T) {
+	g := newChartGame(t, 80, 24)
+	out := ansi.Strip(g.renderChart())
+	if !strings.Contains(out, "◆ SOL") || !strings.Contains(out, "◇ ERIDANI DRIFT") {
+		t.Fatalf("chart did not distinguish the current system:\n%s", out)
+	}
+
+	g.snap.State.SystemID = "eridani"
+	out = ansi.Strip(g.renderChart())
+	if !strings.Contains(out, "◇ SOL") || !strings.Contains(out, "◆ ERIDANI DRIFT") {
+		t.Fatalf("chart did not move the current-system marker:\n%s", out)
+	}
+}
+
+func TestPirateRadarShowsJammerCountdownBeforeETA(t *testing.T) {
+	g := newChartGame(t, 80, 24)
+	run := &sim.ActiveRun{JammerRemaining: 7.6, PirateETAMin: 4, PirateETAMax: 8}
+	out := ansi.Strip(g.renderPirateRadar(run))
+	if !strings.Contains(out, "JAMMED 8s") || strings.Contains(out, "PIRATE ETA") {
+		t.Fatalf("jammed radar should hide ETA behind its countdown:\n%s", out)
+	}
+	run.JammerRemaining = 0
+	out = ansi.Strip(g.renderPirateRadar(run))
+	if !strings.Contains(out, "PIRATE ETA ~4-8s") {
+		t.Fatalf("radar should reveal ETA after jammer expiry:\n%s", out)
+	}
+}
+
 func TestWideCockpitCentersAndOffsetsHitboxes(t *testing.T) {
 	g := newChartGame(t, 180, 24)
 	g.View()

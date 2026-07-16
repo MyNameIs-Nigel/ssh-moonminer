@@ -92,14 +92,17 @@ func TestEquipmentDuplicatesAndTurretsHaveDefinedEffects(t *testing.T) {
 	}
 	s.Ships["warden"].Weapon[0] = &sim.SlotDevice{ItemID: sim.ItemTurret, Grade: 0}
 	s.Ships["warden"].Weapon[1] = &sim.SlotDevice{ItemID: sim.ItemTurret, Grade: 0}
-	// Two installed turrets stack additively — the old per-shot mitigation
-	// multiplier was retired in favor of active weapons (gameplay/07).
+	// Two installed turrets stack additively. They continuously damage a
+	// pirate; they no longer add heat to the pilot-triggered weapon volley.
 	perTurret := c.Slots.TurretDamagePerShotBase
 	wantDmg := perTurret * 2
-	wantHeat := c.Slots.TurretHeatPerShot * 2
+	wantDPS := wantDmg * c.Slots.TurretShotsPerSecond
 	gotDmg, gotHeat, _ := sim.InstalledWeaponVolley(s, c)
-	if math.Abs(gotDmg-wantDmg) > 0.000001 || math.Abs(gotHeat-wantHeat) > 0.000001 {
-		t.Fatalf("two turret volley = dmg=%.6f heat=%.6f, want dmg=%.6f heat=%.6f", gotDmg, gotHeat, wantDmg, wantHeat)
+	if math.Abs(gotDmg-wantDmg) > 0.000001 || gotHeat != 0 {
+		t.Fatalf("two turret preview = dmg=%.6f heat=%.6f, want dmg=%.6f heat=0", gotDmg, gotHeat, wantDmg)
+	}
+	if got := sim.AutocannonDamagePerSecond(s, c); math.Abs(got-wantDPS) > 0.000001 {
+		t.Fatalf("two turret DPS = %.6f, want %.6f", got, wantDPS)
 	}
 }
 

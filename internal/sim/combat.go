@@ -162,31 +162,40 @@ func CombatEscape(s *State, c *content.Content, now int64) error {
 	return nil
 }
 
-// FireWeapons fires every installed weapon as one volley against the
-// current firing solution. Requires PhaseCombat, at least one installed
-// weapon, and an un-overheated capacitor.
+// FireWeapons fires the manually triggered weapons as one volley against the
+// current firing solution. Autocannon turrets fire continuously from
+// tickCombat instead. This compatibility wrapper discards a winning outcome;
+// game sessions use FireWeaponsWithOutcome so they can show the summary now.
 func FireWeapons(s *State, c *content.Content, now int64) error {
+	_, err := FireWeaponsWithOutcome(s, c, now)
+	return err
+}
+
+// FireWeaponsWithOutcome is FireWeapons plus the immediate run outcome when
+// its volley destroys the pirate.
+func FireWeaponsWithOutcome(s *State, c *content.Content, now int64) (*RunOutcome, error) {
 	run := s.Run
 	if run == nil {
-		return ErrNoActiveRun
+		return nil, ErrNoActiveRun
 	}
 	if run.Phase != PhaseCombat || run.Combat == nil {
-		return ErrInvalidRunPhase
+		return nil, ErrInvalidRunPhase
 	}
-	if !HasWeapon(s) {
-		return ErrNoWeaponInstalled
+	if !HasManualWeapon(s) {
+		return nil, ErrNoWeaponInstalled
 	}
 	cs := run.Combat
 	if cs.LockRemaining > 0 {
-		return ErrWeaponsLocked
+		return nil, ErrWeaponsLocked
 	}
-	damage, heat, _ := InstalledWeaponVolley(s, c)
+	damage, heat, _ := InstalledManualWeaponVolley(s, c)
 	cs.ShotsFired++
 	rng := runRNG(s, run, 10000+run.TickCount)
 	hit := rng.Float64() < cs.Solution
 	cs.Heat += heat
-	if cs.Heat >= c.Combat.HeatCapacity {
-		cs.Heat = c.Combat.HeatCapacity
+	heatCapacity := HeatCapacity(s, c)
+	if cs.Heat >= heatCapacity {
+		cs.Heat = heatCapacity
 		cs.LockRemaining = c.Combat.OverheatLockSeconds
 		cs.Log = prependCombatLog(cs.Log, "CAPACITORS OVERHEATED")
 	}
@@ -195,12 +204,12 @@ func FireWeapons(s *State, c *content.Content, now int64) error {
 		cs.PirateHull = math.Max(0, cs.PirateHull-damage)
 		cs.Log = prependCombatLog(cs.Log, fmt.Sprintf("Direct hit! %s hull -%.0f", cs.PirateName, damage))
 		if cs.PirateHull <= 0 {
-			winCombat(s, c, run, now)
+			return winCombat(s, c, run, now), nil
 		}
 	} else {
 		cs.Log = prependCombatLog(cs.Log, "Shot missed — solution too weak")
 	}
-	return nil
+	return nil, nil
 }
 
 const combatLogMaxLines = 6
@@ -213,15 +222,14 @@ func prependCombatLog(log []string, line string) []string {
 	return log
 }
 
-// winCombat resolves a destroyed pirate: the bounty becomes a voucher
-// immediately (it survives ship loss, unlike cargo), and combat ends either
-// back into mining (burn never started — the radar stays clear for the
-// rest of this run) or by dropping UnderAttack while an already-running
-// burn continues uninterrupted.
-func winCombat(s *State, c *content.Content, run *ActiveRun, now int64) {
+// winCombat resolves a destroyed pirate immediately. The bounty becomes a
+// voucher (it survives ship loss), the cargo is sealed, and the run summary
+// follows without returning to a mining phase that could trigger another
+// pirate action at distance zero.
+func winCombat(s *State, c *content.Content, run *ActiveRun, now int64) *RunOutcome {
 	cs := run.Combat
 	if cs == nil {
-		return
+		return nil
 	}
 	s.BountyVouchers += cs.Bounty
 	s.Stats.PiratesDestroyed++
@@ -229,26 +237,19 @@ func winCombat(s *State, c *content.Content, run *ActiveRun, now int64) {
 	run.PirateDestroyed = cs.PirateName
 	run.BountyEarned = cs.Bounty
 	run.EventLog = append(run.EventLog, RunEventRecord{Kind: "pirate_destroyed", At: now})
-	escapeStarted := cs.EscapeStarted
-	run.Combat = nil
-	run.UnderAttack = false
-	if escapeStarted {
-		run.Phase = PhaseEscaping
-	} else {
-		run.Phase = PhaseMining
-		run.PirateImmune = true
-	}
+	return resolveRun(s, c, OutcomePirateDestroyed, now)
 }
 
 // tickCombat advances one PhaseCombat tick: the pirate's maneuver (a pure,
 // deterministic function of TickCount so replay stays exact — no per-tick
 // RNG here), the firing solution, heat decay/lockout, incoming constant-
-// rate pirate damage, and — once Combat.EscapeStarted — the shared escape
-// burn bookkeeping from run.go's tickEscapeBurn.
-func tickCombat(s *State, c *content.Content, run *ActiveRun, dt float64) {
+// rate pirate damage, the always-on autocannon, and — once
+// Combat.EscapeStarted — the shared escape burn bookkeeping from run.go's
+// tickEscapeBurn. It returns a non-nil outcome when the autocannon wins.
+func tickCombat(s *State, c *content.Content, run *ActiveRun, dt float64, now int64) *RunOutcome {
 	cs := run.Combat
 	if cs == nil {
-		return
+		return nil
 	}
 	cc := c.Combat
 	hz := float64(c.Mining.TickHz)
@@ -265,19 +266,47 @@ func tickCombat(s *State, c *content.Content, run *ActiveRun, dt float64) {
 	arcHalf := math.Max(cc.ArcHalfWidth, 0.0001)
 	arcFactor := clamp(1-angDist01(cs.Bearing, cc.ArcCenter)/arcHalf, 0, 1)
 	rangeFactor := cc.SolutionRangeFloor + (1-cc.SolutionRangeFloor)*(1-cs.Range)
-	_, _, solutionBonus := InstalledWeaponVolley(s, c)
+	_, _, solutionBonus := InstalledManualWeaponVolley(s, c)
 	cs.Solution = clamp(arcFactor*rangeFactor+solutionBonus, 0, 1)
 
-	if dt > 0 {
-		cs.Heat = math.Max(0, cs.Heat-cc.HeatDecayPerSecond*dt)
-		cs.LockRemaining = math.Max(0, cs.LockRemaining-dt)
+	// A long tick (notably EmergencyResolve) still models the time until the
+	// first terminal combat event. That prevents an autocannon from granting a
+	// free win simply because a disconnect fast-forwarded past the point where
+	// the pirate would have kept firing or the escape burn would have finished.
+	autocannonDPS := AutocannonDamagePerSecond(s, c)
+	autocannonKillAt := math.Inf(1)
+	if autocannonDPS > 0 {
+		autocannonKillAt = math.Max(0, cs.PirateHull) / autocannonDPS
 	}
-
-	applyAttackDamageRate(s, c, run, cs.PirateDPS, dt)
-
+	escapeDoneAt := math.Inf(1)
 	if cs.EscapeStarted {
-		tickEscapeBurn(s, c, run, dt)
+		escapeDoneAt = math.Max(0, run.EscapeSecondsRequired-run.EscapeSecondsElapsed)
 	}
+	combatDT := math.Min(dt, math.Min(autocannonKillAt, escapeDoneAt))
+	if combatDT < 0 || math.IsNaN(combatDT) {
+		combatDT = 0
+	}
+
+	if combatDT > 0 {
+		cs.Heat = math.Max(0, cs.Heat-cc.HeatDecayPerSecond*combatDT)
+		cs.LockRemaining = math.Max(0, cs.LockRemaining-combatDT)
+		if autocannonDPS > 0 {
+			cs.PirateHull = math.Max(0, cs.PirateHull-autocannonDPS*combatDT)
+		}
+		applyAttackDamageRate(s, c, run, cs.PirateDPS, combatDT)
+		if cs.EscapeStarted {
+			tickEscapeBurn(s, c, run, combatDT)
+		}
+	}
+	if s.Hull <= 0 {
+		return nil
+	}
+	if autocannonKillAt <= dt && autocannonKillAt <= escapeDoneAt {
+		cs.PirateHull = 0
+		cs.Log = prependCombatLog(cs.Log, fmt.Sprintf("Autocannon destroyed %s", cs.PirateName))
+		return winCombat(s, c, run, now)
+	}
+	return nil
 }
 
 func wrap01(v float64) float64 {
@@ -309,12 +338,12 @@ func EstimateOdds(s *State, c *content.Content, p *content.Pirate) float64 {
 	cc := c.Combat
 	maneuver := math.Max(p.Maneuver, 0.01)
 	avgSol := clamp(cc.OddsAvgSolutionBase/maneuver, 0.15, 0.90)
-	volleyDmg, volleyHeat, _ := InstalledWeaponVolley(s, c)
-	if volleyDmg <= 0 || volleyHeat <= 0 || cc.HeatDecayPerSecond <= 0 {
-		return cc.OddsFloor
+	manualDmg, manualHeat, _ := InstalledManualWeaponVolley(s, c)
+	manualDPS := 0.0
+	if manualDmg > 0 && manualHeat > 0 && cc.HeatDecayPerSecond > 0 {
+		manualDPS = manualDmg * (cc.HeatDecayPerSecond / manualHeat) * avgSol
 	}
-	sustained := cc.HeatDecayPerSecond / volleyHeat
-	pDPS := volleyDmg * sustained * avgSol
+	pDPS := AutocannonDamagePerSecond(s, c) + manualDPS
 	if pDPS <= 0 {
 		return cc.OddsFloor
 	}

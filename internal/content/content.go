@@ -322,16 +322,15 @@ type SlotsConfig struct {
 	EMPLauncherDeployESeconds float64 `toml:"emp_launcher_deploy_e_seconds"`
 	EMPLauncherDeploySSeconds float64 `toml:"emp_launcher_deploy_s_seconds"`
 
-	// Weapon catalog (docs/gameplay/07-pirate-combat-and-bounties.md). All
-	// three install into the Weapon slot; damage/shot scales per grade,
-	// heat/shot and the solution accuracy bonus are grade-invariant.
-	TurretBasePrice               int     `toml:"turret_base_price"`
-	TurretPowerK                  float64 `toml:"turret_power_k"`
-	TurretMassPerGrade            float64 `toml:"turret_mass_per_grade"`
-	TurretDamagePerShotBase       float64 `toml:"turret_damage_per_shot_base"`
-	TurretDamagePerShotPerGrade   float64 `toml:"turret_damage_per_shot_per_grade"`
-	TurretHeatPerShot             float64 `toml:"turret_heat_per_shot"`
-	TurretSolutionBonus           float64 `toml:"turret_solution_bonus"`
+	// Weapon catalog (docs/gameplay/07-pirate-combat-and-bounties.md). The
+	// autocannon fires continuously; the mass driver and pulse laser use the
+	// player's manual, heat-limited volley.
+	TurretBasePrice             int     `toml:"turret_base_price"`
+	TurretPowerK                float64 `toml:"turret_power_k"`
+	TurretMassPerGrade          float64 `toml:"turret_mass_per_grade"`
+	TurretDamagePerShotBase     float64 `toml:"turret_damage_per_shot_base"`
+	TurretDamagePerShotPerGrade float64 `toml:"turret_damage_per_shot_per_grade"`
+	TurretShotsPerSecond        float64 `toml:"turret_shots_per_second"`
 
 	MassDriverBasePrice             int     `toml:"mass_driver_base_price"`
 	MassDriverPowerK                float64 `toml:"mass_driver_power_k"`
@@ -359,8 +358,12 @@ type SlotsConfig struct {
 	FuelMinerBasePct     float64 `toml:"fuel_miner_base_pct"`
 	FuelMinerPerGradePct float64 `toml:"fuel_miner_per_grade_pct"`
 
-	JammerBasePrice     int `toml:"jammer_base_price"`
-	JammerGradeUsesStep int `toml:"jammer_grade_uses_step"`
+	JammerBasePrice       int     `toml:"jammer_base_price"`
+	JammerGradeUsesStep   int     `toml:"jammer_grade_uses_step"`
+	JammerDurationSeconds float64 `toml:"jammer_duration_seconds"`
+
+	HeatSinkBasePrice        int     `toml:"heat_sink_base_price"`
+	HeatSinkCapacityPerGrade float64 `toml:"heat_sink_capacity_per_grade"`
 
 	JumpDriveBasePrice int `toml:"jump_drive_base_price"`
 }
@@ -641,6 +644,15 @@ func (c *Content) validateCombat() error {
 	}
 	if cc.OddsAvgSolutionBase <= 0 {
 		return fmt.Errorf("content: combat odds_avg_solution_base must be positive")
+	}
+	if c.Slots.TurretShotsPerSecond <= 0 {
+		return fmt.Errorf("content: slots turret_shots_per_second must be positive")
+	}
+	if c.Slots.JammerDurationSeconds <= 0 {
+		return fmt.Errorf("content: slots jammer_duration_seconds must be positive")
+	}
+	if c.Slots.HeatSinkCapacityPerGrade <= 0 {
+		return fmt.Errorf("content: slots heat_sink_capacity_per_grade must be positive")
 	}
 	return nil
 }

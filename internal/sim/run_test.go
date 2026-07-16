@@ -401,7 +401,7 @@ func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 // TestAttackDamagePerSecondUnmitigatedByTurret confirms the combat rework:
 // the Defense/Autocannon Turret no longer passively mitigates incoming
 // pirate damage (that job now belongs entirely to the Shield) — it became
-// an active weapon dealt with by FireWeapons/combat_test.go instead.
+// an always-firing weapon covered by combat_test.go instead.
 func TestAttackDamagePerSecondUnmitigatedByTurret(t *testing.T) {
 	c := testContent(t)
 	for _, grade := range []int{0, 1, 2, 3, 4} {
@@ -647,7 +647,7 @@ func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	}
 	// This test exercises cargo behavior only; a pirate interruption would
 	// make the timing unrelated to whether the hold is respected.
-	s.Run.PirateImmune = true
+	s.Run.PirateDistance = 1e9
 	cargoCap := sim.CargoCapacityUnits(s, c)
 	if cargoCap >= float64(ast.Volume) {
 		t.Fatalf("test setup invalid: cargo cap %v must be below asteroid volume %v", cargoCap, ast.Volume)
@@ -740,5 +740,28 @@ func TestJammerGradeCPlusGrantsExtraCharge(t *testing.T) {
 	sim.RearmJammer(s, c)
 	if got := s.Ships["cicada"].JammerCharges; got < 2 {
 		t.Fatalf("expected grade C (2) to already grant a second charge, got %d", got)
+	}
+}
+
+func TestJammerChargeStartsTimedSuppressionAtLock(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 1000)
+	s.Credits = 100000
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotInternal, 0, sim.ItemJammer, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
+	ast := s.Belt[0]
+	s.Belt[0].Scanned = true
+	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Run.JammerRemaining; got != c.Slots.JammerDurationSeconds {
+		t.Fatalf("jammer countdown = %.1f, want %.1f", got, c.Slots.JammerDurationSeconds)
+	}
+	if got := s.Ships["skiff"].JammerCharges; got != 0 {
+		t.Fatalf("jammer charges after lock = %d, want 0", got)
 	}
 }

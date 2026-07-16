@@ -280,9 +280,8 @@ type ActiveRun struct {
 	// against. Combat is nil until the pirate arrives.
 	PirateID string       `json:"pirate_id,omitempty"`
 	Combat   *CombatState `json:"combat,omitempty"`
-	// PirateDestroyed/BountyEarned carry a mid-run kill's result forward so
-	// resolveRun can record it on the eventual RunRecord even if mining
-	// continues (or another pirate encounter happens) before the run ends.
+	// PirateDestroyed/BountyEarned carry a combat win into the resulting run
+	// record and summary.
 	PirateDestroyed string `json:"pirate_destroyed,omitempty"`
 	BountyEarned    int    `json:"bounty_earned,omitempty"`
 	// PirateBearing is a cosmetic 0..1 direction rolled once at Lock, giving
@@ -328,9 +327,9 @@ type ActiveRun struct {
 	EMPDeployed  bool    `json:"emp_deployed"`
 	EMPActive    bool    `json:"emp_active"`
 	EMPRemaining float64 `json:"emp_remaining"`
-	// PirateImmune is set at Lock time when a Pirate Jammer charge was
-	// consumed for this asteroid — pirates never approach for the run.
-	PirateImmune bool `json:"pirate_immune"`
+	// JammerRemaining is the time left on the Pirate Jammer charge consumed
+	// at Lock. Pirate approach is suspended until it reaches zero.
+	JammerRemaining float64 `json:"jammer_remaining"`
 }
 
 // ActiveScan is an in-progress sensor scan (never persisted non-nil).

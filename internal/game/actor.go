@@ -100,12 +100,14 @@ func (a *actor) tick() {
 	a.dirty = true
 	snap := sim.Snapshot{State: *a.state.Clone()}
 	if a.session != nil {
+		// Store an ending outcome before the snapshot is delivered so its TUI
+		// handler can enter the summary in the same update cycle.
+		if ended && out != nil {
+			a.session.lastOutcome = out
+		}
 		select {
 		case a.session.snapCh <- snap:
 		default:
-		}
-		if ended && out != nil {
-			a.session.lastOutcome = out
 		}
 	}
 }

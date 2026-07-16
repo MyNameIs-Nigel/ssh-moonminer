@@ -206,30 +206,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if g.flash.expires > 0 && g.now >= g.flash.expires {
 			g.flash = flash{}
 		}
-		if out := g.sess.LastOutcome(); out != nil && g.scr == scrMining {
-			g.lastOutcome = out
-			if out.Kind == sim.OutcomeShipLost {
-				g.deathFrameText = ansi.Strip(g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen()))
-				g.deathFrame = 0
-				g.deathFlickerFrames = 12
-				if g.snap.State.Settings.ReducedMotion {
-					g.deathFlickerFrames = 0
-				}
-				g.scr = scrDeath
-				// The death screen bypasses overlay compositing entirely
-				// (see View()), but Update()'s key routing checks overlay
-				// state first — leaving one open here would swallow every
-				// keypress into a stale overlay handler and strand the
-				// player on "CONNECTION LOST" with no way to continue.
-				g.overlay = ovNone
-				if g.deathFlickerFrames > 0 {
-					cmds = append(cmds, deathTickCmd())
-				}
-			} else {
-				g.scr = scrSummary
-			}
-			g.sess.ClearOutcome()
-		}
+		cmds = append(cmds, g.consumeRunOutcome()...)
 		cmds = append(cmds, tickCmd())
 	case deathTickMsg:
 		if g.scr == scrDeath && g.deathFrame < g.deathFlickerFrames {
@@ -244,6 +221,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			g.scr = scrMining
 		}
 		cmds = append(cmds, g.syncCombatEntry()...)
+		cmds = append(cmds, g.consumeRunOutcome()...)
 		cmds = append(cmds, listenSnaps(g.sess))
 	case combatIntroDoneMsg:
 		g.combatIntroActive = false
@@ -376,6 +354,41 @@ func (g *Game) setFlash(text string) {
 	g.flash = flash{text: text, expires: g.now + 2}
 }
 
+// consumeRunOutcome moves a finished run directly to its summary. It is
+// called after both tick snapshots and player-triggered snapshots so a pirate
+// destroyed by an autocannon or a manual volley never briefly returns to the
+// mining view.
+func (g *Game) consumeRunOutcome() []tea.Cmd {
+	out := g.sess.LastOutcome()
+	if out == nil || g.scr != scrMining {
+		return nil
+	}
+	g.lastOutcome = out
+	g.sess.ClearOutcome()
+	// A fast autocannon kill can happen while the combat-entry card is still
+	// held. It must not cover the completed run summary.
+	g.combatIntroActive = false
+	if out.Kind != sim.OutcomeShipLost {
+		g.scr = scrSummary
+		return nil
+	}
+	g.deathFrameText = ansi.Strip(g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen()))
+	g.deathFrame = 0
+	g.deathFlickerFrames = 12
+	if g.snap.State.Settings.ReducedMotion {
+		g.deathFlickerFrames = 0
+	}
+	g.scr = scrDeath
+	// The death screen bypasses overlay compositing entirely (see View()), but
+	// Update()'s key routing checks overlay state first — leaving one open here
+	// would swallow every keypress into a stale, invisible overlay handler.
+	g.overlay = ovNone
+	if g.deathFlickerFrames > 0 {
+		return []tea.Cmd{deathTickCmd()}
+	}
+	return nil
+}
+
 func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
 	if err != nil {
 		g.setFlash(err.Error())
@@ -385,7 +398,8 @@ func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
 	if g.snap.State.Run != nil {
 		g.scr = scrMining
 	}
-	return g.syncCombatEntry()
+	cmds := g.syncCombatEntry()
+	return append(cmds, g.consumeRunOutcome()...)
 }
 
 func (g *Game) View() tea.View {

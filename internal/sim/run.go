@@ -37,6 +37,7 @@ const (
 	OutcomeBailed           OutcomeKind = "bailed"
 	OutcomeTributePaid      OutcomeKind = "tribute_paid"
 	OutcomeEscapedUnderFire OutcomeKind = "escaped_under_fire"
+	OutcomePirateDestroyed  OutcomeKind = "pirate_destroyed"
 	OutcomeShipLost         OutcomeKind = "ship_lost"
 )
 
@@ -53,6 +54,7 @@ var outcomeMeta = map[OutcomeKind]struct{ Label, Desc string }{
 	OutcomeBailed:           {"BAILED", "Cut the drill and ran with a partial hold."},
 	OutcomeTributePaid:      {"TRIBUTE PAID", "Cargo jettisoned. Pirates took the easy money and let the ship run."},
 	OutcomeEscapedUnderFire: {"ESCAPED UNDER FIRE", "Hull torn open, engines screaming, cargo still aboard."},
+	OutcomePirateDestroyed:  {"PIRATE DESTROYED", "Threat neutralized. Cargo sealed and bounty voucher confirmed."},
 	OutcomeShipLost:         {"CONNECTION LOST", "The ship and its hold are gone."},
 }
 
@@ -97,7 +99,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	}
 	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
 		inst.JammerCharges--
-		s.Run.PirateImmune = true
+		s.Run.JammerRemaining = c.Slots.JammerDurationSeconds
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
@@ -324,7 +326,7 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	switch run.Phase {
 	case PhaseMining:
 		tickMining(s, c, run, ast, dt)
-		if run.PirateDistance <= 0 && !run.EMPActive {
+		if run.PirateDistance <= 0 && !run.EMPActive && run.JammerRemaining <= 0 {
 			if deployEMPLauncher(s, c, run, now) {
 				break
 			}
@@ -338,7 +340,9 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 	case PhaseEscaping:
 		tickEscape(s, c, run, dt)
 	case PhaseCombat:
-		tickCombat(s, c, run, dt)
+		if out := tickCombat(s, c, run, dt, now); out != nil {
+			return out, true
+		}
 	}
 
 	if s.Hull <= 0 {
@@ -410,12 +414,19 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 		applyHullDamageRate(s, c, run, float64(c.Events.LifeSupportBleedPerSecond), dt)
 	}
 
-	// A Pirate Jammer charge (consumed at Lock) keeps pirates from ever
-	// approaching this asteroid at all.
+	// A Pirate Jammer charge (consumed at Lock) suspends pirate approach for
+	// a fixed duration. If it expires partway through a large tick, only the
+	// unsuppressed remainder advances the contact.
+	approachDT := dt
+	if run.JammerRemaining > 0 {
+		suppressed := math.Min(approachDT, run.JammerRemaining)
+		run.JammerRemaining = math.Max(0, run.JammerRemaining-suppressed)
+		approachDT -= suppressed
+	}
 	blackout := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventRadarBlackout
-	if !blackout && !run.PirateImmune {
+	if !blackout && approachDT > 0 {
 		rate := pirateApproachRate(s, c, ast)
-		run.PirateDistance = math.Max(0, run.PirateDistance-rate*dt)
+		run.PirateDistance = math.Max(0, run.PirateDistance-rate*approachDT)
 		updatePirateETA(s, c, run, ast)
 	}
 }
