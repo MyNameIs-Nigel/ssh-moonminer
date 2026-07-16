@@ -162,18 +162,23 @@ func CombatEscape(s *State, c *content.Content, now int64) error {
 	return nil
 }
 
-// FireWeapons fires the manually triggered weapons as one volley against the
-// current firing solution. Autocannon turrets fire continuously from
-// tickCombat instead. This compatibility wrapper discards a winning outcome;
-// game sessions use FireWeaponsWithOutcome so they can show the summary now.
+// FireWeapons is retained for callers from the original combat API. It fires
+// the F-key Pulse Laser volley; missile launchers use FireMissile instead.
 func FireWeapons(s *State, c *content.Content, now int64) error {
-	_, err := FireWeaponsWithOutcome(s, c, now)
+	_, err := FirePulseLasersWithOutcome(s, c, now)
 	return err
 }
 
-// FireWeaponsWithOutcome is FireWeapons plus the immediate run outcome when
-// its volley destroys the pirate.
+// FireWeaponsWithOutcome is the backwards-compatible form of the F-key pulse
+// action. New code should call FirePulseLasersWithOutcome directly.
 func FireWeaponsWithOutcome(s *State, c *content.Content, now int64) (*RunOutcome, error) {
+	return FirePulseLasersWithOutcome(s, c, now)
+}
+
+// FirePulseLasersWithOutcome fires all fitted Pulse Lasers on the current
+// firing solution. Autocannons stay continuous and missiles use G with their
+// own ammunition/cooldown, so no single key can double-fire both systems.
+func FirePulseLasersWithOutcome(s *State, c *content.Content, now int64) (*RunOutcome, error) {
 	run := s.Run
 	if run == nil {
 		return nil, ErrNoActiveRun
@@ -207,7 +212,50 @@ func FireWeaponsWithOutcome(s *State, c *content.Content, now int64) (*RunOutcom
 			return winCombat(s, c, run, now), nil
 		}
 	} else {
-		cs.Log = prependCombatLog(cs.Log, "Shot missed — solution too weak")
+		cs.Log = prependCombatLog(cs.Log, "Pulse volley missed — solution too weak")
+	}
+	return nil, nil
+}
+
+// FireMissile fires one loaded missile from the highest-grade available
+// launcher. Missiles are guided and always strike; their own cooldown never
+// touches the shared Pulse Laser heat capacitor.
+func FireMissile(s *State, c *content.Content, now int64) error {
+	_, err := FireMissileWithOutcome(s, c, now)
+	return err
+}
+
+// FireMissileWithOutcome is FireMissile plus the immediate outcome when a
+// guided hit destroys the pirate.
+func FireMissileWithOutcome(s *State, c *content.Content, now int64) (*RunOutcome, error) {
+	run := s.Run
+	if run == nil {
+		return nil, ErrNoActiveRun
+	}
+	if run.Phase != PhaseCombat || run.Combat == nil {
+		return nil, ErrInvalidRunPhase
+	}
+	if !HasMissileLauncher(s) {
+		return nil, ErrNoMissileLauncher
+	}
+	cs := run.Combat
+	if cs.MissileCooldown > 0 {
+		return nil, ErrMissileCoolingDown
+	}
+	launcher := nextLoadedMissileLauncher(s)
+	if launcher == nil {
+		return nil, ErrNoMissiles
+	}
+	launcher.Missiles--
+	launcher.Missiles = max(0, launcher.Missiles)
+	cs.MissileCooldown = c.Slots.MissileCooldownSeconds
+	damage := WeaponDamagePerShot(c, launcher.ItemID, launcher.Grade)
+	cs.ShotsFired++
+	cs.ShotsHit++
+	cs.PirateHull = math.Max(0, cs.PirateHull-damage)
+	cs.Log = prependCombatLog(cs.Log, fmt.Sprintf("Guided missile hit! %s hull -%.0f", cs.PirateName, damage))
+	if cs.PirateHull <= 0 {
+		return winCombat(s, c, run, now), nil
 	}
 	return nil, nil
 }
@@ -290,6 +338,7 @@ func tickCombat(s *State, c *content.Content, run *ActiveRun, dt float64, now in
 	if combatDT > 0 {
 		cs.Heat = math.Max(0, cs.Heat-cc.HeatDecayPerSecond*combatDT)
 		cs.LockRemaining = math.Max(0, cs.LockRemaining-combatDT)
+		cs.MissileCooldown = math.Max(0, cs.MissileCooldown-combatDT)
 		if autocannonDPS > 0 {
 			cs.PirateHull = math.Max(0, cs.PirateHull-autocannonDPS*combatDT)
 		}
@@ -343,7 +392,8 @@ func EstimateOdds(s *State, c *content.Content, p *content.Pirate) float64 {
 	if manualDmg > 0 && manualHeat > 0 && cc.HeatDecayPerSecond > 0 {
 		manualDPS = manualDmg * (cc.HeatDecayPerSecond / manualHeat) * avgSol
 	}
-	pDPS := AutocannonDamagePerSecond(s, c) + manualDPS
+	missileDPS := MissileDPSForOdds(s, c)
+	pDPS := AutocannonDamagePerSecond(s, c) + manualDPS + missileDPS
 	if pDPS <= 0 {
 		return cc.OddsFloor
 	}
@@ -358,6 +408,28 @@ func EstimateOdds(s *State, c *content.Content, p *content.Pirate) float64 {
 
 	odds := ttkSelf / (ttkSelf + ttkPirate)
 	return clamp(odds, cc.OddsFloor, cc.OddsCeiling)
+}
+
+// MissileDPSForOdds approximates a fitted launcher's damage output across
+// its currently loaded magazine. It is used only for the pre-fight estimate;
+// real combat remains discrete and ammunition-limited.
+func MissileDPSForOdds(s *State, c *content.Content) float64 {
+	inst := ActiveShip(s)
+	if inst == nil || c.Slots.MissileCooldownSeconds <= 0 {
+		return 0
+	}
+	damage, missiles := 0.0, 0
+	for _, d := range inst.Weapon {
+		if d == nil || d.ItemID != ItemMissileLauncher || d.Missiles <= 0 {
+			continue
+		}
+		damage += WeaponDamagePerShot(c, d.ItemID, d.Grade) * float64(d.Missiles)
+		missiles += d.Missiles
+	}
+	if missiles == 0 {
+		return 0
+	}
+	return damage / (float64(missiles) * c.Slots.MissileCooldownSeconds)
 }
 
 // EstimateOddsForRun is EstimateOdds against the run's already-rolled

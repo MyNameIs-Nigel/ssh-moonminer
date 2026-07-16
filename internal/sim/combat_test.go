@@ -64,14 +64,14 @@ func TestAutocannonDamagesContinuouslyAndEndsRunOnKill(t *testing.T) {
 	}
 }
 
-func TestManualWeaponKillReturnsSummaryOutcome(t *testing.T) {
+func TestGuidedMissileKillReturnsSummaryOutcome(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 43, 1000)
 	s.Credits = 100000
 	if err := sim.AcquireShip(s, c, "warden"); err != nil {
 		t.Fatal(err)
 	}
-	s.Ships["warden"].Weapon[0] = &sim.SlotDevice{ItemID: sim.ItemMassDriver, Grade: 0}
+	s.Ships["warden"].Weapon[0] = &sim.SlotDevice{ItemID: sim.ItemMissileLauncher, Grade: 0, Missiles: sim.MissileCapacity(c, 0)}
 	if err := sim.SwitchActiveShip(s, c, "warden"); err != nil {
 		t.Fatal(err)
 	}
@@ -89,13 +89,12 @@ func TestManualWeaponKillReturnsSummaryOutcome(t *testing.T) {
 		t.Fatalf("expected an active combat, run=%+v ended=%v", s.Run, ended)
 	}
 	s.Run.Combat.PirateHull = 1
-	s.Run.Combat.Solution = 1
-	out, err := sim.FireWeaponsWithOutcome(s, c, 1001)
+	out, err := sim.FireMissileWithOutcome(s, c, 1001)
 	if err != nil || out == nil || out.Kind != sim.OutcomePirateDestroyed {
 		t.Fatalf("manual kill outcome = %+v, err=%v", out, err)
 	}
 	if s.Run != nil {
-		t.Fatal("manual pirate kill should clear the active run")
+		t.Fatal("missile pirate kill should clear the active run")
 	}
 }
 

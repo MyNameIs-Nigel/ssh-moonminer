@@ -67,6 +67,37 @@ func TestVersionFourChaffMigratesToArmedEMPLauncher(t *testing.T) {
 	}
 }
 
+func TestVersionSixMigratesJumpDriveAndMassDriver(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 45, 1000)
+	s.Version = 6
+	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemJumpDrive, Grade: 2}
+	s.Ships["skiff"].Weapon = []*sim.SlotDevice{{ItemID: "mass_driver", Grade: 3}}
+	s.Inventory = []*sim.SlotDevice{{ItemID: "mass_driver", Grade: 1}}
+
+	b, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := sim.DecodeState(b, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ship := got.Ships["skiff"]
+	if ship.Internal != nil || ship.JumpDrive == nil || ship.JumpDrive.ItemID != sim.ItemJumpDrive {
+		t.Fatalf("legacy jump drive migration = internal %+v jump %+v", ship.Internal, ship.JumpDrive)
+	}
+	if d := ship.Weapon[0]; d.ItemID != sim.ItemMissileLauncher || d.Missiles != sim.MissileCapacity(c, d.Grade) {
+		t.Fatalf("legacy fitted mass driver migration = %+v", d)
+	}
+	if d := got.Inventory[0]; d.ItemID != sim.ItemMissileLauncher || d.Missiles != sim.MissileCapacity(c, d.Grade) {
+		t.Fatalf("legacy stored mass driver migration = %+v", d)
+	}
+	if got.Version != sim.StateVersion {
+		t.Fatalf("state version = %d, want %d", got.Version, sim.StateVersion)
+	}
+}
+
 func TestGenerateBeltDeterministic(t *testing.T) {
 	c := testContent(t)
 	a := sim.New(c, 99, 0)

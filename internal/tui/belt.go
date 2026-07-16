@@ -335,9 +335,13 @@ func (g *Game) renderBelt() string {
 			} else {
 				scanFuelStr = theme.White.Render(scanFuelStr)
 			}
-			scanSecs := rock.Distance * g.content.Belt.ScanSecPerKm
-			scanLine := fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm  SCAN COST %s  TIME %.1fs",
-				theme.White.Render(rock.Name), rock.Distance, scanFuelStr, scanSecs)
+			scanSecs := sim.ScannerScanSeconds(&st, g.content, rock.Distance)
+			scanTime := fmt.Sprintf("%.1fs", scanSecs)
+			if scanSecs <= 0 {
+				scanTime = theme.Cyan.Render("INSTANT")
+			}
+			scanLine := fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm  SCAN COST %s  TIME %s",
+				theme.White.Render(rock.Name), rock.Distance, scanFuelStr, scanTime)
 			lines = append(lines, "", scanLine,
 				theme.Button("S", "SCAN ASTEROID", "", true, theme.HueCyan),
 				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))

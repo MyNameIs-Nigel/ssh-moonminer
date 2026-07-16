@@ -6,15 +6,16 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// SlotKind identifies which of a ship's three slot kinds an item belongs
-// in. Internal is always exactly one slot per ship; Utility/Weapon counts
-// vary per ship model (Weapon may be zero).
+// SlotKind identifies which of a ship's four slot kinds an item belongs in.
+// Internal and Jump Drive are each exactly one slot per ship; Utility/Weapon
+// counts vary per ship model (Weapon may be zero).
 type SlotKind int
 
 const (
 	SlotUtility SlotKind = iota
 	SlotWeapon
 	SlotInternal
+	SlotJumpDrive
 )
 
 // Slot item IDs — the fixed catalog from
@@ -27,22 +28,30 @@ const (
 	ItemSeismicOvercharge = "seismic_overcharge"
 	ItemEMPLauncher       = "emp_launcher"
 	ItemTurret            = "turret"
-	ItemMassDriver        = "mass_driver"
-	ItemPulseLaser        = "pulse_laser"
-	ItemSeismic           = "seismic_sensors"
-	ItemFuelMiner         = "fuel_miner"
-	ItemJammer            = "pirate_jammer"
-	ItemHeatSink          = "heat_sink"
-	ItemJumpDrive         = "jump_drive"
+	ItemMissileLauncher   = "missile_launcher"
+	// ItemMassDriver is retained as an API alias for callers compiled against
+	// pre-1.6.1 code. Stored v6 JSON used the literal "mass_driver", handled
+	// by legacyItemMassDriver during migration below.
+	ItemMassDriver = ItemMissileLauncher
+	ItemPulseLaser = "pulse_laser"
+	ItemSeismic    = "seismic_sensors"
+	ItemFuelMiner  = "fuel_miner"
+	ItemJammer     = "pirate_jammer"
+	ItemHeatSink   = "heat_sink"
+	ItemJumpDrive  = "jump_drive"
 )
+
+const legacyItemMassDriver = "mass_driver"
 
 // SlotItemKind reports which slot kind an item installs into.
 func SlotItemKind(itemID string) SlotKind {
 	switch itemID {
-	case ItemTurret, ItemMassDriver, ItemPulseLaser:
+	case ItemTurret, ItemMissileLauncher, ItemPulseLaser:
 		return SlotWeapon
-	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink, ItemJumpDrive:
+	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink:
 		return SlotInternal
+	case ItemJumpDrive:
+		return SlotJumpDrive
 	default:
 		return SlotUtility
 	}
@@ -63,8 +72,8 @@ func SlotItemName(itemID string) string {
 		return "EMP LAUNCHER"
 	case ItemTurret:
 		return "AUTOCANNON TURRET"
-	case ItemMassDriver:
-		return "MASS DRIVER"
+	case ItemMissileLauncher:
+		return "MISSILE LAUNCHER"
 	case ItemPulseLaser:
 		return "PULSE LASER"
 	case ItemSeismic:
@@ -88,8 +97,9 @@ func SlotItemLocked(itemID string) bool { return false }
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.
 var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemSeismicOvercharge, ItemEMPLauncher}
-var weaponItems = []string{ItemTurret, ItemMassDriver, ItemPulseLaser}
-var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink, ItemJumpDrive}
+var weaponItems = []string{ItemTurret, ItemMissileLauncher, ItemPulseLaser}
+var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink}
+var jumpDriveItems = []string{ItemJumpDrive}
 
 // SlotItemsFor returns the buyable item catalog for a slot kind.
 func SlotItemsFor(kind SlotKind) []string {
@@ -98,6 +108,8 @@ func SlotItemsFor(kind SlotKind) []string {
 		return weaponItems
 	case SlotInternal:
 		return internalItems
+	case SlotJumpDrive:
+		return jumpDriveItems
 	default:
 		return utilityItems
 	}
@@ -118,8 +130,8 @@ func slotItemBasePrice(c *content.Content, itemID string) int {
 		return sc.EMPLauncherBasePrice
 	case ItemTurret:
 		return sc.TurretBasePrice
-	case ItemMassDriver:
-		return sc.MassDriverBasePrice
+	case ItemMissileLauncher:
+		return sc.MissileLauncherBasePrice
 	case ItemPulseLaser:
 		return sc.PulseLaserBasePrice
 	case ItemSeismic:
@@ -143,10 +155,8 @@ func SlotItemPrice(c *content.Content, itemID string, grade int) int {
 	return int(math.Round(float64(base) * math.Pow(c.Fleet.GradePriceCurve, float64(grade))))
 }
 
-// SlotItemPower returns itemID's power draw at grade. Cargo/Fuel Tank/Jump
-// Drive always return 0 — the explicit "never costs power" exception for
-// structural (non-electronic) capacity items, and Jump Drive is unpowered
-// while locked.
+// SlotItemPower returns itemID's power draw at grade. Cargo, Fuel Tank, and
+// Jump Drive always return 0 — the explicit structural/unpowered exceptions.
 func SlotItemPower(c *content.Content, itemID string, grade int) int {
 	g := math.Pow(float64(grade+1), c.Fleet.PowerCurveExponent)
 	sc := c.Slots
@@ -159,8 +169,8 @@ func SlotItemPower(c *content.Content, itemID string, grade int) int {
 		return int(math.Round(sc.EMPLauncherPowerK * g))
 	case ItemTurret:
 		return int(math.Round(sc.TurretPowerK * g))
-	case ItemMassDriver:
-		return int(math.Round(sc.MassDriverPowerK * g))
+	case ItemMissileLauncher:
+		return int(math.Round(sc.MissileLauncherPowerK * g))
 	case ItemPulseLaser:
 		return int(math.Round(sc.PulseLaserPowerK * g))
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink:
@@ -187,8 +197,8 @@ func SlotItemMass(c *content.Content, itemID string, grade int) float64 {
 		return sc.EMPLauncherMassPerGrade * n
 	case ItemTurret:
 		return sc.TurretMassPerGrade * n
-	case ItemMassDriver:
-		return sc.MassDriverMassPerGrade * n
+	case ItemMissileLauncher:
+		return sc.MissileLauncherMassPerGrade * n
 	case ItemPulseLaser:
 		return sc.PulseLaserMassPerGrade * n
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink, ItemJumpDrive:
@@ -246,6 +256,9 @@ func InstalledPower(s *State, c *content.Content, shipID string) int {
 	if inst.Internal != nil {
 		total += SlotItemPower(c, inst.Internal.ItemID, inst.Internal.Grade)
 	}
+	if inst.JumpDrive != nil {
+		total += SlotItemPower(c, inst.JumpDrive.ItemID, inst.JumpDrive.Grade)
+	}
 	return total
 }
 
@@ -273,6 +286,9 @@ func InstalledMass(s *State, c *content.Content, shipID string) float64 {
 	}
 	if inst.Internal != nil {
 		total += SlotItemMass(c, inst.Internal.ItemID, inst.Internal.Grade)
+	}
+	if inst.JumpDrive != nil {
+		total += SlotItemMass(c, inst.JumpDrive.ItemID, inst.JumpDrive.Grade)
 	}
 	return total
 }
@@ -594,16 +610,29 @@ func HasWeapon(s *State) bool {
 // HasManualWeapon reports whether the active ship has a weapon the pilot can
 // fire. Autocannon turrets fire continuously and are therefore excluded.
 func HasManualWeapon(s *State) bool {
+	return HasPulseLaser(s)
+}
+
+// HasPulseLaser reports whether the active ship can fire the F-key pulse
+// volley. Missile launchers use their own G-key action and cooldown.
+func HasPulseLaser(s *State) bool {
 	inst := ActiveShip(s)
 	if inst == nil {
 		return false
 	}
 	for _, d := range inst.Weapon {
-		if d != nil && d.ItemID != ItemTurret {
+		if d != nil && d.ItemID == ItemPulseLaser {
 			return true
 		}
 	}
 	return false
+}
+
+// HasMissileLauncher reports whether the active ship has at least one
+// fitted launcher, whether or not it currently has ammunition remaining.
+func HasMissileLauncher(s *State) bool {
+	inst := ActiveShip(s)
+	return inst != nil && findDevice(inst.Weapon, ItemMissileLauncher) != nil
 }
 
 // WeaponDamagePerShot returns itemID's damage dealt per volley at grade
@@ -614,8 +643,8 @@ func WeaponDamagePerShot(c *content.Content, itemID string, grade int) float64 {
 	switch itemID {
 	case ItemTurret:
 		return sc.TurretDamagePerShotBase + sc.TurretDamagePerShotPerGrade*n
-	case ItemMassDriver:
-		return sc.MassDriverDamagePerShotBase + sc.MassDriverDamagePerShotPerGrade*n
+	case ItemMissileLauncher:
+		return sc.MissileDamagePerShotBase + sc.MissileDamagePerShotPerGrade*n
 	case ItemPulseLaser:
 		return sc.PulseLaserDamagePerShotBase + sc.PulseLaserDamagePerShotPerGrade*n
 	}
@@ -626,8 +655,6 @@ func WeaponDamagePerShot(c *content.Content, itemID string, grade int) float64 {
 // Autocannon turrets never use the shared heat capacitor.
 func WeaponHeatPerShot(c *content.Content, itemID string, _ int) float64 {
 	switch itemID {
-	case ItemMassDriver:
-		return c.Slots.MassDriverHeatPerShot
 	case ItemPulseLaser:
 		return c.Slots.PulseLaserHeatPerShot
 	}
@@ -638,8 +665,6 @@ func WeaponHeatPerShot(c *content.Content, itemID string, _ int) float64 {
 // solution (e.g. the Pulse Laser's accuracy edge).
 func WeaponSolutionBonus(c *content.Content, itemID string, _ int) float64 {
 	switch itemID {
-	case ItemMassDriver:
-		return c.Slots.MassDriverSolutionBonus
 	case ItemPulseLaser:
 		return c.Slots.PulseLaserSolutionBonus
 	}
@@ -665,15 +690,15 @@ func InstalledWeaponVolley(s *State, c *content.Content) (damage, heat, solution
 	return damage, heat, solutionBonus
 }
 
-// InstalledManualWeaponVolley sums the non-autocannon weapons that fire when
-// the pilot presses F.
+// InstalledManualWeaponVolley sums the Pulse Lasers that fire when the pilot
+// presses F. Missile launchers are always fired one missile at a time via G.
 func InstalledManualWeaponVolley(s *State, c *content.Content) (damage, heat, solutionBonus float64) {
 	inst := ActiveShip(s)
 	if inst == nil {
 		return 0, 0, 0
 	}
 	for _, d := range inst.Weapon {
-		if d == nil || d.ItemID == ItemTurret {
+		if d == nil || d.ItemID != ItemPulseLaser {
 			continue
 		}
 		damage += WeaponDamagePerShot(c, d.ItemID, d.Grade)
@@ -681,6 +706,104 @@ func InstalledManualWeaponVolley(s *State, c *content.Content) (damage, heat, so
 		solutionBonus += WeaponSolutionBonus(c, d.ItemID, d.Grade)
 	}
 	return damage, heat, solutionBonus
+}
+
+// MissileCapacity returns the loaded missile count for one launcher grade.
+// Content supplies one explicit E..S entry so balance changes never rely on
+// accidental rounding.
+func MissileCapacity(c *content.Content, grade int) int {
+	if len(c.Slots.MissileCapacityByGrade) == 0 {
+		return 0
+	}
+	grade = clampInt(grade, 0, MaxGrade)
+	if grade >= len(c.Slots.MissileCapacityByGrade) {
+		grade = len(c.Slots.MissileCapacityByGrade) - 1
+	}
+	return max(0, c.Slots.MissileCapacityByGrade[grade])
+}
+
+// MissileAmmo returns the total loaded ammunition across the active ship's
+// missile launchers. A ship may fit a launcher alongside pulse lasers.
+func MissileAmmo(s *State) int {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return 0
+	}
+	total := 0
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == ItemMissileLauncher {
+			total += max(0, d.Missiles)
+		}
+	}
+	return total
+}
+
+// MissileCapacityFor returns the total fully-loaded ammunition capacity for
+// one owned ship.
+func MissileCapacityFor(s *State, c *content.Content, shipID string) int {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return 0
+	}
+	total := 0
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == ItemMissileLauncher {
+			total += MissileCapacity(c, d.Grade)
+		}
+	}
+	return total
+}
+
+// normalizeShipMissiles keeps persisted ammunition valid after a launcher is
+// stored, sold, replaced, or loaded from an older save.
+func normalizeShipMissiles(s *State, c *content.Content, shipID string) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	for _, d := range inst.Weapon {
+		if d == nil || d.ItemID != ItemMissileLauncher {
+			continue
+		}
+		d.Missiles = clampInt(d.Missiles, 0, MissileCapacity(c, d.Grade))
+	}
+}
+
+// RearmMissilesForShip services every fitted launcher on one ship. It is
+// intentionally called only by dock service and a new launcher installation.
+func RearmMissilesForShip(s *State, c *content.Content, shipID string) {
+	inst := s.Ships[shipID]
+	if inst == nil {
+		return
+	}
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == ItemMissileLauncher {
+			d.Missiles = MissileCapacity(c, d.Grade)
+		}
+	}
+}
+
+// RearmMissiles services the active ship at dock, matching shield and EMP
+// servicing semantics.
+func RearmMissiles(s *State, c *content.Content) {
+	RearmMissilesForShip(s, c, s.ActiveShipID)
+}
+
+// nextLoadedMissileLauncher selects the highest-grade loaded launcher. Ties
+// use fitted-slot order, making each G press deterministic without RNG.
+func nextLoadedMissileLauncher(s *State) *SlotDevice {
+	inst := ActiveShip(s)
+	if inst == nil {
+		return nil
+	}
+	var selected *SlotDevice
+	for _, d := range inst.Weapon {
+		if d != nil && d.ItemID == ItemMissileLauncher && d.Missiles > 0 &&
+			(selected == nil || d.Grade > selected.Grade) {
+			selected = d
+		}
+	}
+	return selected
 }
 
 // AutocannonDamagePerSecond sums the always-on damage dealt by installed
@@ -762,6 +885,20 @@ func jammerMaxCharges(c *content.Content, grade int) int {
 	return 1 + grade/step
 }
 
+// JammerDurationSeconds returns a grade's authored pirate-approach
+// suppression duration. The explicit per-grade table supports the large S
+// grade bump without distorting the lower grades.
+func JammerDurationSeconds(c *content.Content, grade int) float64 {
+	if len(c.Slots.JammerDurationSeconds) == 0 {
+		return 0
+	}
+	grade = clampInt(grade, 0, MaxGrade)
+	if grade >= len(c.Slots.JammerDurationSeconds) {
+		grade = len(c.Slots.JammerDurationSeconds) - 1
+	}
+	return c.Slots.JammerDurationSeconds[grade]
+}
+
 // RearmJammer resets the active ship's Pirate Jammer to full charges. Free
 // and instant — called whenever the pilot docks (see Dock in belt.go).
 func RearmJammer(s *State, c *content.Content) {
@@ -775,7 +912,8 @@ func RearmJammer(s *State, c *content.Content) {
 // deviceSlot resolves the addressable **SlotDevice for kind/index on inst —
 // a pointer to the exact map/slice/field slot itself, so Install/Remove can
 // share one read-modify-write path instead of a three-way switch each.
-// index is ignored for SlotInternal, which has exactly one slot.
+// index is ignored for SlotInternal and SlotJumpDrive, which each have one
+// dedicated slot.
 func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, error) {
 	switch kind {
 	case SlotUtility:
@@ -790,13 +928,15 @@ func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, err
 		return &inst.Weapon[index], nil
 	case SlotInternal:
 		return &inst.Internal, nil
+	case SlotJumpDrive:
+		return &inst.JumpDrive, nil
 	}
 	return nil, ErrInvalidSlotItem
 }
 
 // InstallSlotDevice buys and installs itemID at grade into shipID's slot
-// kind at index (index is ignored for Internal, which has exactly one
-// slot). Requires docked, ownership, a valid index, power headroom, and
+// kind at index (index is ignored for Internal/Jump Drive, which each have
+// one slot). Requires docked, ownership, a valid index, power headroom, and
 // affordability; the target slot must be empty. Call StoreSlotDevice or
 // SellSlotDevice first when changing a loadout, so a module can never be
 // silently destroyed by an install.
@@ -882,6 +1022,7 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	normalizeShipMissiles(s, c, shipID)
 	if shipID == s.ActiveShipID {
 		syncActiveConditionMirror(s, c)
 	}
@@ -906,6 +1047,7 @@ func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, 
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
+	normalizeShipMissiles(s, c, shipID)
 	if shipID == s.ActiveShipID {
 		syncActiveConditionMirror(s, c)
 	}
@@ -972,6 +1114,8 @@ func finishDeviceInstallation(s *State, c *content.Content, shipID string, d *Sl
 		}
 	case ItemEMPLauncher:
 		d.EMPArmed = true
+	case ItemMissileLauncher:
+		RearmMissilesForShip(s, c, shipID)
 	}
 }
 
@@ -1023,6 +1167,7 @@ func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, 
 	*target = replacement
 	finishDeviceInstallation(s, c, shipID, replacement)
 	normalizeShipShield(s, c, shipID)
+	normalizeShipMissiles(s, c, shipID)
 	if shipID == s.ActiveShipID {
 		syncActiveConditionMirror(s, c)
 	}

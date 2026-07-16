@@ -11,7 +11,7 @@ func TestGatedSystemRequiresRouteKeyToLeaveAndKeepInstalled(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 31, 0)
 	s.Credits = 100000
-	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotInternal, 0, sim.ItemJumpDrive, 0); err != nil {
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotJumpDrive, 0, sim.ItemJumpDrive, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {
@@ -24,16 +24,16 @@ func TestGatedSystemRequiresRouteKeyToLeaveAndKeepInstalled(t *testing.T) {
 	if s.SystemID != "eridani" {
 		t.Fatalf("expected to dock in Eridani, got %q", s.SystemID)
 	}
-	if err := sim.StoreSlotDevice(s, c, "skiff", sim.SlotInternal, 0); err != sim.ErrRouteKeyRequired {
+	if err := sim.StoreSlotDevice(s, c, "skiff", sim.SlotJumpDrive, 0); err != sim.ErrRouteKeyRequired {
 		t.Fatalf("storing last Jump Drive = %v, want ErrRouteKeyRequired", err)
 	}
-	if err := sim.SellSlotDevice(s, c, "skiff", sim.SlotInternal, 0); err != sim.ErrRouteKeyRequired {
+	if err := sim.SellSlotDevice(s, c, "skiff", sim.SlotJumpDrive, 0); err != sim.ErrRouteKeyRequired {
 		t.Fatalf("selling last Jump Drive = %v, want ErrRouteKeyRequired", err)
 	}
 
 	// RouteLockReason is also defensive against corrupted/legacy states that
 	// somehow lack the source-system key.
-	s.Ships["skiff"].Internal = nil
+	s.Ships["skiff"].JumpDrive = nil
 	if got := sim.RouteLockReason(s, c, 1); !strings.Contains(got, "TO LEAVE ERIDANI DRIFT") {
 		t.Fatalf("outbound Eridani route reason = %q", got)
 	}

@@ -199,7 +199,10 @@ func ShipHasSlotItem(s *State, shipID, itemID string) bool {
 			return true
 		}
 	}
-	return inst.Internal != nil && inst.Internal.ItemID == itemID
+	if inst.Internal != nil && inst.Internal.ItemID == itemID {
+		return true
+	}
+	return inst.JumpDrive != nil && inst.JumpDrive.ItemID == itemID
 }
 
 // InsuranceEligible reports softlock protection availability.

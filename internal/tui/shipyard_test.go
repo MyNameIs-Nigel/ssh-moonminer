@@ -85,6 +85,15 @@ func TestShipyardRowsMatchShipClassSlotCounts(t *testing.T) {
 		if gotInternal != 1 {
 			t.Errorf("%s: expected exactly 1 internal row, counted %d", id, gotInternal)
 		}
+		gotJumpDrive := 0
+		for _, r := range rows {
+			if r.kind == rowJumpDrive {
+				gotJumpDrive++
+			}
+		}
+		if gotJumpDrive != 1 {
+			t.Errorf("%s: expected exactly 1 Jump Drive row, counted %d", id, gotJumpDrive)
+		}
 	}
 	if c.ShipByID("skiff").WeaponSlots != 0 || c.ShipByID("cicada").WeaponSlots != 0 {
 		t.Error("both Miner-class starter ships should have zero weapon slots")

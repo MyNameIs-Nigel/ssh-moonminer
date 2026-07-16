@@ -228,6 +228,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyMining(tea.KeyPressMsg{Code: 'f', Text: "f"})
 		case "btn:combat:fire":
 			return g.keyMining(tea.KeyPressMsg{Code: 'f', Text: "f"})
+		case "btn:combat:missile":
+			return g.keyMining(tea.KeyPressMsg{Code: 'g', Text: "g"})
 		case "btn:combat:escape":
 			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
 		case "btn:summary:continue":

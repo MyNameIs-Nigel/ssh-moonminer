@@ -757,8 +757,8 @@ func TestJammerChargeStartsTimedSuppressionAtLock(t *testing.T) {
 	if err := sim.Lock(s, c, ast.ID, 1000); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Run.JammerRemaining; got != c.Slots.JammerDurationSeconds {
-		t.Fatalf("jammer countdown = %.1f, want %.1f", got, c.Slots.JammerDurationSeconds)
+	if got, want := s.Run.JammerRemaining, sim.JammerDurationSeconds(c, 0); got != want {
+		t.Fatalf("jammer countdown = %.1f, want %.1f", got, want)
 	}
 	if got := s.Ships["skiff"].JammerCharges; got != 0 {
 		t.Fatalf("jammer charges after lock = %d, want 0", got)

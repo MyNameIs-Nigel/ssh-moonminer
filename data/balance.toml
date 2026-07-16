@@ -131,7 +131,8 @@ hull_base_price = 450
 fuel_eff_base_price = 550
 power_gen_base_price = 650
 scanner_base_price = 700
-thruster_escape_mul = 0.94
+# Every grade is 12% faster before mass effects (S = ~53% base escape time).
+thruster_escape_mul = 0.88
 fuel_eff_mul = 0.92
 hull_pool_per_grade = 20
 power_capacity_base = 10
@@ -140,6 +141,8 @@ power_curve_exponent = 1.5
 scanner_lock_base_km = 4.0
 scanner_lock_per_grade_km = 2.0
 scanner_lock_max_km = 10.0
+scanner_scan_mul = 0.80
+scanner_instant_scan_km = 2.0
 scanner_eta_bonus_pct = 0.05
 mass_fuel_coefficient = 0.5
 mass_escape_coefficient = 0.6
@@ -162,7 +165,7 @@ fuel_tank_base_price = 350
 fuel_tank_per_grade = 10
 fuel_tank_mass_per_grade = 5
 shield_base_price = 900
-shield_power_k = 2.7
+shield_power_k = 2.0
   shield_mass_per_grade = 8
   # Combat rework: the turret's passive damage mitigation is retired in favor
   # of an active weapon, so the shield is now the sole mitigation layer — the
@@ -186,22 +189,24 @@ emp_launcher_power_k = 0.6
 emp_launcher_mass_per_grade = 2
 emp_launcher_deploy_e_seconds = 1
 emp_launcher_deploy_s_seconds = 10
-# Weapon catalog — the autocannon fires continuously; the mass driver and
-# pulse laser use the player's manual, heat-limited volley.
+# Weapon catalog — the autocannon fires continuously; guided missiles and
+# pulse lasers have distinct G/F controls so a Warden can fit both.
 turret_base_price = 700
-turret_power_k = 1.6
+turret_power_k = 2.0
 turret_mass_per_grade = 7
 turret_damage_per_shot_base = 8.0
 turret_damage_per_shot_per_grade = 3.0
 # The autocannon's damage is deterministic: no solution roll or heat cost.
 turret_shots_per_second = 0.82
-mass_driver_base_price = 1100
-mass_driver_power_k = 2.2
-mass_driver_mass_per_grade = 10
-mass_driver_damage_per_shot_base = 16.0
-mass_driver_damage_per_shot_per_grade = 6.0
-mass_driver_heat_per_shot = 45.0
-mass_driver_solution_bonus = 0.0
+missile_launcher_base_price = 1100
+missile_launcher_power_k = 2.2
+missile_launcher_mass_per_grade = 10
+missile_damage_per_shot_base = 60.0
+missile_damage_per_shot_per_grade = 20.0
+# E through S. Every fitted launcher carries its own magazine, refilled at
+# dock; missile shots always hit and have their own two-second cooldown.
+missile_capacity_by_grade = [3, 4, 6, 7, 9, 10]
+missile_cooldown_seconds = 2.0
 pulse_laser_base_price = 900
 pulse_laser_power_k = 1.8
 pulse_laser_mass_per_grade = 5
@@ -222,9 +227,9 @@ jammer_base_price = 850
 # uses_per_trip = 1 + grade/step: step=2 gives the first bonus charge at
 # grade C (2), matching docs/gameplay/05's "grade C+ grants an extra use".
 jammer_grade_uses_step = 2
-# Each charge suppresses the pirate approach for this many seconds. The
-# ordinary fuzzed ETA begins only after the jammer expires.
-jammer_duration_seconds = 10.0
+# Each charge suppresses the pirate approach for this many seconds, E through
+# S. The ordinary fuzzed ETA begins only after the jammer expires.
+jammer_duration_seconds = [3.0, 5.0, 8.0, 12.0, 15.0, 25.0]
 heat_sink_base_price = 1000
 # Adds 25/50/75/100/125/150 to the shared 100-point combat heat capacitor.
 heat_sink_capacity_per_grade = 25.0

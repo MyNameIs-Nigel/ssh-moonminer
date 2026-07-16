@@ -199,7 +199,7 @@ func TestInstallSlotDeviceFromInventoryReequipsJumpDrive(t *testing.T) {
 	s := sim.New(c, 1, 1000)
 	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemJumpDrive, Grade: 0}}
 
-	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotInternal, 0, 0); err != nil {
+	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotJumpDrive, 0, 0); err != nil {
 		t.Fatalf("re-equip stored Jump Drive: %v", err)
 	}
 }

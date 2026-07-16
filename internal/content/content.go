@@ -226,8 +226,8 @@ const StarterShipID = "skiff"
 // ShipModel is one purchasable hull design (gameplay/05's "4 starter
 // ships"). Track *Start/*Cap fields are grades 0..5 (E..S) — the range this
 // specific hull can ever install for that track. UtilitySlots/WeaponSlots
-// are slot counts; every ship has exactly one Internal slot (not
-// configurable per-ship, per gameplay/05).
+// are slot counts; every ship has exactly one Internal slot and one dedicated
+// Jump Drive slot (not configurable per-ship, per gameplay/05).
 type ShipModel struct {
 	ID    string `toml:"id"`
 	Name  string `toml:"name"`
@@ -279,6 +279,9 @@ type FleetConfig struct {
 	ScannerLockBaseKm     float64 `toml:"scanner_lock_base_km"`
 	ScannerLockPerGradeKm float64 `toml:"scanner_lock_per_grade_km"`
 	ScannerLockMaxKm      float64 `toml:"scanner_lock_max_km"`
+	// ScannerScanMul compounds per Scanner grade; lower is faster.
+	ScannerScanMul       float64 `toml:"scanner_scan_mul"`
+	ScannerInstantScanKm float64 `toml:"scanner_instant_scan_km"`
 	// ScannerEtaBonusPct applies only at grades beyond B (grade 4=A, 5=S),
 	// narrowing pirate ETA uncertainty an extra (grade-3)*this per grade.
 	ScannerEtaBonusPct float64 `toml:"scanner_eta_bonus_pct"`
@@ -333,8 +336,8 @@ type SlotsConfig struct {
 	EMPLauncherDeploySSeconds float64 `toml:"emp_launcher_deploy_s_seconds"`
 
 	// Weapon catalog (docs/gameplay/07-pirate-combat-and-bounties.md). The
-	// autocannon fires continuously; the mass driver and pulse laser use the
-	// player's manual, heat-limited volley.
+	// autocannon fires continuously; the Missile Launcher and Pulse Laser use
+	// separate player-triggered actions.
 	TurretBasePrice             int     `toml:"turret_base_price"`
 	TurretPowerK                float64 `toml:"turret_power_k"`
 	TurretMassPerGrade          float64 `toml:"turret_mass_per_grade"`
@@ -342,13 +345,15 @@ type SlotsConfig struct {
 	TurretDamagePerShotPerGrade float64 `toml:"turret_damage_per_shot_per_grade"`
 	TurretShotsPerSecond        float64 `toml:"turret_shots_per_second"`
 
-	MassDriverBasePrice             int     `toml:"mass_driver_base_price"`
-	MassDriverPowerK                float64 `toml:"mass_driver_power_k"`
-	MassDriverMassPerGrade          float64 `toml:"mass_driver_mass_per_grade"`
-	MassDriverDamagePerShotBase     float64 `toml:"mass_driver_damage_per_shot_base"`
-	MassDriverDamagePerShotPerGrade float64 `toml:"mass_driver_damage_per_shot_per_grade"`
-	MassDriverHeatPerShot           float64 `toml:"mass_driver_heat_per_shot"`
-	MassDriverSolutionBonus         float64 `toml:"mass_driver_solution_bonus"`
+	MissileLauncherBasePrice     int     `toml:"missile_launcher_base_price"`
+	MissileLauncherPowerK        float64 `toml:"missile_launcher_power_k"`
+	MissileLauncherMassPerGrade  float64 `toml:"missile_launcher_mass_per_grade"`
+	MissileDamagePerShotBase     float64 `toml:"missile_damage_per_shot_base"`
+	MissileDamagePerShotPerGrade float64 `toml:"missile_damage_per_shot_per_grade"`
+	// MissileCapacityByGrade has one E..S capacity entry. Missiles are
+	// always hits and use MissileCooldownSeconds rather than heat.
+	MissileCapacityByGrade []int   `toml:"missile_capacity_by_grade"`
+	MissileCooldownSeconds float64 `toml:"missile_cooldown_seconds"`
 
 	PulseLaserBasePrice             int     `toml:"pulse_laser_base_price"`
 	PulseLaserPowerK                float64 `toml:"pulse_laser_power_k"`
@@ -368,9 +373,9 @@ type SlotsConfig struct {
 	FuelMinerERecoveryMul    float64 `toml:"fuel_miner_e_recovery_mul"`
 	FuelMinerPerGradeGainMul float64 `toml:"fuel_miner_per_grade_gain_mul"`
 
-	JammerBasePrice       int     `toml:"jammer_base_price"`
-	JammerGradeUsesStep   int     `toml:"jammer_grade_uses_step"`
-	JammerDurationSeconds float64 `toml:"jammer_duration_seconds"`
+	JammerBasePrice       int       `toml:"jammer_base_price"`
+	JammerGradeUsesStep   int       `toml:"jammer_grade_uses_step"`
+	JammerDurationSeconds []float64 `toml:"jammer_duration_seconds"`
 
 	HeatSinkBasePrice        int     `toml:"heat_sink_base_price"`
 	HeatSinkCapacityPerGrade float64 `toml:"heat_sink_capacity_per_grade"`
@@ -664,8 +669,25 @@ func (c *Content) validateCombat() error {
 	if c.Slots.TurretShotsPerSecond <= 0 {
 		return fmt.Errorf("content: slots turret_shots_per_second must be positive")
 	}
-	if c.Slots.JammerDurationSeconds <= 0 {
-		return fmt.Errorf("content: slots jammer_duration_seconds must be positive")
+	if len(c.Slots.JammerDurationSeconds) != maxGrade+1 {
+		return fmt.Errorf("content: slots jammer_duration_seconds must have %d E..S entries", maxGrade+1)
+	}
+	for grade, seconds := range c.Slots.JammerDurationSeconds {
+		if seconds <= 0 {
+			return fmt.Errorf("content: slots jammer_duration_seconds[%d] must be positive", grade)
+		}
+	}
+	if len(c.Slots.MissileCapacityByGrade) != maxGrade+1 {
+		return fmt.Errorf("content: slots missile_capacity_by_grade must have %d E..S entries", maxGrade+1)
+	}
+	for grade, capacity := range c.Slots.MissileCapacityByGrade {
+		if capacity < 3 || capacity > 10 || (grade > 0 && capacity < c.Slots.MissileCapacityByGrade[grade-1]) {
+			return fmt.Errorf("content: slots missile_capacity_by_grade must ascend within 3..10")
+		}
+	}
+	if c.Slots.MissileDamagePerShotBase <= 0 || c.Slots.MissileDamagePerShotPerGrade < 0 ||
+		c.Slots.MissileCooldownSeconds <= 0 {
+		return fmt.Errorf("content: missile launcher damage and cooldown must be positive")
 	}
 	if c.Slots.HeatSinkCapacityPerGrade <= 0 {
 		return fmt.Errorf("content: slots heat_sink_capacity_per_grade must be positive")
@@ -701,6 +723,9 @@ func (c *Content) validateFleet() error {
 	if c.Fleet.GradePriceCurve <= 1 {
 		return fmt.Errorf("content: fleet grade_price_curve must be > 1")
 	}
+	if c.Fleet.ThrusterEscapeMul <= 0 || c.Fleet.ThrusterEscapeMul > 1 {
+		return fmt.Errorf("content: fleet thruster_escape_mul must be within (0..1]")
+	}
 	if c.Fleet.PowerCapacityBase < 0 || c.Fleet.PowerCapacityPerGrade < 0 {
 		return fmt.Errorf("content: fleet power capacity fields must be non-negative")
 	}
@@ -709,6 +734,9 @@ func (c *Content) validateFleet() error {
 	}
 	if c.Fleet.ScannerLockBaseKm <= 0 || c.Fleet.ScannerLockMaxKm < c.Fleet.ScannerLockBaseKm {
 		return fmt.Errorf("content: fleet scanner_lock_base_km must be positive and <= scanner_lock_max_km")
+	}
+	if c.Fleet.ScannerScanMul <= 0 || c.Fleet.ScannerScanMul > 1 || c.Fleet.ScannerInstantScanKm < 0 {
+		return fmt.Errorf("content: fleet scanner scan multiplier must be within (0..1] and instant range non-negative")
 	}
 	if c.Fleet.EventHullGatePct <= 0 || c.Fleet.EventHullGatePct > 1 {
 		return fmt.Errorf("content: fleet event_hull_gate_pct must be within (0..1]")

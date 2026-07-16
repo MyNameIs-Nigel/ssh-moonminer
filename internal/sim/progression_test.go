@@ -61,7 +61,7 @@ func TestRouteGatesAndPermits(t *testing.T) {
 	if got := sim.RouteLockReason(s, c, 4); got != "NEED JUMP DRIVE" {
 		t.Fatalf("Eridani lock = %q", got)
 	}
-	if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotInternal, 0, sim.ItemJumpDrive, 0); err != nil {
+	if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotJumpDrive, 0, sim.ItemJumpDrive, 0); err != nil {
 		t.Fatal(err)
 	}
 	if got := sim.RouteLockReason(s, c, 4); got != "" {
@@ -93,7 +93,7 @@ func TestEridaniRingsAreSlowAndLethal(t *testing.T) {
 
 	s := sim.New(c, 78, 0)
 	s.Credits = 100000
-	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotInternal, 0, sim.ItemJumpDrive, 0); err != nil {
+	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotJumpDrive, 0, sim.ItemJumpDrive, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {

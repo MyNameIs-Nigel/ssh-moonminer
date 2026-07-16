@@ -156,6 +156,7 @@ func Dock(s *State, c *content.Content) {
 	s.Scan = nil
 	RearmJammer(s, c)
 	RearmEMPLaunchers(s)
+	RearmMissiles(s, c)
 	restoreShipShieldFull(s, c, s.ActiveShipID)
 }
 
