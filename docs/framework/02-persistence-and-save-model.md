@@ -92,6 +92,16 @@ so a reconnecting pilot finds the belt they left. **No active-run state is
 persisted** — disconnecting mid-mining/escape resolves an emergency bail/escape
 first (framework/03).
 
+> **Shipped, with a UI gap (2026-08-15 audit).** The store half of the
+> belt-restore sentence above is real: `Encode`/`DecodeState` clear only `Run`
+> and `Scan`, so `WorldIdx`, `SystemID` and `Belt` do survive a disconnect. The
+> UI half never landed — the TUI opens every session on the star chart, which
+> strands the restored pilot on a dock screen where every `IsDocked()`-gated
+> service refuses. See
+> [framework/05-reconnect-and-location-restore.md](05-reconnect-and-location-restore.md).
+> Station and cosmetic state listed above is **not implemented at all**; those
+> subsystems were never built (see `docs/README.md` § "Designed but not built").
+
 ### Write points
 
 1. **Autosave** — every `MOONMINER_AUTOSAVE_INTERVAL` (default 30s) while a

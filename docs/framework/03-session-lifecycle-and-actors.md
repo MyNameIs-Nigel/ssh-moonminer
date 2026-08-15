@@ -75,6 +75,16 @@ persists. A disconnect must not become a free pause or guaranteed safe cargo
 bank. This rule lives in the actor's detach path and calls gameplay/02's
 `sim.BailOrDepart(...)` plus tick resolution helpers.
 
+### Reconnect: the run resolves, the location restores
+
+These are two different questions and the answers differ. The **run** never
+resumes (rule above). The pilot's **location** must: they escaped to the belt
+they were mining, and that belt is in the save. Reattaching onto the star chart
+instead is what
+[framework/05-reconnect-and-location-restore.md](05-reconnect-and-location-restore.md)
+fixes — it is a live softlock, not a cosmetic one, because every port and
+shipyard action is `IsDocked()`-gated while `WorldIdx >= 0`.
+
 ### Kick delivery
 
 `Session` carries a buffered kick channel + optional callback so the TUI can
