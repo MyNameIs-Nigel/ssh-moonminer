@@ -25,8 +25,10 @@ ssh -p 2222 -o StrictHostKeyChecking=accept-new localhost
 ```
 
 Run `go build ./...`, `go vet ./...`, and `go test ./...` before declaring any task done.
-`go test -race` doesn't work in this dev sandbox (no CGO) — CI (`.github/workflows/ci.yml`) runs
-it on PRs and non-main pushes; race conditions have historically surfaced only there.
+`go test -race` **now works locally** — `build-essential` was installed on the dev WSL box on
+2026-08-15, so `CGO_ENABLED=1 go test -race ./...` runs here. Do that before opening a PR rather
+than waiting on CI: race conditions used to surface only in CI (`.github/workflows/ci.yml`, which
+still runs `-race` on PRs and non-main pushes) because no local run was possible.
 
 Local data lands in gitignored `var/` (`var/moonminer.db`, `var/ssh_host_key`) — never commit it.
 
