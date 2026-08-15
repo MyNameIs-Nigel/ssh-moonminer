@@ -189,6 +189,14 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
     (`../ssh-arcadelobby/docs/06-fleet-data-durability.md`) so an EC2 instance
     loss doesn't lose pilot saves — see framework/04. `../ssh-farm` is the
     worked example of both; copy its shape rather than re-deriving it.
+11. **Durability is drilled, not assumed.** `scripts/restore-drill/` runs the
+    real image against a local MinIO: kill without a graceful flush, delete
+    the volume, prove a fresh container restores genuine pilot data, verified
+    by `PRAGMA integrity_check` plus a decode of every save blob
+    (`cmd/restore-check`). Run them after any change to `Dockerfile`,
+    `entrypoint.sh`, `etc/litestream.yml`, or the store schema — those four
+    are the parts no Go test covers. What they cannot cover is the EC2
+    instance-role credential path, which only the live host exercises.
 
 ## Designed but not built (2026-08-15 audit)
 

@@ -153,6 +153,47 @@ func (st *Store) SaveState(ctx context.Context, fingerprint, slot string, state 
 	return nil
 }
 
+// IntegrityCheck runs SQLite's own `PRAGMA integrity_check` against the open
+// database. Used by the durability drills (scripts/restore-drill) to prove a
+// restored file is structurally sound before anything decides to serve it.
+func (st *Store) IntegrityCheck(ctx context.Context) error {
+	var result string
+	if err := st.db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&result); err != nil {
+		return fmt.Errorf("store: integrity check: %w", err)
+	}
+	if result != "ok" {
+		return fmt.Errorf("store: integrity check failed: %s", result)
+	}
+	return nil
+}
+
+// AllSaves returns every save row, blob included and unfiltered. This exists
+// for the durability drills' decode-every-save pass: the store still never
+// decodes a state blob itself, it only hands the caller every row so the
+// caller can. A structurally valid SQLite file whose blobs no longer decode
+// is a failed restore, and only decoding proves otherwise.
+func (st *Store) AllSaves(ctx context.Context) ([]SaveRow, error) {
+	rows, err := st.db.QueryContext(ctx, `
+		SELECT fingerprint, slot, created_at, updated_at, state, version
+		FROM saves`)
+	if err != nil {
+		return nil, fmt.Errorf("store: all saves: %w", err)
+	}
+	defer rows.Close()
+	var out []SaveRow
+	for rows.Next() {
+		var r SaveRow
+		if err := rows.Scan(&r.Fingerprint, &r.Slot, &r.CreatedAt, &r.UpdatedAt, &r.State, &r.StateVersion); err != nil {
+			return nil, fmt.Errorf("store: all saves: %w", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: all saves: %w", err)
+	}
+	return out, nil
+}
+
 func validateKeys(fingerprint, slot string) error {
 	if fingerprint == "" || !slotPattern.MatchString(slot) {
 		return ErrInvalidKey

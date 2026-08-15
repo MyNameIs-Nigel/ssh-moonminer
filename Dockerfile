@@ -14,6 +14,14 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
         -o /out/ssh-moonminer ./cmd/ssh-moonminer
 
+# restore-check ships in the runtime image on purpose: the durability drills
+# (scripts/restore-drill) verify a restored database from *inside* a container
+# that has the volume mounted, and the quarterly drill runbook needs it on the
+# live host without a Go toolchain there. It is read-only and never runs unless
+# invoked explicitly.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+        -o /out/restore-check ./cmd/restore-check
+
 # Pre-create the data directory with the runtime user's ownership so the
 # named volume inherits writable permissions on first use.
 RUN mkdir -p /out/data-dir && chown 65532:65532 /out/data-dir
@@ -41,6 +49,7 @@ RUN apk add --no-cache ca-certificates && \
 COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
 COPY --from=mc /usr/bin/mc /usr/local/bin/mc
 COPY --from=build /out/ssh-moonminer /app/ssh-moonminer
+COPY --from=build /out/restore-check /app/restore-check
 COPY --from=build --chown=65532:65532 /out/data-dir /var/lib/moonminer
 COPY etc/litestream.yml /etc/litestream.yml
 COPY entrypoint.sh /entrypoint.sh
