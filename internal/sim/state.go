@@ -125,6 +125,14 @@ type RunRecord struct {
 	Events               []string `json:"events,omitempty"`
 	PirateDestroyed      string   `json:"pirate_destroyed,omitempty"`
 	BountyEarned         int      `json:"bounty_earned,omitempty"`
+
+	// Disconnected marks a run the disconnect/shutdown autopilot resolved
+	// (EmergencyResolve) rather than one the pilot flew to its end. Permanent
+	// and informational: the ship's log shows it so an outcome nobody chose is
+	// never mistaken for one that was. Old records decode as false, so this
+	// needs no StateVersion bump. See
+	// docs/framework/05-reconnect-and-location-restore.md.
+	Disconnected bool `json:"disconnected,omitempty"`
 }
 
 // Asteroid is one belt contact.
@@ -424,6 +432,14 @@ type State struct {
 	RunLog   []RunRecord `json:"run_log,omitempty"`
 	Run      *ActiveRun  `json:"run,omitempty"`
 	Scan     *ActiveScan `json:"scan,omitempty"`
+
+	// DisconnectNotice is the outcome of a run EmergencyResolve closed while
+	// the pilot was gone, held so the next session can tell them what their
+	// autopilot did. Unlike Run and Scan it deliberately survives Encode() —
+	// outliving the session that produced it is the entire point. One-shot:
+	// the TUI shows it once and calls AckDisconnectNotice, which clears it.
+	// See docs/framework/05-reconnect-and-location-restore.md.
+	DisconnectNotice *RunRecord `json:"disconnect_notice,omitempty"`
 
 	// DevGodMode disables hull damage. It is a dev-server-only debug flag.
 	// It has a real json tag so it survives Clone()'s JSON round-trip

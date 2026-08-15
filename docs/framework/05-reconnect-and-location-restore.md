@@ -1,5 +1,10 @@
 # Framework 05 — Reconnect and Location Restore
 
+> **Status: complete (v1.6.2).** Rules 1–4 shipped; rule 5 (restoring the
+> highlighted contact) was left out as explicitly optional. Two extra bugs
+> surfaced while building the tests and were fixed in the same change — see
+> § "Found while building this" at the end.
+
 ## Goal
 
 A pilot who loses their connection at a belt must come back **at that belt**,
@@ -167,27 +172,54 @@ gone. Cosmetic; ship rules 1–3 first.
 
 ## Acceptance criteria
 
-- [ ] Attach a save with `WorldIdx >= 0` and a populated belt: the session
+- [x] Attach a save with `WorldIdx >= 0` and a populated belt: the session
   opens on the belt screen showing that belt's contacts, and the persisted
   `Belt` is byte-identical to what was saved (no regeneration, `BeltCount`
-  unchanged).
-- [ ] Attach a save with `WorldIdx >= 0` and an **empty** belt: opens on the
-  belt screen, `Q` docks normally.
-- [ ] Attach a docked save: opens on the star chart, unchanged. A newly
-  created pilot opens on the chart with onboarding.
-- [ ] End-to-end through `internal/game`: attach → `Depart` → `Detach` →
+  unchanged). — `TestInitialScreenFollowsSavedLocation`,
+  `TestReattachRestoresBeltLocation`
+- [x] Attach a save with `WorldIdx >= 0` and an **empty** belt: opens on the
+  belt screen, `Q` docks normally. — `TestInitialScreenFollowsSavedLocation`
+- [x] Attach a docked save: opens on the star chart, unchanged. A newly
+  created pilot opens on the chart with onboarding. — same test; onboarding
+  wins the overlay slot, so the reconnect notice never covers it.
+- [x] End-to-end through `internal/game`: attach → `Depart` → `Detach` →
   re-`Attach` returns a state with the same `WorldIdx`, `SystemID`, `BeltCount`
-  and `Belt` (this is the package's first test — see tests/02).
-- [ ] Mid-run disconnect still resolves the emergency bail/escape: cargo kept
+  and `Belt`. — `TestReattachRestoresBeltLocation`, the package's first test.
+- [x] Mid-run disconnect still resolves the emergency bail/escape: cargo kept
   only on escape, ship death still possible, `Run == nil` on reattach, and the
-  pilot reattaches **at the belt** with that outcome visible once.
-- [ ] `Depart` while `!IsDocked()` returns `ErrInBelt` and mutates nothing —
-  fuel, `BeltCount` and `Belt` all unchanged.
-- [ ] The full-hold case is recoverable: reconnect with a full hold at a belt,
+  pilot reattaches **at the belt** with that outcome visible once. —
+  `TestDetachMidRunResolvesAndLeavesNotice`,
+  `TestEmergencyResolveShipLostRespawnsDocked`
+- [x] `Depart` while `!IsDocked()` returns `ErrInBelt` and mutates nothing —
+  fuel, `BeltCount` and `Belt` all unchanged. — `TestDepartRequiresDocked`
+- [x] The full-hold case is recoverable: reconnect with a full hold at a belt,
   `Q` to dock, `C` to sell. No key sequence from a restored session leaves the
-  pilot with no legal action.
-- [ ] `go build ./... && go vet ./... && go test ./...` green; CI `-race`
-  clean.
+  pilot with no legal action. —
+  `TestDepartInBeltWithFullHoldIsRefusedNotCargoFull`
+- [x] `go build ./... && go vet ./... && go test ./...` green (175 tests, up
+  from 157); CI `-race` clean.
+
+## Found while building this
+
+Two live bugs surfaced that this doc did not predict. Both are in
+`internal/game`, which had **zero tests** before this task — that is why they
+survived.
+
+1. **The actor's tick ticker was starved by its own clients.** `actor.run()`
+   called `mineTick.Reset(tickDur)` at the top of every loop iteration, and
+   `Reset` restarts a ticker's period from zero. Any client sending requests
+   faster than the 250 ms tick therefore prevented the tick from **ever**
+   firing: a player mashing mining pressure points above 4 Hz froze their own
+   drill, the pirate approach and the escape timer, and an in-flight scan never
+   completed. The ticker is now started and stopped only on an edge. Pinned by
+   `TestFrequentRequestsDoNotStarveTheTick`, which is also how it was found —
+   the reconnect test's scan never finished.
+2. **`Session.lastOutcome` was raced.** The actor goroutine writes it in
+   `tick()`; the TUI goroutine reads it via `LastOutcome()` on its own 1 Hz
+   timer, which has no happens-before edge to that write. (The `snapMsg` path
+   is fine — the channel provides the edge.) It now has its own mutex. This
+   was latent rather than observed: with no tests in `internal/game`, CI's
+   `-race` job had never exercised the package.
 
 ## Out of scope / handoffs
 

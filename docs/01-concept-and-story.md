@@ -160,8 +160,12 @@ actions:
 | Anywhere | ? help overlay · Ctrl+C disconnect |
 
 Note what the belt screen owns: `Q` is the **only** way to dock. The star chart
-has no dock action, which is why a session that opens on the chart while
-`WorldIdx >= 0` is a softlock — see
+has no dock action, which is why a session that opened on the chart while
+`WorldIdx >= 0` used to be a softlock. Since v1.6.2 a session opens where the
+save says the pilot is, and a chart reached while `WorldIdx >= 0` shows its
+port services disabled with `Enter` rebound to RETURN TO BELT — deliberately a
+screen change only, never `sim.Dock`, since docking would hand out a free
+jammer/EMP/missile rearm and full shield restore. See
 [framework/05-reconnect-and-location-restore.md](framework/05-reconnect-and-location-restore.md).
 
 ## Deliberate divergences from the HTML prototype
@@ -176,8 +180,9 @@ Agents should follow **this list**, not the prototype, where they differ:
    credits, permits, stations, cosmetics, settings, lifetime stats, current
    ship, cargo, and local belt state per SSH key (see framework docs).
    Disconnecting mid-operation auto-starts a bail/escape resolution — and the
-   pilot must come back **at the belt they were working**, not at the dock
-   (framework/05; stations and cosmetics in this list were never built).
+   pilot comes back **at the belt they were working**, not at the dock, with a
+   one-shot recap of what the autopilot did (framework/05, shipped v1.6.2;
+   stations and cosmetics in this list were never built).
 3. **Hull means life.** At hull 0 the active ship is destroyed. The pilot
    respawns in a starter skiff; superior ships and installed upgrades must be
    repurchased. See gameplay/02 and gameplay/04.

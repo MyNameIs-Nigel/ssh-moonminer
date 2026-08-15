@@ -195,6 +195,9 @@ func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 
 func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 	switch g.overlay {
+	case ovSignalLost:
+		// Dismissed by any input, mouse included — the game is mouse-everywhere.
+		return g.dismissSignalLost()
 	case ovPermit:
 		if b, ok := g.hits.At(m.X, m.Y); ok && b.ID == "permit:buy" {
 			return g.confirmPermitPurchase()

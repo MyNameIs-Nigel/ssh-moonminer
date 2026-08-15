@@ -121,8 +121,8 @@ decisions on route topology, recovery, and difficulty)
 Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
   bounties — owns its own sim + TUI work)
 
-Live fix (do first, ahead of any new feature work):
-  framework/05 (reconnect and location restore — a shipped softlock)
+Live fix (done, v1.6.2):
+  framework/05 (reconnect and location restore — the shipped softlock)
 ```
 
 Dependencies are listed per-task; the summary:
@@ -220,7 +220,7 @@ unachievable.
 | [framework/02-persistence-and-save-model.md](framework/02-persistence-and-save-model.md) | SQLite store, schema, save serialization |
 | [framework/03-session-lifecycle-and-actors.md](framework/03-session-lifecycle-and-actors.md) | Save manager, actor goroutines, takeover policy, shutdown flush |
 | [framework/04-config-content-and-deployment.md](framework/04-config-content-and-deployment.md) | `MOONMINER_*` config, TOML content loader, Docker deploy |
-| [framework/05-reconnect-and-location-restore.md](framework/05-reconnect-and-location-restore.md) | **Open live bug.** Reconnecting pilots open on the star chart while still in a belt, where every docked-gated service refuses — a softlock, unrecoverable with a full hold |
+| [framework/05-reconnect-and-location-restore.md](framework/05-reconnect-and-location-restore.md) | **Fixed in v1.6.2.** Reconnecting pilots used to open on the star chart while still in a belt, where every docked-gated service refuses — a softlock, unrecoverable with a full hold. Sessions now open where the save says the pilot is, `Depart` is docked-gated, and a one-shot notice reports what the disconnect autopilot did |
 | [gameplay/01-simulation-engine-and-belt-generation.md](gameplay/01-simulation-engine-and-belt-generation.md) | Sim state, RNG, world data, belt generation |
 | [gameplay/02-mining-run-loop.md](gameplay/02-mining-run-loop.md) | Manual mining tick, pirate actions, escape, random events, ship death |
 | [gameplay/03-economy-worlds-and-balance.md](gameplay/03-economy-worlds-and-balance.md) | Credits, port services, travel, balance TOML |

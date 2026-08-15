@@ -125,6 +125,16 @@ func Depart(s *State, c *content.Content, worldIdx int) error {
 	if s.Run != nil {
 		return ErrActiveRun
 	}
+	// Departing is a dock action. Without this guard a pilot already at a belt
+	// could "depart" to where they are, paying TravelFuel a second time and
+	// having GenerateBelt roll a fresh belt over the one the save preserved.
+	// Checked before any mutation so a refused departure costs nothing. The
+	// only route from one belt to another is Q (dock, where the rearm belongs)
+	// → chart → Enter. See
+	// docs/framework/05-reconnect-and-location-restore.md.
+	if !s.IsDocked() {
+		return ErrInBelt
+	}
 	if RemainingCargoCapacity(s, c) <= 0 {
 		return ErrCargoFull
 	}

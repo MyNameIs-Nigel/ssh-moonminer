@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
@@ -25,6 +27,8 @@ func (g *Game) renderOverlay() string {
 		return g.renderPermitOverlay()
 	case ovKicked:
 		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
+	case ovSignalLost:
+		return g.renderSignalLostOverlay()
 	case ovOnboard:
 		pg := g.onboardPg
 		if pg >= len(onboardPages) {
@@ -38,6 +42,41 @@ func (g *Game) renderOverlay() string {
 	default:
 		return ""
 	}
+}
+
+// renderSignalLostOverlay recaps the run the disconnect autopilot closed while
+// the pilot was away. It is rebuilt from the persisted RunRecord rather than a
+// RunOutcome, because the Session that produced the outcome died with the
+// connection (docs/framework/05-reconnect-and-location-restore.md).
+func (g *Game) renderSignalLostOverlay() string {
+	rec := g.signalLost
+	if rec == nil {
+		return ""
+	}
+	st := g.snap.State
+	credit := theme.Glyph("credit", st.Settings.ASCIISafe)
+	kind := sim.OutcomeKind(rec.Outcome)
+	lines := []string{
+		theme.Red.Render("SIGNAL LOST — AUTOPILOT LOGGED"),
+		theme.DimStyle.Render("The rig ran the escape without you."),
+		"",
+		theme.OutcomeStyle(rec.Outcome).Render(sim.OutcomeLabel(kind)),
+		theme.Gold.Render("ASTEROID: ") + theme.TxtStyle.Render(rec.Asteroid),
+	}
+	if rec.CargoValueRecovered > 0 {
+		lines = append(lines, theme.Green.Render(fmt.Sprintf("CARGO SEALED: +%s %d", credit, rec.CargoValueRecovered)))
+	}
+	if rec.CargoValueLost > 0 {
+		lines = append(lines, theme.Red.Render(fmt.Sprintf("CARGO LOST: %s %d", credit, rec.CargoValueLost)))
+	}
+	if rec.CargoValueJettisoned > 0 {
+		lines = append(lines, theme.Amber.Render(fmt.Sprintf("CARGO JETTISONED: %s %d", credit, rec.CargoValueJettisoned)))
+	}
+	lines = append(lines,
+		theme.Amber.Render(fmt.Sprintf("HULL DELTA: %+d   FUEL DELTA: %+.0f", rec.HullDelta, rec.FuelDelta)),
+		"",
+		theme.DimStyle.Render("Press any key."))
+	return theme.Panel("RECONNECTED", 58, len(lines)+2, strings.Join(lines, "\n"), theme.OutcomeAccent(rec.Outcome))
 }
 
 func (g *Game) compositeView(base string) string {
