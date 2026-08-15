@@ -49,6 +49,7 @@ const (
 	ovSlotPicker
 	ovSlotRemove
 	ovPermit
+	ovSignalLost
 )
 
 type (
@@ -115,6 +116,11 @@ type Game struct {
 	hits        *hitbox.Registry
 	kickReason  string
 
+	// signalLost is the run record the disconnect autopilot closed while the
+	// pilot was away, shown once as ovSignalLost on reconnect and then
+	// acknowledged (framework/05).
+	signalLost *sim.RunRecord
+
 	// Death-sequence flicker: deathFrame counts fast ticks since the ship
 	// was lost; deathFlickerFrames is how many of those play the CRT-dying
 	// glitch before it settles on the plain CONNECTION LOST screen (zero
@@ -144,6 +150,22 @@ func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.C
 	}
 	snap, _ := g.sess.SnapshotNow()
 	g.snap = snap
+	// Open the session where the pilot actually is. WorldIdx, SystemID and
+	// Belt survive a disconnect by design (framework/02), so hardcoding the
+	// chart stranded belt-side pilots on a dock screen whose every service is
+	// IsDocked()-gated. Run is never persisted, so no restore can land on
+	// scrMining; an empty Belt still routes here, because the belt screen
+	// handles it and the chart is the softlock.
+	// See docs/framework/05-reconnect-and-location-restore.md.
+	if g.scr = initialScreen(&snap.State); g.scr == scrBelt {
+		g.rockSel = 0
+	}
+	// Tell a returning pilot what their autopilot did. Never shown over
+	// onboarding — a freshly created pilot has no run history to report.
+	if snap.State.DisconnectNotice != nil && g.overlay == ovNone {
+		g.signalLost = snap.State.DisconnectNotice
+		g.overlay = ovSignalLost
+	}
 	for i := range c.Worlds {
 		if c.Worlds[i].SystemID == snap.State.SystemID && sim.RouteLockReason(&snap.State, c, i) == "" {
 			g.worldSel = i
@@ -151,6 +173,17 @@ func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.C
 		}
 	}
 	return g
+}
+
+// initialScreen picks the screen a session opens on from the restored save.
+// A pilot whose save says they are at a belt opens at that belt, including
+// when the belt is empty — they mined it out, the belt screen handles that,
+// and routing them to the chart instead is the framework/05 softlock.
+func initialScreen(st *sim.State) screen {
+	if st.IsDocked() {
+		return scrChart
+	}
+	return scrBelt
 }
 
 func (g *Game) Init() tea.Cmd {
@@ -289,6 +322,11 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		} else {
 			g.onboardPg++
 		}
+	case ovSignalLost:
+		if m.String() == "" {
+			break
+		}
+		return g.dismissSignalLost()
 	case ovHelp:
 		return g.updateHelpOverlay(m.String())
 	case ovTweaks:
@@ -348,6 +386,18 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 		return g.keyLog(k)
 	}
 	return nil
+}
+
+// dismissSignalLost closes the reconnect notice and acknowledges it in the
+// save, so it is shown exactly once (framework/05).
+func (g *Game) dismissSignalLost() []tea.Cmd {
+	g.overlay = ovNone
+	g.signalLost = nil
+	snap, err := g.sess.AckDisconnectNotice(g.now)
+	if err != nil {
+		return nil
+	}
+	return g.refreshSnap(snap, nil)
 }
 
 func (g *Game) setFlash(text string) {

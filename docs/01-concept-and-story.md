@@ -77,12 +77,17 @@ safer than staying.
 The initial content set should be small enough to implement but structured for
 expansion:
 
-| System | Starting access | Design role |
-| --- | --- | --- |
-| **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit |
-| **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks |
-| **KEPLER REACH** | locked by expensive transfer + higher jump rating | late-game station value |
-| **REDLINE EXPANSE** | locked endgame route | extremely profitable, routinely lethal |
+| System | Starting access | Design role | Built? |
+| --- | --- | --- | --- |
+| **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit | shipped |
+| **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks | shipped |
+| **KEPLER REACH** | locked by expensive transfer + higher jump rating | late-game station value | **not built** |
+| **REDLINE EXPANSE** | locked endgame route | extremely profitable, routinely lethal | **not built** |
+
+`data/worlds.toml` ships the first two systems and eight destinations between
+them. The last two remain aspirational, and "late-game station value" is doubly
+so — **stations and cosmetics were never implemented**; see `README.md`
+§ "Designed but not built" before planning against either.
 
 Starter Sol destinations should demonstrate the lock model: one accessible
 low-yield belt, one nearby planet that needs a fuel tank upgrade, one lucrative
@@ -137,14 +142,31 @@ everywhere the keyboard does** — clicking a list row selects it, clicking a
 selected row (or double-clicking) activates it, clicking `[F] REFUEL` style
 buttons triggers them, and the scroll wheel moves selection in lists.
 
+The table below is the **shipped** contract, reconciled against the code on
+2026-08-15 (v1.6.1). It replaces an earlier table that listed keys for
+unbuilt systems (`C cosmetics`, `B build station`) and had `H`/`R` on the wrong
+actions:
+
 | Screen | Keys |
 | --- | --- |
-| Star Chart | ↑/↓ select route/destination · Enter depart · F refuel · H repair hull · S shipyard · C cosmetics · B build station · L log · T tweaks · Q quit |
-| Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · V cycle view · R rescan · Q dock |
-| Mining | B/Esc bail while asteroid ore remains · Enter depart after true depletion · Space/click fracture a lit pressure point · D accept tribute/drop cargo · R refuse tribute |
+| Star Chart | ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · S shipyard · L log · I salvage advance (only while eligible) · T tweaks · Q quit |
+| Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · S scan selected contact · V cycle view mode · Q dock |
+| Mining | B/Esc/Enter bail while ore remains, depart once depleted · Space/click fracture a lit pressure point |
+| Tribute prompt | D accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |
+| Combat | F pulse laser · G guided missile · B/Esc/Enter start the escape burn — see gameplay/07 |
 | Escape | no menu actions; ship is fleeing under current conditions |
-| Summary/Death recap | Enter continue · Q dock |
+| Run Summary | Enter/Space continue into the same belt · Q dock |
+| Ship-lost recap | Enter/Space/Q — all dock; there is no belt to return to |
 | Anywhere | ? help overlay · Ctrl+C disconnect |
+
+Note what the belt screen owns: `Q` is the **only** way to dock. The star chart
+has no dock action, which is why a session that opened on the chart while
+`WorldIdx >= 0` used to be a softlock. Since v1.6.2 a session opens where the
+save says the pilot is, and a chart reached while `WorldIdx >= 0` shows its
+port services disabled with `Enter` rebound to RETURN TO BELT — deliberately a
+screen change only, never `sim.Dock`, since docking would hand out a free
+jammer/EMP/missile rearm and full shield restore. See
+[framework/05-reconnect-and-location-restore.md](framework/05-reconnect-and-location-restore.md).
 
 ## Deliberate divergences from the HTML prototype
 
@@ -157,7 +179,10 @@ Agents should follow **this list**, not the prototype, where they differ:
 2. **Persistent pilots.** The prototype reset on refresh. We persist
    credits, permits, stations, cosmetics, settings, lifetime stats, current
    ship, cargo, and local belt state per SSH key (see framework docs).
-   Disconnecting mid-operation auto-starts a bail/escape resolution.
+   Disconnecting mid-operation auto-starts a bail/escape resolution — and the
+   pilot comes back **at the belt they were working**, not at the dock, with a
+   one-shot recap of what the autopilot did (framework/05, shipped v1.6.2;
+   stations and cosmetics in this list were never built).
 3. **Hull means life.** At hull 0 the active ship is destroyed. The pilot
    respawns in a starter skiff; superior ships and installed upgrades must be
    repurchased. See gameplay/02 and gameplay/04.

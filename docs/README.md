@@ -117,6 +117,12 @@ Phase 5 (live, single-doc-pair): gameplay/05 + tui/05 (fleet ships, slots,
 Post-Phase 5 (design review): gameplay/06 (full-loop gameplay edge-case audit
 and resolution plan; sequence its implementation work after explicit product
 decisions on route topology, recovery, and difficulty)
+
+Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
+  bounties — owns its own sim + TUI work)
+
+Live fix (done, v1.6.2):
+  framework/05 (reconnect and location restore — the shipped softlock)
 ```
 
 Dependencies are listed per-task; the summary:
@@ -184,6 +190,26 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
     loss doesn't lose pilot saves — see framework/04. `../ssh-farm` is the
     worked example of both; copy its shape rather than re-deriving it.
 
+## Designed but not built (2026-08-15 audit)
+
+Three subsystems are specified across these docs — some of them at length, and
+some as acceptance criteria — that **do not exist in the code at all**. Nothing
+in `internal/` or `data/` references them; they are not partial, they are
+absent. Read the docs below with that in mind, and do not treat their
+acceptance lists as regressions.
+
+| Designed | Where it is specified | Reality on `main` (v1.6.1) |
+| --- | --- | --- |
+| **Space stations** — build cost, ownership, capped offline passive income, the late-game credit sink | `02-danger-economy-and-progression.md` (16 refs), `gameplay/03` (32 refs), `gameplay/01`, `gameplay/04`, `tui/02` (17 refs), `framework/03` ("the actor calls the gameplay/03 station-income helper on attach") | No `Station` identifier anywhere in the repo. The attach path has no income helper. `B build station` is not a key on any screen |
+| **Cosmetics** — purchasable, persist through death, never change derived values | `gameplay/04` (18 refs), `tui/02` (12 refs), `tui/04`, `01-concept-and-story.md` | No `Cosmetic` identifier anywhere. `sim.Settings` carries only belt view, pirate aggression, high contrast, ASCII-safe, reduced motion, wrap, insurance-used. `C` on the star chart is **sell cargo**, not cosmetics |
+| **KEPLER REACH / REDLINE EXPANSE systems** | `01-concept-and-story.md` § "Systems, worlds, and ships" | `data/worlds.toml` ships two systems (SOL, ERIDANI DRIFT) and eight destinations. The lock model those two were meant to demonstrate is instead carried by permits and required-item gates on the Sol/Eridani destinations |
+
+The economy is currently balanced without a station sink, so adding one is a
+balance change, not a fill-in-the-blank. Decide whether stations and cosmetics
+are still wanted before writing a task doc for either; if they are dropped,
+strike them from the four docs above rather than leaving the acceptance lists
+unachievable.
+
 ## Document map
 
 | Doc | Task |
@@ -194,6 +220,7 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
 | [framework/02-persistence-and-save-model.md](framework/02-persistence-and-save-model.md) | SQLite store, schema, save serialization |
 | [framework/03-session-lifecycle-and-actors.md](framework/03-session-lifecycle-and-actors.md) | Save manager, actor goroutines, takeover policy, shutdown flush |
 | [framework/04-config-content-and-deployment.md](framework/04-config-content-and-deployment.md) | `MOONMINER_*` config, TOML content loader, Docker deploy |
+| [framework/05-reconnect-and-location-restore.md](framework/05-reconnect-and-location-restore.md) | **Fixed in v1.6.2.** Reconnecting pilots used to open on the star chart while still in a belt, where every docked-gated service refuses — a softlock, unrecoverable with a full hold. Sessions now open where the save says the pilot is, `Depart` is docked-gated, and a one-shot notice reports what the disconnect autopilot did |
 | [gameplay/01-simulation-engine-and-belt-generation.md](gameplay/01-simulation-engine-and-belt-generation.md) | Sim state, RNG, world data, belt generation |
 | [gameplay/02-mining-run-loop.md](gameplay/02-mining-run-loop.md) | Manual mining tick, pirate actions, escape, random events, ship death |
 | [gameplay/03-economy-worlds-and-balance.md](gameplay/03-economy-worlds-and-balance.md) | Credits, port services, travel, balance TOML |

@@ -15,6 +15,24 @@ import (
 func (g *Game) keyChart(k string) []tea.Cmd {
 	st := g.snap.State
 	n := len(g.content.Worlds)
+	// Belt-and-suspenders for a pilot who reaches the chart while still out at
+	// a belt: every port service is IsDocked()-gated, so the chart would be a
+	// dead end. Enter becomes RETURN TO BELT — deliberately a pure screen
+	// change, never sim.Dock, because docking rearms jammer/EMP/missiles and
+	// restores shields, and restoring someone's position must not hand them a
+	// service they did not fly back to buy.
+	// See docs/framework/05-reconnect-and-location-restore.md.
+	if !st.IsDocked() {
+		switch k {
+		case "enter", " ":
+			g.scr = scrBelt
+			g.rockSel = 0
+			return nil
+		case "f", "r", "c", "i", "s":
+			g.setFlash("STILL IN BELT — RETURN TO BELT, THEN [Q] DOCK")
+			return nil
+		}
+	}
 	switch k {
 	case "up", "k":
 		g.worldSel = (g.worldSel - 1 + n) % n
@@ -141,13 +159,18 @@ func (g *Game) renderChart() string {
 	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
 	shieldLabel := g.renderShieldStatus(&st, 8)
 
+	// Port services only exist at dock. When the chart is showing to a pilot
+	// who is still at a belt, the buttons render disabled rather than offering
+	// five keys that all error (framework/05).
+	docked := st.IsDocked()
+
 	rightLines := []string{fuelLabel}
-	refuelBtn := theme.Button("F", "REFUEL", refuelCost, sim.RefuelCost(&st, g.content) > 0 && st.Credits >= g.content.Port.RefuelPerPoint, theme.HueGreen)
+	refuelBtn := theme.Button("F", "REFUEL", refuelCost, docked && sim.RefuelCost(&st, g.content) > 0 && st.Credits >= g.content.Port.RefuelPerPoint, theme.HueGreen)
 	rightLines = append(rightLines, refuelBtn)
 	g.hitPanelLine(1, rightX, refuelBtn, "svc:refuel", nil)
 
 	rightLines = append(rightLines, hullLabel)
-	repairBtn := theme.Button("R", "REPAIR — FULL", repairCost, st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
+	repairBtn := theme.Button("R", "REPAIR — FULL", repairCost, docked && st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
 	rightLines = append(rightLines, repairBtn)
 	g.hitPanelLine(3, rightX, repairBtn, "svc:repair", nil)
 
@@ -163,7 +186,7 @@ func (g *Game) renderChart() string {
 		sellLabel = "SELL CARGO + BOUNTY"
 		sellTotal += st.BountyVouchers
 	}
-	sellBtn := theme.Button("C", sellLabel, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sellTotal), sellTotal > 0, theme.HueGold)
+	sellBtn := theme.Button("C", sellLabel, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sellTotal), docked && sellTotal > 0, theme.HueGold)
 	rightLines = append(rightLines, sellBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, sellBtn, "svc:sell", nil)
 	if sim.InsuranceEligible(&st, g.content) {
@@ -171,7 +194,7 @@ func (g *Game) renderChart() string {
 		rightLines = append(rightLines, insBtn)
 		g.hitPanelLine(len(rightLines)-1, rightX, insBtn, "svc:insurance", nil)
 	}
-	shipyardBtn := theme.Button("S", "SHIPYARD", "", true, theme.HueViolet)
+	shipyardBtn := theme.Button("S", "SHIPYARD", "", docked, theme.HueViolet)
 	rightLines = append(rightLines, shipyardBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, shipyardBtn, "btn:shipyard", nil)
 
@@ -179,18 +202,35 @@ func (g *Game) renderChart() string {
 	rightLines = append(rightLines, logBtn)
 	g.hitPanelLine(len(rightLines)-1, rightX, logBtn, "btn:log", nil)
 
-	rightFooter := g.chartFooterLines("Bigger rocks pay more but attract pirates.", rightW-2, panelBodyH-len(rightLines))
+	if !docked {
+		returnBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
+		rightLines = append(rightLines, "", theme.Red.Render(theme.Glyph("diamond", st.Settings.ASCIISafe)+" IN BELT — RETURN TO BELT TO DOCK"), returnBtn)
+		g.hitPanelLine(len(rightLines)-1, rightX, returnBtn, "btn:return-belt", nil)
+	}
+
+	footerHint := "Bigger rocks pay more but attract pirates."
+	if !docked {
+		footerHint = "Services open once the rig is docked."
+	}
+	rightFooter := g.chartFooterLines(footerHint, rightW-2, panelBodyH-len(rightLines))
 	rightBody := strings.Join(bottomAlignPanelLines(rightLines, rightFooter, panelBodyH), "\n")
 
 	chartTitle := "STAR CHART"
 	if system := g.content.SystemByID(st.SystemID); system != nil {
 		chartTitle += " — " + system.Name
 	}
+	servicesTitle := "PORT SERVICES"
+	if !docked {
+		servicesTitle = "PORT SERVICES — OFFLINE"
+	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
 		theme.Panel(chartTitle, leftW, panelH, leftBody, accent),
-		theme.Panel("PORT SERVICES", rightW, panelH, rightBody, accent),
+		theme.Panel(servicesTitle, rightW, panelH, rightBody, accent),
 	)
 	hint := "↑/↓ SELECT · ENTER FLY · C SELL · S YARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
+	if !docked {
+		hint = "ENTER RETURN TO BELT · L LOG · T TWEAKS · ? HELP · Q QUIT"
+	}
 	return body + "\n" + g.renderKeybar(hint)
 }
 
@@ -214,6 +254,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyShipyard("x")
 		case "btn:log":
 			return g.keyChart("l")
+		case "btn:return-belt":
+			return g.keyChart("enter")
 		case "btn:scan":
 			return g.keyBelt("s")
 		case "btn:bail":

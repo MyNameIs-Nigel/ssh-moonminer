@@ -56,11 +56,22 @@ func (a *actor) run() {
 	mineTick.Stop()
 	defer mineTick.Stop()
 
+	// The tick ticker is only started and stopped on an edge, never reset on
+	// every loop iteration. Reset restarts a ticker's period from zero, so
+	// resetting per-iteration meant any client sending requests faster than
+	// tickDur starved the tick entirely — a player mashing mining pressure
+	// points above 4 Hz froze their own drill, pirate approach and escape
+	// timer, and an in-flight scan never completed.
+	ticking := false
 	for {
-		if a.state.WorldIdx >= 0 || a.state.Run != nil || a.state.Scan != nil {
-			mineTick.Reset(tickDur)
-		} else {
-			mineTick.Stop()
+		want := a.state.WorldIdx >= 0 || a.state.Run != nil || a.state.Scan != nil
+		if want != ticking {
+			if want {
+				mineTick.Reset(tickDur)
+			} else {
+				mineTick.Stop()
+			}
+			ticking = want
 		}
 		select {
 		case fn := <-a.reqs:
@@ -103,7 +114,7 @@ func (a *actor) tick() {
 		// Store an ending outcome before the snapshot is delivered so its TUI
 		// handler can enter the summary in the same update cycle.
 		if ended && out != nil {
-			a.session.lastOutcome = out
+			a.session.setOutcome(out)
 		}
 		select {
 		case a.session.snapCh <- snap:

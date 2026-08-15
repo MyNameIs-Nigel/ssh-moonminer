@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
@@ -56,6 +57,16 @@ var outcomeMeta = map[OutcomeKind]struct{ Label, Desc string }{
 	OutcomeEscapedUnderFire: {"ESCAPED UNDER FIRE", "Hull torn open, engines screaming, cargo still aboard."},
 	OutcomePirateDestroyed:  {"PIRATE DESTROYED", "Threat neutralized. Cargo sealed and bounty voucher confirmed."},
 	OutcomeShipLost:         {"CONNECTION LOST", "The ship and its hold are gone."},
+}
+
+// OutcomeLabel returns the display label for an outcome kind, for callers that
+// hold a RunRecord rather than a RunOutcome (the ship's log, and the reconnect
+// notice framework/05 rebuilds from the persisted record).
+func OutcomeLabel(kind OutcomeKind) string {
+	if meta, ok := outcomeMeta[kind]; ok {
+		return meta.Label
+	}
+	return strings.ToUpper(string(kind))
 }
 
 // Lock begins a mining run on the selected asteroid.
@@ -530,6 +541,37 @@ func rollPirateAction(s *State, c *content.Content, run *ActiveRun, ast *Asteroi
 // would take, so cargo survives only if the (simulated) escape succeeds and
 // ship loss remains possible — used on disconnect/shutdown.
 func EmergencyResolve(s *State, c *content.Content, now int64) *RunOutcome {
+	if s.Run == nil {
+		return nil
+	}
+	out := resolveAbandonedRun(s, c, now)
+	if s.Run != nil {
+		// Nothing resolved (an early bail/refuse error left the run standing);
+		// there is no outcome to report to the next session.
+		return out
+	}
+	// The run ended with nobody watching. resolve() prepended its record, so
+	// RunLog[0] is that run: flag it permanently for the ship's log, and hand
+	// the next session a one-shot notice of what the autopilot did.
+	// See docs/framework/05-reconnect-and-location-restore.md.
+	if len(s.RunLog) > 0 {
+		s.RunLog[0].Disconnected = true
+		rec := s.RunLog[0]
+		s.DisconnectNotice = &rec
+	}
+	if out != nil {
+		out.Record.Disconnected = true
+	}
+	return out
+}
+
+// AckDisconnectNotice clears the one-shot notice once a session has shown it,
+// so it is never shown twice. The RunLog entry keeps its Disconnected flag.
+func AckDisconnectNotice(s *State) {
+	s.DisconnectNotice = nil
+}
+
+func resolveAbandonedRun(s *State, c *content.Content, now int64) *RunOutcome {
 	run := s.Run
 	if run == nil {
 		return nil

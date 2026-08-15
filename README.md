@@ -47,7 +47,9 @@ go vet ./...
 Behind `ssh-arcadelobby`, set `MOONMINER_PROXY_KEYS_PATH` to the router's bridge
 public key file (same pattern as ssh-farm's `FARM_PROXY_KEYS_PATH`). The fleet
 compose block in `ssh-arcadelobby/deploy/docker-compose.yml` is wired and live;
-`games.toml` lists this game with `version = "1.6.1"`.
+`games.toml` lists this game with `version = "1.6.2"` — a fallback only; the
+router's prober reads the live version off the SSH banner, which comes from
+`internal/version`.
 
 ## Deploy
 

@@ -14,7 +14,13 @@ type Session struct {
 	kickFn   func(reason string)
 	kickOnce sync.Once
 
-	snapCh      chan sim.Snapshot
+	snapCh chan sim.Snapshot
+
+	// lastOutcome is written by the actor goroutine and read by the TUI's, so
+	// it needs its own lock. The snapshot channel gives the snapMsg path a
+	// happens-before edge, but the TUI also polls this on its own 1 Hz timer,
+	// which has no edge to the actor's tick at all.
+	outMu       sync.Mutex
 	lastOutcome *sim.RunOutcome
 }
 
@@ -28,10 +34,20 @@ func (s *Session) Kicked() <-chan string { return s.kicked }
 func (s *Session) Snapshots() <-chan sim.Snapshot { return s.snapCh }
 
 // LastOutcome returns the most recent run outcome (if any).
-func (s *Session) LastOutcome() *sim.RunOutcome { return s.lastOutcome }
+func (s *Session) LastOutcome() *sim.RunOutcome {
+	s.outMu.Lock()
+	defer s.outMu.Unlock()
+	return s.lastOutcome
+}
 
 // ClearOutcome resets the stored outcome after the TUI consumes it.
-func (s *Session) ClearOutcome() { s.lastOutcome = nil }
+func (s *Session) ClearOutcome() { s.setOutcome(nil) }
+
+func (s *Session) setOutcome(out *sim.RunOutcome) {
+	s.outMu.Lock()
+	defer s.outMu.Unlock()
+	s.lastOutcome = out
+}
 
 func (s *Session) deliverKick(reason string) {
 	s.kickOnce.Do(func() {
@@ -91,6 +107,17 @@ func (s *Session) Scan(now int64, asteroidID int) (Snapshot, error) {
 	})
 }
 
+// AckDisconnectNotice clears the one-shot "signal lost" notice after the TUI
+// has shown the pilot what their autopilot did while they were gone. Marks the
+// save dirty so the acknowledgement survives — the notice must not reappear on
+// the next reconnect (docs/framework/05-reconnect-and-location-restore.md).
+func (s *Session) AckDisconnectNotice(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error {
+		sim.AckDisconnectNotice(st)
+		return nil
+	})
+}
+
 func (s *Session) Dock(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		sim.Dock(st, s.actor.content())
@@ -142,7 +169,7 @@ func (s *Session) FireWeapons(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		out, err := sim.FireWeaponsWithOutcome(st, s.actor.content(), now)
 		if out != nil {
-			s.lastOutcome = out
+			s.setOutcome(out)
 		}
 		return err
 	})
@@ -154,7 +181,7 @@ func (s *Session) FireMissile(now int64) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		out, err := sim.FireMissileWithOutcome(st, s.actor.content(), now)
 		if out != nil {
-			s.lastOutcome = out
+			s.setOutcome(out)
 		}
 		return err
 	})
