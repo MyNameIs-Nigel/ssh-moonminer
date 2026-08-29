@@ -51,13 +51,21 @@ func TestChartFootersShareTheBottomRow(t *testing.T) {
 	g := newChartGame(t, 80, 24)
 	g.worldSel = 1 // Vesta's description fits, making the footer easy to read.
 	lines := strings.Split(ansi.Strip(g.renderChart()), "\n")
-	footerRow := g.height - 7 // panel top + all body rows except the final border
-	if footerRow >= len(lines) {
-		t.Fatalf("footer row %d missing from chart:\n%s", footerRow, strings.Join(lines, "\n"))
+	footerRow := -1
+	for i, row := range lines {
+		if strings.Contains(row, "Close to port.") && strings.Contains(row, "Bigger rocks pay") {
+			footerRow = i
+			break
+		}
 	}
-	row := lines[footerRow]
-	if !strings.Contains(row, "Close to port.") || !strings.Contains(row, "Bigger rocks pay") {
-		t.Fatalf("chart footer was not bottom-aligned in both columns (row %d): %q", footerRow, row)
+	if footerRow < 0 {
+		t.Fatalf("chart footers were not aligned on the same rendered row:\n%s", strings.Join(lines, "\n"))
+	}
+	for i := footerRow + 1; i < len(lines); i++ {
+		row := lines[i]
+		if strings.Contains(row, "│") && strings.Trim(row, " │") != "" {
+			t.Fatalf("chart footer row %d was not bottom-aligned inside its panes; later body row %d contains %q", footerRow, i, row)
+		}
 	}
 }
 

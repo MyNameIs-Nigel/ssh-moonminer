@@ -107,11 +107,8 @@ func TestShipyardHangarHitboxAlignment(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)
 	g := newShipyardGame(t, st)
-	g.View()
-
-	if b, ok := g.hits.At(1, panelBodyY(0)); !ok || b.ID != "hangar:0" {
-		t.Fatalf("hangar:0 hitbox missing at (1,%d), got %#v", panelBodyY(0), b)
-	}
+	out := g.View().Content
+	assertHitboxAtText(t, g, out, "▸ "+c.Ships[0].Name, "hangar:0")
 }
 
 func TestShipyardNotOwnedShipShowsBuyPrompt(t *testing.T) {
