@@ -3,6 +3,11 @@
 **Area:** TUI · **Phase:** 3 · **Depends on:** tui/01, tui/04, gameplay/01,
 gameplay/02 · **Parallel-safe with:** tui/02, framework/03
 
+> **v1.7 layout supersession:** [06-responsive-menu-overhaul.md](06-responsive-menu-overhaul.md)
+> owns frame sizing and responsive allocation. Belt is a full-body
+> single-region screen. Every drilling, tribute, escape, and combat state uses
+> the same 46/34 minimum STATUS/TACTICAL split with 3/2 flex.
+
 ## Goal
 
 The game's centerpiece: the **Asteroid Belt** screen with its three switchable
@@ -23,18 +28,22 @@ is remembered for one screen, it's this failing cockpit.
 
 ## Deliverables
 
-- `internal/tui/` — `belt.go`, `beltviews.go` (the three renderers),
-  `mining.go` (+ tests)
+- `internal/tui/` — `belt.go` (including the three view renderers),
+  `mining.go`, and `combat.go` (+ tests)
 
 ## Spec
 
 ### Belt screen layout
 
-- **Left column (~30 cols):** current world panel — ASCII art
-  (sphere/ringed), name/sub, ring/pirate/rarity labels, contacts count.
-  Below it, belt stats (rocks remaining, best value visible, fuel reserve).
-- **Right column:** the contact field, one of **three views**, cycled with
-  `V` (persisted default comes from Settings, tui/04):
+The belt owns the full body as a single top-level region. Its internal world
+details, contact view, and target-lock information may reflow with available
+space, but do not use the Chart or Mining top-level split.
+
+- World context: ASCII art (sphere/ringed), name/sub,
+  ring/pirate/rarity labels, contacts count, rocks remaining, best visible
+  value, and fuel reserve.
+- Contact field: one of **three views**, cycled with `V` (persisted default
+  comes from Settings, tui/04):
 
   1. **DATA TILES** — scannable rows: `▸ KR-4711  ◆ UNCOMMON  80u
      ≈74s  ◈ 6,325  ⛽12  ETA ?  ●●●○○`. Columns: designation, tier
@@ -59,16 +68,19 @@ is remembered for one screen, it's this failing cockpit.
   selected rock — designation, tier, units, estimated mine time, public dock
   value, cargo hold impact, flight fuel cost vs current fuel (red if
   insufficient), rough pirate ETA/risk with dots — plus
-  `[ENTER] LOCK & FLY  [V] VIEW  [R] RESCAN  [Q] DOCK`.
-- `R` rescan regenerates the belt (confirm nothing — it's free, per
-  gameplay/01); empty belt (all rocks mined) auto-prompts rescan in the
-  field area.
+  `[ENTER] LOCK & FLY  [S] SCAN  [V] VIEW  [Q] DOCK`.
+- `S` scans the selected contact. Empty-belt behavior remains owned by the
+  shipped belt/sim flow; this screen does not expose a free `R` rescan action.
 - Lock failure (fuel) → red flash, stay on belt.
 
 ### Mining Site screen (real time)
 
 The actor pushes snapshots at 4 Hz during a run (gameplay/02); this screen
 just renders the latest.
+
+The body allocator gives **STATUS / ACTIONS** at least 46 columns (weight 3)
+and the **TACTICAL VIEWPORT** at least 34 columns (weight 2). The split is
+stable across drilling, tribute, escape, under-fire, and combat transitions.
 
 ```
 ◇ MINING SITE — KR-4711 (◆ UNCOMMON)
@@ -120,8 +132,9 @@ CURRENT CUT VALUE  ◈ 2,975 of ◈ 5,100 (not sold)
     CURRENT LOAD`, while resource-left stays non-zero;
   - when the asteroid itself is depleted: `[ENTER] DEPART` in green;
   - if reduced motion is on, replace flashing with a steady amber `!`.
-- `B` / `Esc` / click BAIL starts escape before depletion. `Enter` / click
-  DEPART starts escape after depletion. Both call gameplay/02 `BailOrDepart`.
+- `B` / `Esc` / `Enter` / click BAIL starts escape before depletion.
+  `Enter` / click DEPART starts escape after depletion. Both call gameplay/02
+  `BailOrDepart`.
 - No overdrive in the revamped loop. The pressure comes from time, cargo load,
   bad information, events, and escape risk.
 - `Ctrl+C` still disconnects; framework/03 resolves this as an emergency
@@ -195,6 +208,8 @@ flash message. The cockpit is gone.
   DEPART, tribute buttons — hitbox tests all.
 - [ ] Screen transitions: lock → mining site, bail/depart → escape, survived
   outcome → summary, ship_lost → death screen, dock → chart.
+- [ ] Every run state uses tui/06's exact 46/34 minimum, 3/2 weighted split;
+  state transitions do not move the region boundary.
 
 ## Out of scope / handoffs
 

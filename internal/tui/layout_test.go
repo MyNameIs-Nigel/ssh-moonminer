@@ -63,20 +63,10 @@ func TestChartHitboxAlignment(t *testing.T) {
 		worldSel:  0,
 		tickCount: 1,
 	}
-	g.View()
-
-	leftW := g.contentWidth() / 2
-	rightX := g.contentX() + leftW + 1
-
-	if b, ok := g.hits.At(g.contentX()+1, panelBodyY(1)); !ok || b.ID != "world:0" {
-		t.Fatalf("world:0 hitbox missing at (%d,%d), got %#v", g.contentX()+1, panelBodyY(1), b)
-	}
-	if b, ok := g.hits.At(rightX, panelBodyY(1)); !ok || b.ID != "svc:refuel" {
-		t.Fatalf("svc:refuel hitbox missing at (%d,%d), got %#v", rightX, panelBodyY(1), b)
-	}
-	if b, ok := g.hits.At(rightX, panelBodyY(3)); !ok || b.ID != "svc:repair" {
-		t.Fatalf("svc:repair hitbox missing at (%d,%d), got %#v", rightX, panelBodyY(3), b)
-	}
+	out := g.View().Content
+	assertHitboxAtText(t, g, out, c.Worlds[0].Name, "world:0")
+	assertHitboxAtText(t, g, out, "REFUEL", "svc:refuel")
+	assertHitboxAtText(t, g, out, "REPAIR — FULL", "svc:repair")
 }
 
 func TestMiningHitboxAlignment(t *testing.T) {
@@ -110,17 +100,16 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		t.Fatalf("mining cargo display missing %q:\n%s", wantCargo, view.Content)
 	}
 
-	// BAIL remains with the left mining controls; the right viewport is
-	// reserved for scanner and asteroid art.
-	bailY := bodyLineY(5)
-	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
-		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
-	}
+	assertHitboxAtText(t, g, view.Content, "BAIL", "btn:bail")
 
 	// The asteroid click target covers the field, but BAIL itself remains a
 	// narrow control line rather than a full-width target.
-	if b, ok := g.hits.At(60, bailY); ok && b.ID == "btn:bail" {
-		t.Fatalf("btn:bail hitbox unexpectedly wide, found at (60,%d)", bailY)
+	_, bailY, ok := textPosition(view.Content, "BAIL")
+	if !ok {
+		t.Fatal("rendered BAIL control is missing")
+	}
+	if b, ok := g.hits.At(g.contentX()+g.contentWidth()-1, bailY); ok && b.ID == "btn:bail" {
+		t.Fatalf("btn:bail hitbox unexpectedly spans the cockpit at y=%d", bailY)
 	}
 }
 
@@ -149,16 +138,10 @@ func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
 		id:        identity.SessionIdentity{Slot: "test"},
 		tickCount: 1,
 	}
-	g.View()
+	out := g.View().Content
 
 	// The countdown is back in the left status column, while the viewport also
 	// accepts a click directly on the lit pressure point.
-	gaugeY := bodyLineY(5)
-	if b, ok := g.hits.At(1, gaugeY); !ok || b.ID != "btn:skillcheck" {
-		t.Fatalf("btn:skillcheck hitbox missing at (1,%d), got %#v", gaugeY, b)
-	}
-	bailY := bodyLineY(7)
-	if b, ok := g.hits.At(1, bailY); !ok || b.ID != "btn:bail" {
-		t.Fatalf("btn:bail hitbox missing at (1,%d), got %#v", bailY, b)
-	}
+	assertHitboxAtText(t, g, out, "PRESSURE POINT ACTIVE", "btn:skillcheck")
+	assertHitboxAtText(t, g, out, "BAIL", "btn:bail")
 }
