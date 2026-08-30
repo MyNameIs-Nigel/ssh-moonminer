@@ -422,7 +422,7 @@ func (g *Game) consumeRunOutcome() []tea.Cmd {
 		g.scr = scrSummary
 		return nil
 	}
-	g.deathFrameText = ansi.Strip(g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen()))
+	g.deathFrameText = ansi.Strip(g.assembleFrameContent(g.renderChrome() + "\n" + g.renderScreen()))
 	g.deathFrame = 0
 	g.deathFlickerFrames = 12
 	if g.snap.State.Settings.ReducedMotion {
@@ -458,13 +458,17 @@ func (g *Game) View() tea.View {
 	if g.width < minWidth || g.height < minHeight {
 		body = lipgloss.Place(g.width, g.height, lipgloss.Center, lipgloss.Center,
 			fmt.Sprintf("RESIZE TERMINAL — need %dx%d, have %dx%d", minWidth, minHeight, g.width, g.height))
-	} else if g.scr == scrDeath {
-		body = g.renderDeath()
-	} else if g.combatIntroActive {
-		body = g.renderCombatIntro()
 	} else {
-		base := g.positionCockpit(g.renderChrome() + "\n" + g.renderScreen())
-		body = g.compositeView(base)
+		var frame string
+		switch {
+		case g.scr == scrDeath:
+			frame = g.renderDeath()
+		case g.combatIntroActive:
+			frame = g.renderCombatIntro()
+		default:
+			frame = g.compositeView(g.renderChrome() + "\n" + g.renderScreen())
+		}
+		body = g.placeFrame(g.assembleFrameContent(frame))
 	}
 	v := tea.NewView(body)
 	v.AltScreen = true

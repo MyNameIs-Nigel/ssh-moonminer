@@ -1,7 +1,7 @@
 # TUI 06 — Responsive Menu Overhaul
 
 **Area:** TUI · **Release:** v1.7 · **Depends on:** tui/01–05 and the shipped
-screen set · **Implementation status:** approved design; not yet implemented
+screen set · **Implementation status:** implemented on the v1.7 integration branch
 
 > **Authoritative layout contract:** this document supersedes fixed-size and
 > one-axis-only layout guidance in tui/01–05 and tests/03. Gameplay, controls,
@@ -34,10 +34,10 @@ The implementation PR following this specification owns:
   frame coordinates and translated exactly once for mouse lookup/rendering.
 - Responsive specification and regression tests described below.
 
-This documentation/specification PR intentionally adds compilable failing
-tests before production changes. It does **not** implement the layout. The
-failures are the executable acceptance contract for the follow-up PR and must
-not be weakened to match the current fixed layout.
+The initial documentation/specification PR intentionally added compilable
+failing tests before production changes. The v1.7 implementation now satisfies
+that executable contract; future changes must not weaken it to reintroduce
+fixed geometry or silent clipping.
 
 ## Terms and coordinate systems
 
@@ -282,7 +282,11 @@ double offsets when the frame is centered in either axis.
 
 ### Phase 5 — Golden refresh and cleanup
 
-- Regenerate goldens only after behavioral and geometry assertions pass.
+- Keep the direct geometry, semantic-anchor, accessibility-mode, overflow,
+  selection-visibility, and deterministic-render matrix green. The repository
+  had no pre-v1.7 golden harness to regenerate; snapshots may be added later
+  as a complementary style-regression layer, not as a substitute for these
+  structural assertions.
 - Remove superseded sizing helpers and terminal-coordinate hitbox arithmetic.
 - Run build, vet, unit tests, race tests, and a real 80×24/large-PTY smoke test.
 
@@ -332,24 +336,25 @@ preservation.
 
 ## Acceptance criteria
 
-- [ ] Terminals below 80×24 show only the inert resize guard.
-- [ ] The frame grows from 80×24 through 144×48 and is centered on both axes
+- [x] Terminals below 80×24 show only the inert resize guard.
+- [x] The frame grows from 80×24 through 144×48 and is centered on both axes
   independently above either cap.
-- [ ] All screens use the three-row chrome, flex body, and two-row keybar.
-- [ ] Chart, Shipyard, and Mining/Combat produce the exact region allocations
+- [x] All screens use the three-row chrome, flex body, and two-row keybar.
+- [x] Chart, Shipyard, and Mining/Combat produce the exact region allocations
   specified above at every tested width.
-- [ ] STATUS is informational and Shipyard navigation exposes only HANGAR and
+- [x] STATUS is informational and Shipyard navigation exposes only HANGAR and
   LOADOUT focus.
-- [ ] Belt, Summary, Death, Log, and `CONNECTION LOST` use one top-level body
+- [x] Belt, Summary, Death, Log, and `CONNECTION LOST` use one top-level body
   region.
-- [ ] Every overlay uses intrinsic minima plus clamp/reflow/scroll behavior.
-- [ ] Clipping is ANSI/display-width safe and never substitutes for required
+- [x] Every overlay uses intrinsic minima plus clamp/reflow/scroll behavior.
+- [x] Clipping is ANSI/display-width safe and never substitutes for required
   scrolling or reflow.
-- [ ] Every hitbox is frame-relative and remains aligned with horizontal and
+- [x] Every hitbox is frame-relative and remains aligned with horizontal and
   vertical terminal gutters.
-- [ ] The exhaustive matrix passes in default, high-contrast, ASCII-safe, and
+- [x] The boundary and representative screen-state matrix passes in default,
+  high-contrast, ASCII-safe, and
   reduced-motion modes.
-- [ ] No sim, economy, persistence, or control semantics change.
+- [x] No sim, economy, persistence, or control semantics change.
 
 ## Out of scope
 

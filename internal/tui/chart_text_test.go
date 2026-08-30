@@ -100,14 +100,19 @@ func TestPirateRadarShowsJammerCountdownBeforeETA(t *testing.T) {
 func TestWideCockpitCentersAndOffsetsHitboxes(t *testing.T) {
 	g := newChartGame(t, 180, 24)
 	g.View()
-	if g.contentWidth() != maxCockpitW || g.contentX() != 18 {
-		t.Fatalf("wide content layout = %d at x=%d, want %d at x=18", g.contentWidth(), g.contentX(), maxCockpitW)
+	if g.contentWidth() != maxFrameW || g.contentX() != 18 {
+		t.Fatalf("wide content layout = %d at x=%d, want %d at x=18", g.contentWidth(), g.contentX(), maxFrameW)
 	}
-	if _, ok := g.hits.At(1, panelBodyY(1)); ok {
-		t.Fatal("content hitbox should not remain at the terminal edge on a wide screen")
+	if _, ok := g.hitAt(1, panelBodyY(1)); ok {
+		t.Fatal("gutter click should not resolve to a frame hitbox")
 	}
-	if b, ok := g.hits.At(g.contentX()+1, panelBodyY(1)); !ok || b.ID != "world:0" {
-		t.Fatalf("offset world hitbox missing: %#v", b)
+	termX := g.contentX() + 1
+	termY := g.contentY() + panelBodyY(1)
+	if b, ok := g.hitAt(termX, termY); !ok || b.ID != "world:0" {
+		t.Fatalf("offset world hitbox missing at terminal (%d,%d): %#v", termX, termY, b)
+	}
+	if b, ok := g.hits.At(1, panelBodyY(1)); !ok || b.ID != "world:0" {
+		t.Fatalf("frame-local world hitbox missing: %#v", b)
 	}
 }
 

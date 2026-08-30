@@ -124,10 +124,10 @@ Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
 Live fix (done, v1.6.2):
   framework/05 (reconnect and location restore — the shipped softlock)
 
-v1.7 (approved specification):
+v1.7 (implemented on integration branch):
   tui/06 (responsive 80×24–144×48 frame, deterministic region allocation,
-  frame-relative hitboxes, constrained overlays; specification tests precede
-  production implementation)
+  frame-relative hitboxes, constrained overlays, and responsive regression
+  matrix)
 ```
 
 Dependencies are listed per-task; the summary:

@@ -27,7 +27,7 @@ func TestMiningMinimumViewportDoesNotSilentlyClipStatusMeaning(t *testing.T) {
 
 func TestShipLogLongTextWrapsInsteadOfDroppingItsTail(t *testing.T) {
 	const tail = "END-OF-ENTRY-MUST-REMAIN-VISIBLE"
-	for _, vp := range responsiveViewports[1:] {
+	for _, vp := range supportedViewports(responsiveViewports) {
 		t.Run(vp.String(), func(t *testing.T) {
 			g := newResponsiveTestGame(t, vp.w, vp.h)
 			g.scr = scrLog
@@ -47,7 +47,7 @@ func TestShipLogLongTextWrapsInsteadOfDroppingItsTail(t *testing.T) {
 }
 
 func TestResponsiveHitboxesFollowRenderedControls(t *testing.T) {
-	for _, vp := range responsiveViewports[1:] {
+	for _, vp := range supportedViewports(responsiveViewports) {
 		t.Run(vp.String()+"/chart", func(t *testing.T) {
 			g := newResponsiveTestGame(t, vp.w, vp.h)
 			out := g.View().Content
@@ -81,6 +81,13 @@ func TestResponsiveHitboxesFollowRenderedControls(t *testing.T) {
 			assertHitboxAtText(t, g, out, "BELT VIEW", "tweak:0")
 		})
 
+		t.Run(vp.String()+"/dev-overlay", func(t *testing.T) {
+			g := newResponsiveTestGame(t, vp.w, vp.h)
+			g.overlay = ovDev
+			out := g.View().Content
+			assertHitboxAtText(t, g, out, "GOD MODE", "dev:"+itoa(devGodMode))
+		})
+
 		t.Run(vp.String()+"/permit-overlay", func(t *testing.T) {
 			g := newResponsiveTestGame(t, vp.w, vp.h)
 			g.overlay = ovPermit
@@ -94,7 +101,7 @@ func TestResponsiveHitboxesFollowRenderedControls(t *testing.T) {
 
 func TestChartDescriptionKeepsItsFinalClauseAtEveryViewport(t *testing.T) {
 	const finalClause = "FINAL-CLAUSE-MUST-NOT-BE-CLIPPED"
-	for _, vp := range responsiveViewports[1:] {
+	for _, vp := range supportedViewports(responsiveViewports) {
 		t.Run(vp.String(), func(t *testing.T) {
 			g := newResponsiveTestGame(t, vp.w, vp.h)
 			g.snap.State.Settings.WrapLongText = true

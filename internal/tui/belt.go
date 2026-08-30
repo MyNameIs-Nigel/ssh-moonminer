@@ -229,6 +229,24 @@ func (g *Game) renderRadarScope(st *sim.State) string {
 	return renderMarkGrid(w, h, rows)
 }
 
+type beltRockLine struct {
+	text  string
+	rock  int
+	label string
+}
+
+// appendBodyLines expands embedded newlines so layout budgets physical rows.
+func appendBodyLines(dst []string, lines ...string) []string {
+	for _, block := range lines {
+		if block == "" {
+			dst = append(dst, "")
+			continue
+		}
+		dst = append(dst, strings.Split(block, "\n")...)
+	}
+	return dst
+}
+
 func (g *Game) renderBelt() string {
 	st := g.snap.State
 	w := g.content.WorldByIndex(st.WorldIdx)
@@ -236,121 +254,181 @@ func (g *Game) renderBelt() string {
 	if w != nil {
 		worldName = w.Name
 	}
-	lines := []string{theme.Gold.Render("◇ ASTEROID BELT — " + worldName)}
-	lines = append(lines, g.renderShieldStatus(&st, 20))
+	bodyH := g.bodyHeight()
+	top := appendBodyLines(nil, theme.Gold.Render("◇ ASTEROID BELT — "+worldName))
+	top = appendBodyLines(top, g.renderShieldStatus(&st, 20))
+	var rocks []beltRockLine
 	if len(st.Belt) == 0 {
-		lines = append(lines, theme.Amber.Render("Belt depleted — press Q to dock and chart a new course"))
+		top = appendBodyLines(top, theme.Amber.Render("Belt depleted — press Q to dock and chart a new course"))
 	} else {
 		switch st.Settings.BeltView {
 		case sim.BeltViewOreScan:
-			lines = append(lines, theme.DimStyle.Render("ORE SCAN"), g.renderOreScan(&st), "")
+			top = appendBodyLines(top, theme.DimStyle.Render("ORE SCAN"), g.renderOreScan(&st), "")
 		case sim.BeltViewRadar:
-			lines = append(lines, theme.DimStyle.Render("RADAR SCOPE"), g.renderRadarScope(&st), "")
+			top = appendBodyLines(top, theme.DimStyle.Render("RADAR SCOPE"), g.renderRadarScope(&st), "")
 		default:
-			lines = append(lines, theme.DimStyle.Render("DATA TILES"))
+			top = appendBodyLines(top, theme.DimStyle.Render("DATA TILES"))
 		}
-		for i, rock := range st.Belt {
-			marker := "  "
-			sel := i == g.rockSel
-			if sel {
-				marker = "▸ "
-			}
-			outOfRange := !rock.Scanned && sim.IsOutOfRange(&st, g.content, &rock)
-			var line string
-			switch {
-			case rock.Scanned:
-				tierGlyph := g.content.Tiers.Glyphs[rock.Tier]
-				line = fmt.Sprintf("%s%-8s %5.1fkm  %s %-9s VOL %4d  ⏱ %4.1fs  %s %5d  %s",
-					marker, rock.Name, rock.Distance, tierGlyph, g.content.Tiers.Labels[rock.Tier],
-					rock.Volume, rock.DrillSec, theme.Glyph("credit", st.Settings.ASCIISafe), rock.Value, theme.Dots(rock.Dots, 5))
-			case outOfRange:
-				line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
-					marker, rock.Name, rock.Distance, theme.Red.Render("OUT OF RANGE"))
-			default:
-				line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
-					marker, rock.Name, rock.Distance, theme.DimStyle.Render("UNKNOWN"))
-			}
-			var style lipgloss.Style
-			switch {
-			case sel && rock.Scanned:
-				style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe).Bold(true).Background(lipgloss.Color(lipglossColorForTier(rock.Tier)))
-			case sel:
-				style = theme.White.Bold(true).Background(lipgloss.Color(lipglossColorForUnknown))
-			case rock.Scanned:
-				style = theme.TierStyleDim(rock.Tier)
-			case outOfRange:
-				style = theme.DimStyle
-			default:
-				style = theme.DimStyle
-			}
-			rendered := style.Render(line)
-			lines = append(lines, rendered)
-			g.hitBodyLine(len(lines)-1, 1, rendered, fmt.Sprintf("belt:%d", i), i)
-		}
+		rocks = g.beltRockLines(&st)
 	}
-	if g.rockSel < len(st.Belt) {
-		rock := st.Belt[g.rockSel]
-		switch {
-		case st.Scan != nil && st.Scan.AsteroidID == rock.ID:
-			pct := 0.0
-			if st.Scan.Duration > 0 {
-				pct = st.Scan.Elapsed / st.Scan.Duration * 100
-			}
-			remaining := st.Scan.Duration - st.Scan.Elapsed
-			if remaining < 0 {
-				remaining = 0
-			}
-			lines = append(lines, "",
-				fmt.Sprintf("SCANNING %s  %s  %.1fs remaining", theme.Gold.Render(rock.Name), theme.RampBar(pct, 24, false), remaining),
-				theme.DimStyle.Render("[Q] DOCK"))
-		case rock.Scanned:
-			fuelAmount := sim.FuelAmount(&st, g.content)
-			fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
-			if float64(rock.FuelCost) > fuelAmount {
-				fuelStr = theme.Red.Render(fuelStr)
-			} else {
-				fuelStr = theme.White.Render(fuelStr)
-			}
-			lockEnabled := sim.RemainingCargoCapacity(&st, g.content) > 0
-			lockReason := ""
-			if !lockEnabled {
-				lockReason = theme.Red.Render("HOLD FULL — SELL CARGO AT PORT")
-			}
-			lines = append(lines, "",
-				fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
-					theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
-				theme.Button("ENTER", "LOCK & FLY", "", lockEnabled, theme.HueGold), lockReason,
-				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
-		case sim.IsOutOfRange(&st, g.content, &rock):
-			lockKm := sim.ScannerLockKm(&st, g.content)
-			lines = append(lines, "",
-				fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm", theme.White.Render(rock.Name), rock.Distance),
-				theme.Red.Render(fmt.Sprintf("OUT OF RANGE — SCANNER REACHES %.0fkm", lockKm)),
-				theme.DimStyle.Render("Upgrade Scanner grade at the shipyard to reach farther contacts."),
-				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
-		default:
-			scanFuelStr := fmt.Sprintf("%.0f fuel", g.content.Belt.ScanFuelCost)
-			if g.content.Belt.ScanFuelCost > sim.FuelAmount(&st, g.content) {
-				scanFuelStr = theme.Red.Render(scanFuelStr)
-			} else {
-				scanFuelStr = theme.White.Render(scanFuelStr)
-			}
-			scanSecs := sim.ScannerScanSeconds(&st, g.content, rock.Distance)
-			scanTime := fmt.Sprintf("%.1fs", scanSecs)
-			if scanSecs <= 0 {
-				scanTime = theme.Cyan.Render("INSTANT")
-			}
-			scanLine := fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm  SCAN COST %s  TIME %s",
-				theme.White.Render(rock.Name), rock.Distance, scanFuelStr, scanTime)
-			lines = append(lines, "", scanLine,
-				theme.Button("S", "SCAN ASTEROID", "", true, theme.HueCyan),
-				theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
-			g.hitBodyLine(len(lines)-2, 1, lines[len(lines)-2], "btn:scan", nil)
+	footer, footerHits := g.beltFooterLines(&st)
+	rockRows := max(0, bodyH-len(top)-len(footer))
+	if len(rocks) > 0 {
+		rockRows = max(1, rockRows)
+	}
+	if len(rocks) > rockRows {
+		scroll := g.beltRockScroll(len(rocks), rockRows)
+		rocks = rocks[scroll : scroll+rockRows]
+	} else if rockRows == 0 {
+		rocks = nil
+	}
+	rockStart := len(top)
+	for _, rock := range rocks {
+		top = append(top, rock.text)
+	}
+	lines := bottomAlignPanelLines(top, footer, bodyH)
+	_ = lines
+	truncatedTop := min(len(top), bodyH-len(footer))
+	for i, rock := range rocks {
+		row := rockStart + i
+		if row >= truncatedTop {
+			continue
+		}
+		g.hitBodyLine(row, 0, rock.label, fmt.Sprintf("belt:%d", rock.rock), rock.rock)
+	}
+	footerStart := bodyH - len(footer)
+	for _, hit := range footerHits {
+		row := footerStart + hit.footerIdx
+		if row >= 0 && row < bodyH {
+			g.hitBodyLine(row, 0, hit.label, hit.id, hit.data)
 		}
 	}
 	body := strings.Join(lines, "\n")
 	hint := "↑/↓ SELECT · S SCAN · ENTER LOCK · V VIEW · Q DOCK"
 	return g.renderBottomKeybar(body, hint)
+}
+
+func (g *Game) beltRockScroll(total, visible int) int {
+	return centeredScroll(g.rockSel, total, visible)
+}
+
+func (g *Game) beltRockLines(st *sim.State) []beltRockLine {
+	rocks := make([]beltRockLine, 0, len(st.Belt))
+	for i, rock := range st.Belt {
+		marker := "  "
+		sel := i == g.rockSel
+		if sel {
+			marker = "▸ "
+		}
+		outOfRange := !rock.Scanned && sim.IsOutOfRange(st, g.content, &rock)
+		var line string
+		switch {
+		case rock.Scanned:
+			tierGlyph := g.content.Tiers.Glyphs[rock.Tier]
+			line = fmt.Sprintf("%s%-8s %5.1fkm  %s %-9s VOL %4d  ⏱ %4.1fs  %s %5d  %s",
+				marker, rock.Name, rock.Distance, tierGlyph, g.content.Tiers.Labels[rock.Tier],
+				rock.Volume, rock.DrillSec, theme.Glyph("credit", st.Settings.ASCIISafe), rock.Value, theme.Dots(rock.Dots, 5))
+		case outOfRange:
+			line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
+				marker, rock.Name, rock.Distance, theme.Red.Render("OUT OF RANGE"))
+		default:
+			line = fmt.Sprintf("%s%-8s %5.1fkm  %s",
+				marker, rock.Name, rock.Distance, theme.DimStyle.Render("UNKNOWN"))
+		}
+		var style lipgloss.Style
+		switch {
+		case sel && rock.Scanned:
+			style = theme.TierStyle(rock.Tier, st.Settings.ASCIISafe).Bold(true).Background(lipgloss.Color(lipglossColorForTier(rock.Tier)))
+		case sel:
+			style = theme.White.Bold(true).Background(lipgloss.Color(lipglossColorForUnknown))
+		case rock.Scanned:
+			style = theme.TierStyleDim(rock.Tier)
+		case outOfRange:
+			style = theme.DimStyle
+		default:
+			style = theme.DimStyle
+		}
+		rendered := style.Render(line)
+		rocks = append(rocks, beltRockLine{text: rendered, rock: i, label: rendered})
+	}
+	return rocks
+}
+
+type beltFooterHit struct {
+	footerIdx int
+	label     string
+	id        string
+	data      any
+}
+
+func (g *Game) beltFooterLines(st *sim.State) (lines []string, hits []beltFooterHit) {
+	if g.rockSel >= len(st.Belt) {
+		return nil, nil
+	}
+	rock := st.Belt[g.rockSel]
+	switch {
+	case st.Scan != nil && st.Scan.AsteroidID == rock.ID:
+		pct := 0.0
+		if st.Scan.Duration > 0 {
+			pct = st.Scan.Elapsed / st.Scan.Duration * 100
+		}
+		remaining := st.Scan.Duration - st.Scan.Elapsed
+		if remaining < 0 {
+			remaining = 0
+		}
+		return []string{
+			"",
+			fmt.Sprintf("SCANNING %s  %s  %.1fs remaining", theme.Gold.Render(rock.Name), theme.RampBar(pct, 24, false), remaining),
+			theme.DimStyle.Render("[Q] DOCK"),
+		}, nil
+	case rock.Scanned:
+		fuelAmount := sim.FuelAmount(st, g.content)
+		fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
+		if float64(rock.FuelCost) > fuelAmount {
+			fuelStr = theme.Red.Render(fuelStr)
+		} else {
+			fuelStr = theme.White.Render(fuelStr)
+		}
+		lockBtn := theme.Button("ENTER", "LOCK & FLY", "", sim.RemainingCargoCapacity(st, g.content) > 0, theme.HueGold)
+		lines := []string{
+			"",
+			fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
+				theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
+			lockBtn,
+		}
+		hits := []beltFooterHit{{footerIdx: 2, label: lockBtn, id: "btn:lock", data: nil}}
+		if sim.RemainingCargoCapacity(st, g.content) <= 0 {
+			lines = append(lines, theme.Red.Render("HOLD FULL — SELL CARGO AT PORT"))
+		}
+		lines = append(lines, theme.DimStyle.Render("[V] VIEW  [Q] DOCK"))
+		return lines, hits
+	case sim.IsOutOfRange(st, g.content, &rock):
+		lockKm := sim.ScannerLockKm(st, g.content)
+		return []string{
+			"",
+			fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm", theme.White.Render(rock.Name), rock.Distance),
+			theme.Red.Render(fmt.Sprintf("OUT OF RANGE — SCANNER REACHES %.0fkm", lockKm)),
+			theme.DimStyle.Render("Upgrade Scanner grade at the shipyard to reach farther contacts."),
+			theme.DimStyle.Render("[V] VIEW  [Q] DOCK"),
+		}, nil
+	default:
+		scanFuelStr := fmt.Sprintf("%.0f fuel", g.content.Belt.ScanFuelCost)
+		if g.content.Belt.ScanFuelCost > sim.FuelAmount(st, g.content) {
+			scanFuelStr = theme.Red.Render(scanFuelStr)
+		} else {
+			scanFuelStr = theme.White.Render(scanFuelStr)
+		}
+		scanSecs := sim.ScannerScanSeconds(st, g.content, rock.Distance)
+		scanTime := fmt.Sprintf("%.1fs", scanSecs)
+		if scanSecs <= 0 {
+			scanTime = theme.Cyan.Render("INSTANT")
+		}
+		scanLine := fmt.Sprintf("CONTACT: %s  DISTANCE %.1fkm  SCAN COST %s  TIME %s",
+			theme.White.Render(rock.Name), rock.Distance, scanFuelStr, scanTime)
+		scanBtn := theme.Button("S", "SCAN ASTEROID", "", true, theme.HueCyan)
+		return []string{"", scanLine, scanBtn, theme.DimStyle.Render("[V] VIEW  [Q] DOCK")},
+			[]beltFooterHit{{footerIdx: 2, label: scanBtn, id: "btn:scan", data: nil}}
+	}
 }
 
 const lipglossColorForUnknown = "#12324a"
