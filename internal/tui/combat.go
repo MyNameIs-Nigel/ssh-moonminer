@@ -53,28 +53,38 @@ const (
 	combatDim = "#a66a1a" // theme's amberDimC
 )
 
-// renderCombatIntro draws the full-screen "COMBAT MODE ENGAGED" flood card
-// — the death screen's renderDeathFinal pattern in amber instead of red, a
-// solid pop with no flicker, held for combatIntroHold before the tactical
-// scope takes over.
+// renderCombatIntro draws the "COMBAT MODE ENGAGED" flood card inside the
+// shared frame shell — the death screen's renderDeathFinal pattern in amber
+// instead of red, held for combatIntroHold before the tactical scope takes
+// over.
 func (g *Game) renderCombatIntro() string {
+	layout := g.frameLayout()
 	bgStyle := lipgloss.NewStyle().Background(lipgloss.Color(combatBg))
 	titleStyle := bgStyle.Foreground(lipgloss.Color(combatFg)).Bold(true)
 	subStyle := bgStyle.Foreground(lipgloss.Color(combatDim))
 
-	body := titleStyle.Render("⚠ COMBAT MODE ENGAGED ⚠")
+	msg := titleStyle.Render("⚠ COMBAT MODE ENGAGED ⚠")
 	if run := g.snap.State.Run; run != nil && run.Combat != nil {
 		st := g.snap.State
 		sub := fmt.Sprintf("%s — BOUNTY %s %d", run.Combat.PirateName,
 			theme.Glyph("credit", st.Settings.ASCIISafe), run.Combat.Bounty)
-		body += "\n" + subStyle.Render(sub)
+		msg += "\n" + subStyle.Render(sub)
 	}
-	centered := lipgloss.Place(g.width, g.height-2, lipgloss.Center, lipgloss.Center, body,
+
+	chrome := strings.Join([]string{
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+	}, "\n")
+
+	body := lipgloss.Place(layout.Width, layout.BodyH, lipgloss.Center, lipgloss.Center, msg,
 		lipgloss.WithWhitespaceStyle(bgStyle))
+
 	hint := subStyle.Render("brace for impact")
-	hintLine := lipgloss.Place(g.width, 1, lipgloss.Center, lipgloss.Top, hint,
+	keybar := lipgloss.Place(layout.Width, keybarH, lipgloss.Center, lipgloss.Bottom, hint,
 		lipgloss.WithWhitespaceStyle(bgStyle))
-	return centered + "\n" + hintLine
+
+	return chrome + "\n" + body + "\n" + keybar
 }
 
 func (g *Game) keyCombat(m tea.KeyPressMsg) []tea.Cmd {
@@ -103,14 +113,13 @@ func (g *Game) keyCombat(m tea.KeyPressMsg) []tea.Cmd {
 	return nil
 }
 
-const combatScopeW = 34
-const combatScopeH = 10
-
 // renderCombatScope draws the tactical scope: a fixed player anchor at the
 // firing arc's center, the arc itself as a highlighted band, and the
 // pirate blip plotted from the sim-authoritative Bearing/Range each frame.
-func (g *Game) renderCombatScope(cs *sim.CombatState) string {
-	w, h := combatScopeW, combatScopeH
+func (g *Game) renderCombatScope(cs *sim.CombatState, w, h int) string {
+	if w < 1 || h < 1 {
+		return ""
+	}
 	cc := g.content.Combat
 	arcCenter := clampF(cc.ArcCenter, 0, 1)
 	arcHalf := cc.ArcHalfWidth
@@ -126,7 +135,7 @@ func (g *Game) renderCombatScope(cs *sim.CombatState) string {
 	for r := 0; r < h; r++ {
 		cells := make([]string, w)
 		for col := 0; col < w; col++ {
-			bearing := float64(col) / float64(w-1)
+			bearing := float64(col) / float64(max(1, w-1))
 			d := math.Abs(bearing - arcCenter)
 			if d > 0.5 {
 				d = 1 - d
@@ -167,9 +176,6 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		theme.Glyph("credit", st.Settings.ASCIISafe), cs.Bounty, cs.OddsPct)
 	title := theme.Red.Bold(true).Render(titleText)
 
-	scope := theme.Panel("TACTICAL SCOPE", combatScopeW+2, combatScopeH+2,
-		g.renderCombatScope(cs), theme.Accent(theme.HueAmber))
-
 	hullPct := sim.HullPct(st, g.content)
 	pirateHullPct := 0.0
 	if cs.PirateMaxHull > 0 {
@@ -185,33 +191,28 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		heatLine = theme.Red.Render(fmt.Sprintf("HEAT %s LOCKED %.1fs", theme.RampBar(heatPct, 16, true), cs.LockRemaining))
 	}
 
-	statLines := []string{
-		theme.Bright.Render("YOU"),
-		g.renderHullLine(st, hullPct, 16),
-	}
+	leftLines := []string{title, "", theme.Bright.Render("YOU"), g.renderHullLine(st, hullPct, 16)}
 	if pulseArmed {
-		statLines = append(statLines, heatLine)
+		leftLines = append(leftLines, heatLine)
 	}
 	if autocannonDPS > 0 {
-		statLines = append(statLines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON %.1f DPS", autocannonDPS)))
+		leftLines = append(leftLines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON %.1f DPS", autocannonDPS)))
 	}
 	if missileFitted {
-		statLines = append(statLines, theme.Red.Render(fmt.Sprintf("MISSILES %d/%d", missileAmmo, missileCapacity)))
+		leftLines = append(leftLines, theme.Red.Render(fmt.Sprintf("MISSILES %d/%d", missileAmmo, missileCapacity)))
 	}
-	statLines = append(statLines,
+	leftLines = append(leftLines,
 		"",
 		theme.Red.Render(cs.PirateName),
 		fmt.Sprintf("HULL   %s %3.0f%%", theme.HullBar(pirateHullPct, 16), pirateHullPct),
 		theme.DimStyle.Render(fmt.Sprintf("RANGE ~%.0fm", 120+cs.Range*680)),
+		"",
 	)
-	rightBody := strings.Join(statLines, "\n")
-	scopeRow := lipgloss.JoinHorizontal(lipgloss.Top, scope, "  "+strings.ReplaceAll(rightBody, "\n", "\n  "))
-
-	lines := []string{title, "", scopeRow, ""}
 
 	if autocannonDPS > 0 {
-		lines = append(lines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON ONLINE — CONSTANT DAMAGE %.1f DPS", autocannonDPS)))
+		leftLines = append(leftLines, theme.Amber.Render(fmt.Sprintf("AUTOCANNON ONLINE — CONSTANT DAMAGE %.1f DPS", autocannonDPS)))
 	}
+	fireRow := -1
 	if pulseArmed {
 		solutionText := fmt.Sprintf("SOLUTION %3.0f%%", cs.Solution*100)
 		fireLabel := "[F] FIRE PULSE"
@@ -224,9 +225,10 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 			fireLabel = theme.Red.Render(fireLabel)
 		}
 		fireLine := fireLabel + "   " + theme.TxtStyle.Render(solutionText)
-		lines = append(lines, fireLine)
-		g.hitBodyLine(len(lines)-1, 1, fireLine, "btn:combat:fire", nil)
+		fireRow = len(leftLines)
+		leftLines = append(leftLines, fireLine)
 	}
+	missileRow := -1
 	if missileFitted {
 		missileLabel := "[G] FIRE MISSILE"
 		status := fmt.Sprintf("GUIDED 100%% · %d/%d", missileAmmo, missileCapacity)
@@ -239,10 +241,8 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 			missileLabel = theme.Red.Render(missileLabel)
 		}
 		missileLine := missileLabel + "   " + theme.TxtStyle.Render(status)
-		lines = append(lines, missileLine)
-		if missileAmmo > 0 && cs.MissileCooldown <= 0 {
-			g.hitBodyLine(len(lines)-1, 1, missileLine, "btn:combat:missile", nil)
-		}
+		missileRow = len(leftLines)
+		leftLines = append(leftLines, missileLine)
 	}
 	if !pulseArmed && !missileFitted && autocannonDPS <= 0 {
 		banner := "NO WEAPONS — ESCAPE BURN RUNNING"
@@ -250,19 +250,19 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 			banner = "NO WEAPONS — PRESS B TO RUN"
 		}
 		if !st.Settings.ReducedMotion && g.tickCount%2 == 0 {
-			lines = append(lines, theme.Amber.Bold(true).Render(banner))
+			leftLines = append(leftLines, theme.Amber.Bold(true).Render(banner))
 		} else {
-			lines = append(lines, theme.Amber.Render(banner))
+			leftLines = append(leftLines, theme.Amber.Render(banner))
 		}
 	}
-	lines = append(lines, "")
+	leftLines = append(leftLines, "")
 
 	if len(cs.Log) > 0 {
 		n := min(3, len(cs.Log))
 		for i := 0; i < n; i++ {
-			lines = append(lines, theme.DimStyle.Render("> "+cs.Log[i]))
+			leftLines = append(leftLines, theme.DimStyle.Render("> "+cs.Log[i]))
 		}
-		lines = append(lines, "")
+		leftLines = append(leftLines, "")
 	}
 
 	if cs.EscapeStarted {
@@ -274,11 +274,11 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 		if remaining < 0 {
 			remaining = 0
 		}
-		lines = append(lines, fmt.Sprintf("%s ESCAPE VECTOR %s %s (%.0fs left)",
+		leftLines = append(leftLines, fmt.Sprintf("%s ESCAPE VECTOR %s %s (%.0fs left)",
 			theme.Glyph("drill", st.Settings.ASCIISafe),
 			theme.DrillBar(pct, 26),
 			theme.DrillStyle(pct).Render(fmt.Sprintf("%3.0f%%", pct)), remaining))
-		lines = append(lines, "")
+		leftLines = append(leftLines, "")
 	}
 
 	depleted := false
@@ -296,10 +296,41 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	default:
 		escBtn = theme.Button("B", "BAIL", "", true, theme.HueAmber)
 	}
-	lines = append(lines, escBtn)
-	if !cs.EscapeStarted {
-		g.hitBodyLine(len(lines)-1, 1, escBtn, "btn:combat:escape", nil)
+	escapeRow := len(leftLines)
+
+	pinned := []string{}
+	hits := []miningHit{}
+	pinnedRow := 0
+	if fireRow >= 0 {
+		pinned = append(pinned, leftLines[fireRow])
+		hits = append(hits, miningHit{pinned: true, row: pinnedRow, line: leftLines[fireRow], id: "btn:combat:fire", data: nil})
+		pinnedRow++
 	}
+	if missileRow >= 0 {
+		pinned = append(pinned, leftLines[missileRow])
+		if missileAmmo > 0 && cs.MissileCooldown <= 0 {
+			hits = append(hits, miningHit{pinned: true, row: pinnedRow, line: leftLines[missileRow], id: "btn:combat:missile", data: nil})
+		}
+		pinnedRow++
+	}
+	pinned = append(pinned, escBtn)
+	if !cs.EscapeStarted {
+		hits = append(hits, miningHit{pinned: true, row: pinnedRow, line: escBtn, id: "btn:combat:escape", data: nil})
+	}
+	scrollTop := make([]string, 0, escapeRow)
+	for i, line := range leftLines[:escapeRow] {
+		if i == fireRow || i == missileRow {
+			continue
+		}
+		scrollTop = append(scrollTop, line)
+	}
+
+	_, rightW := g.miningColumnWidths()
+	panelH := g.bodyHeight()
+	scopeInnerW := max(1, rightW-2)
+	scopeInnerH := max(1, panelH-2)
+	scope := theme.Panel("TACTICAL SCOPE", rightW, panelH,
+		g.renderCombatScope(cs, scopeInnerW, scopeInnerH), theme.Accent(theme.HueAmber))
 
 	hint := "B BAIL"
 	if pulseArmed {
@@ -322,5 +353,6 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 			hint = "G MISSILE · ESCAPE BURN RUNNING"
 		}
 	}
-	return strings.Join(lines, "\n") + "\n" + g.renderKeybar(hint)
+
+	return g.renderMiningRunSplit(scrollTop, pinned, scope, hint, hits, nil)
 }

@@ -126,11 +126,15 @@ func (g *Game) devActivate() []tea.Cmd {
 
 func (g *Game) renderDevOverlay() string {
 	hc := g.snap.State.Settings.HighContrast
+	panelW, panelH := g.layoutOverlaySize(devPanelW, devPanelH)
+	panelBodyH := panelH - 2
+	innerW := panelW - 4
 	lines := []string{
 		theme.LabelStyle(hc).Render("DEV ONLY · not present in production"),
 		theme.LabelStyle(hc).Render("Arrow keys change values · Ctrl+D or Esc closes"),
 		"",
 	}
+	devLineIdx := 3
 	for i := 0; i < devRowCount; i++ {
 		marker := "  "
 		sel := i == g.devSel
@@ -140,15 +144,31 @@ func (g *Game) renderDevOverlay() string {
 		label := g.devLabel(i)
 		val := g.devValue(i)
 		left := marker + label
-		pad := devPanelW - 4 - lipgloss.Width(left) - lipgloss.Width(val)
+		pad := innerW - lipgloss.Width(left) - lipgloss.Width(val)
 		if pad < 1 {
 			pad = 1
 		}
 		line := theme.OptionHC(theme.HueRed, sel, hc).Render(left+strings.Repeat(" ", pad)) + theme.Bright.Render(val)
+		line = clipFrameLine(line, innerW)
 		lines = append(lines, line)
 	}
-	body := strings.Join(lines, "\n")
-	return theme.Panel("DEV TOOLS", devPanelW, devPanelH, body, theme.Accent(theme.HueRed))
+	scroll := 0
+	if len(lines) > panelBodyH {
+		scroll = centeredScroll(g.devSel+devLineIdx, len(lines), panelBodyH)
+	}
+	visible := scrollWindowLines(lines, scroll, panelBodyH)
+	for i, line := range visible {
+		src := scroll + i
+		if src >= devLineIdx && src < devLineIdx+devRowCount {
+			g.devHitLine(i, line, src-devLineIdx, panelW, panelH)
+		}
+	}
+	body := strings.Join(visible, "\n")
+	return theme.Panel("DEV TOOLS", panelW, panelH, body, theme.Accent(theme.HueRed))
+}
+
+func (g *Game) devHitLine(lineIdx int, label string, devIdx, panelW, panelH int) {
+	g.overlayHitLine(panelW, panelH, lineIdx, label, "dev", devIdx)
 }
 
 func (g *Game) updateDevOverlay(k string) []tea.Cmd {

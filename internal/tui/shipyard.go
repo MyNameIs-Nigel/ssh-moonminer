@@ -292,29 +292,74 @@ func gradeDots(grade, max int) string {
 
 func (g *Game) renderShipyard() string {
 	st := g.snap.State
-	hangarW := 20
-	statusW := 22
-	loadoutW := g.contentWidth() - hangarW - statusW
-	if loadoutW < 30 {
-		loadoutW = 30
-	}
-	panelH := g.height - 5
+	hangarW, loadoutW, statusW := shipyardPaneWidths(g.contentWidth())
+	panelH := g.bodyHeight()
+	panelBodyH := panelH - 2
 
-	hangarBody, hangarAccent := g.renderShipyardHangar(&st)
 	model := g.shipyardSelectedModel()
-	loadoutBody, statusBody := g.renderShipyardLoadout(&st, model, hangarW+1)
+	acquireFootnote := ""
+	if model != nil && st.Ships[model.ID] == nil &&
+		statusW-2 < lipgloss.Width("Purchase does not switch ships.") {
+		panelH--
+		panelBodyH--
+		acquireFootnote = theme.DimStyle.Render("Purchase does not switch ships.")
+	}
+
+	hangarBody, hangarAccent := g.renderShipyardHangar(&st, hangarW-2, panelBodyH)
+	loadoutBody, statusBody := g.renderShipyardLoadout(&st, model, hangarW+1, loadoutW-2, statusW-2, panelBodyH)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
 		theme.Panel("HANGAR", hangarW, panelH, hangarBody, hangarAccent),
 		theme.Panel(fmt.Sprintf("%s — %s · %s", model.Name, strings.ToUpper(model.Brand), strings.ToUpper(model.Class)), loadoutW, panelH, loadoutBody, theme.Accent(theme.HueViolet)),
 		theme.Panel("STATUS", statusW, panelH, statusBody, theme.Accent(theme.HueViolet)),
 	)
+	if acquireFootnote != "" {
+		body = lipgloss.JoinVertical(lipgloss.Left, body, acquireFootnote)
+	}
 	hint := "↑/↓ SELECT · TAB PANE · ENTER BUY/PICK · X REMOVE · ESC/Q CHART"
 	return body + "\n" + g.renderKeybar(hint)
 }
 
-func (g *Game) renderShipyardHangar(st *sim.State) (string, string) {
-	lines := make([]string, 0, len(g.content.Ships))
+func shipyardViewportLines(lines []string, sel, bodyH int) []string {
+	if bodyH < 1 {
+		return nil
+	}
+	if len(lines) <= bodyH {
+		return lines
+	}
+	scroll := shipyardViewportScroll(len(lines), sel, bodyH)
+	return lines[scroll : scroll+bodyH]
+}
+
+func shipyardReflowPlain(lines []string, innerW int) []string {
+	if innerW < 1 {
+		return lines
+	}
+	var out []string
+	for _, line := range lines {
+		if line == "" {
+			out = append(out, "")
+			continue
+		}
+		for _, wrapped := range wrapChartText(line, innerW) {
+			out = append(out, wrapped)
+		}
+	}
+	return out
+}
+
+func shipyardViewportScroll(total, sel, bodyH int) int {
+	return centeredScroll(sel, total, bodyH)
+}
+
+func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, string) {
+	type hangarHit struct {
+		row  int
+		line string
+		id   int
+	}
+	lines := make([]string, 0, len(g.content.Ships)+4)
+	hits := make([]hangarHit, 0, len(g.content.Ships))
 	for i, model := range g.content.Ships {
 		sel := i == g.shipyardHangarSel
 		marker := "  "
@@ -347,17 +392,43 @@ func (g *Game) renderShipyardHangar(st *sim.State) (string, string) {
 			line += " " + suffix
 		}
 		lines = append(lines, line)
-		g.hitPanelLine(len(lines)-1, 1, line, fmt.Sprintf("hangar:%d", i), i)
+		hits = append(hits, hangarHit{len(lines) - 1, line, i})
+	}
+	model := g.shipyardSelectedModel()
+	acquireBtn := ""
+	acquireRow := -1
+	if model != nil && !sim.OwnsShip(st, model.ID) {
+		price := sim.ShipAcquirePrice(st, g.content, model.ID)
+		label := "BUY"
+		if sim.IsBuyback(st, model.ID) {
+			label = "BUY BACK"
+		}
+		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%d cr", price), st.Credits >= price, theme.HueViolet)
+		lines = append(lines, "", theme.Violet.Render("◇ ACQUIRE"), acquireBtn)
+		acquireRow = len(lines) - 1
+	}
+	scroll := shipyardViewportScroll(len(lines), g.shipyardHangarSel, bodyH)
+	visible := shipyardViewportLines(lines, g.shipyardHangarSel, bodyH)
+	for _, h := range hits {
+		lineIdx := h.row - scroll
+		if lineIdx >= 0 && lineIdx < len(visible) {
+			g.hitPanelLine(lineIdx, 1, h.line, fmt.Sprintf("hangar:%d", h.id), h.id)
+		}
+	}
+	if acquireRow >= 0 {
+		if lineIdx := acquireRow - scroll; lineIdx >= 0 && lineIdx < len(visible) {
+			g.hitPanelLine(lineIdx, 1, acquireBtn, "btn:acquire", model.ID)
+		}
 	}
 	accent := theme.Accent(theme.HueViolet)
-	return strings.Join(lines, "\n"), accent
+	return strings.Join(visible, "\n"), accent
 }
 
 // renderShipyardLoadout returns the LOADOUT and STATUS panel bodies for the
 // currently hangar-selected ship model. loadoutX is the LOADOUT panel's
 // absolute screen column (it sits to the right of HANGAR), needed so its
 // row hitboxes don't collide with HANGAR's at the same line index.
-func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, loadoutX int) (string, string) {
+func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, loadoutX, loadoutInnerW, statusInnerW, bodyH int) (string, string) {
 	inst := st.Ships[model.ID]
 	if inst == nil {
 		loadout := strings.Join([]string{
@@ -370,20 +441,40 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		if sim.IsBuyback(st, model.ID) {
 			label = "BUY BACK"
 		}
-		status := strings.Join([]string{
-			theme.Violet.Render("◇ ACQUIRE"),
+		statusPlain := shipyardReflowPlain([]string{
+			"ACQUIRE",
 			"",
-			theme.Button("ENTER", label, fmt.Sprintf("%d cr", price), st.Credits >= price, theme.HueViolet),
-			theme.DimStyle.Render("New hull starts fully serviced."),
-			theme.DimStyle.Render("Purchase does not switch ships."),
-			"",
-			fmt.Sprintf("SLOTS  U%d  W%d  I1  J1", model.UtilitySlots, model.WeaponSlots),
-		}, "\n")
-		return loadout, status
+			fmt.Sprintf("%s — %d cr", label, price),
+			"New hull starts fully serviced.",
+		}, statusInnerW)
+		if statusInnerW >= lipgloss.Width("Purchase does not switch ships.") {
+			statusPlain = append(statusPlain, "Purchase does not switch ships.")
+		}
+		statusPlain = append(statusPlain, "", fmt.Sprintf("SLOTS U%d W%d I1 J1", model.UtilitySlots, model.WeaponSlots))
+		statusLines := make([]string, len(statusPlain))
+		for i, line := range statusPlain {
+			switch {
+			case i == 0:
+				statusLines[i] = theme.Violet.Render("◇ " + line)
+			case line == "":
+				statusLines[i] = ""
+			case strings.HasPrefix(line, "SLOTS"):
+				statusLines[i] = line
+			default:
+				statusLines[i] = theme.DimStyle.Render(line)
+			}
+		}
+		return loadout, strings.Join(statusLines, "\n")
 	}
 
+	type loadoutHit struct {
+		row  int
+		line string
+		id   int
+	}
 	rows := shipyardRows(model)
 	lines := make([]string, 0, len(rows)+4)
+	hits := make([]loadoutHit, 0, len(rows))
 	for i, t := range shipyardTracks {
 		grade := sim.TrackGrade(st, model.ID, t)
 		cap := sim.TrackCap(model, t)
@@ -401,23 +492,25 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			" " + gradeDots(grade, cap) + " " + sim.GradeLetter(grade) +
 			" " + theme.Gold.Render(priceStr)
 		lines = append(lines, line)
-		g.hitPanelLine(len(lines)-1, loadoutX, line, fmt.Sprintf("loadout:%d", i), i)
+		hits = append(hits, loadoutHit{len(lines) - 1, line, i})
 	}
 	lines = append(lines, "")
 	rowIdx := len(shipyardTracks)
 	if model.UtilitySlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("UTILITY"))
 		for i := 0; i < model.UtilitySlots; i++ {
-			lines = append(lines, g.renderSlotRow(st, inst.Utility, i, rowIdx, "U"))
-			g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
+			line := g.renderSlotRow(st, inst.Utility, i, rowIdx, "U")
+			lines = append(lines, line)
+			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
 		}
 	}
 	if model.WeaponSlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("WEAPON"))
 		for i := 0; i < model.WeaponSlots; i++ {
-			lines = append(lines, g.renderSlotRow(st, inst.Weapon, i, rowIdx, "W"))
-			g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
+			line := g.renderSlotRow(st, inst.Weapon, i, rowIdx, "W")
+			lines = append(lines, line)
+			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
 		}
 	}
@@ -429,8 +522,9 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		lines = append(lines, g.renderSlotRow(st, single, 0, rowIdx, "I"))
-		g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
+		line := g.renderSlotRow(st, single, 0, rowIdx, "I")
+		lines = append(lines, line)
+		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 		rowIdx++
 	}
 	lines = append(lines, theme.DimStyle.Render("JUMP DRIVE"))
@@ -441,10 +535,23 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		lines = append(lines, g.renderSlotRow(st, single, 0, rowIdx, "J"))
-		g.hitPanelLine(len(lines)-1, loadoutX, lines[len(lines)-1], fmt.Sprintf("loadout:%d", rowIdx), rowIdx)
+		line := g.renderSlotRow(st, single, 0, rowIdx, "J")
+		lines = append(lines, line)
+		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 	}
-	loadoutBody := strings.Join(lines, "\n")
+	sel := g.shipyardRowSel
+	if g.shipyardPane != shipyardPaneLoadout {
+		sel = 0
+	}
+	scroll := shipyardViewportScroll(len(lines), sel, bodyH)
+	visible := shipyardViewportLines(lines, sel, bodyH)
+	for _, h := range hits {
+		lineIdx := h.row - scroll
+		if lineIdx >= 0 && lineIdx < len(visible) {
+			g.hitPanelLine(lineIdx, loadoutX, h.line, fmt.Sprintf("loadout:%d", h.id), h.id)
+		}
+	}
+	loadoutBody := strings.Join(visible, "\n")
 
 	power := sim.InstalledPower(st, g.content, model.ID)
 	capacity := sim.PowerCapacityFor(st, g.content, model.ID)
@@ -457,21 +564,35 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.BaseMass > 0 {
 		massRatio = mass / model.BaseMass
 	}
-	const statusBarW = 18
-	statusLines := []string{
+	statusBarW := min(18, statusInnerW)
+	statusPlain := shipyardReflowPlain([]string{
 		fmt.Sprintf("HULL %d/%d", sim.ShipHull(st, model.ID), sim.MaxHullFor(st, g.content, model.ID)),
 		fmt.Sprintf("FUEL %.0f/%.0f", sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
 		"",
 		fmt.Sprintf("PWR %d/%d", power, capacity),
-		theme.RampBar(powerPct, statusBarW, true),
 		"",
 		fmt.Sprintf("MASS %.0f", mass),
 		fmt.Sprintf("×%.2f fx", massRatio),
 		"",
-		theme.Gold.Render(fmt.Sprintf("%s %d cr", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
-	}
+		fmt.Sprintf("%s %d cr", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
+	}, statusInnerW)
 	if model.ID != st.ActiveShipID {
-		statusLines = append(statusLines, "", theme.DimStyle.Render("Not active — select in"), theme.DimStyle.Render("HANGAR to switch/fly."))
+		statusPlain = append(statusPlain, "", "Not active — select in HANGAR to switch/fly.")
+	}
+	statusLines := make([]string, 0, len(statusPlain)+1)
+	for _, line := range statusPlain {
+		switch {
+		case line == "":
+			statusLines = append(statusLines, "")
+		case strings.HasPrefix(line, "PWR "):
+			statusLines = append(statusLines, line, theme.RampBar(powerPct, statusBarW, true))
+		case strings.HasPrefix(line, theme.Glyph("credit", st.Settings.ASCIISafe)):
+			statusLines = append(statusLines, theme.Gold.Render(line))
+		case strings.Contains(line, "Not active"):
+			statusLines = append(statusLines, theme.DimStyle.Render(line))
+		default:
+			statusLines = append(statusLines, line)
+		}
 	}
 	statusBody := strings.Join(statusLines, "\n")
 	return loadoutBody, statusBody

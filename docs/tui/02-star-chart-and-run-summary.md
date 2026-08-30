@@ -12,6 +12,11 @@
 > paragraph), tui/05 wins. The Star Chart still owns the `[S] SHIPYARD`
 > button that *navigates* there, plus everything else on this page
 > (port services, cosmetics, stations, run summary, death, ship's log).
+>
+> **v1.7 layout supersession:** [06-responsive-menu-overhaul.md](06-responsive-menu-overhaul.md)
+> owns frame sizing and responsive allocation. The chart is an exact 40/40
+> minimum split with equal flex; summary, death recap, settled death, and
+> Ship's Log are single-region body screens.
 
 ## Goal
 
@@ -50,11 +55,16 @@ after death, and reflects.
 │   IO SHADOW         LOCK ◈25,000  │ [F] REFUEL ◈135       │
 │ ◇ ERIDANI DRIFT     LOCK CUTTER   │ [H] REPAIR FULL       │
 │ KEPLER REACH        LOCK HAULER   │ [S] SHIPYARD          │
-│                                   │ [C] COSMETICS         │
-│  "Thin, legal, and picked over.   │ [B] BUILD STATION     │
+│                                   │ [C] SELL CARGO        │
+│  "Thin, legal, and picked over.   │ [I] INSURANCE         │
 │   Good enough to buy a tank."     │ [L] SHIP'S LOG        │
-└ ↑↓ SELECT · ENTER DEPART · S SHIPYARD · C COSMETICS · Q ─ █ ┘
+└ ↑↓ SELECT · ENTER DEPART · F REFUEL · R REPAIR · S SHIPYARD · Q ─ █ ┘
 ```
+
+The sketch preserves historical visual intent; stations and cosmetics remain
+unbuilt as recorded in `docs/README.md`. The shipped service set is refuel,
+repair, sell cargo plus bounty vouchers, conditional insurance advance,
+Shipyard, and Ship's Log.
 
 - Left panel: grouped system/destination rows. Systems can be selected to show
   permit/transfer details; destinations can be selected to depart.
@@ -89,13 +99,17 @@ after death, and reflects.
   `BuyUpgrade`, `BuyCosmetic`, `SetCosmetic`, `StartOrFundStation`,
   `ClaimStationIncome`, salvage advance. Typed errors → flash message in the
   keybar area (red/amber, ~1.8s expiry).
-- Full input: ↑/↓ route selection, Enter depart/buy selected route action,
-  F/H/S/C/B/L/T shortcuts; every row and button click/wheel-able per the
-  tui/01 contract.
+- Full shipped input: ↑/↓ route selection, Enter/Space depart or open a
+  buyable permit prompt, F refuel, R repair, C sell cargo and bounty vouchers,
+  I insurance advance when eligible, S Shipyard, L Ship's Log, T Tweaks, and
+  Q quit; every rendered row and button is click/wheel-able per tui/01.
 
 ### Run Summary
 
 Rendered when the actor reports a resolved run (gameplay/02's `RunRecord`):
+
+It occupies the full responsive body as one region. Additional height grows
+the manifest/log viewport; it does not create a second column.
 
 - A single centered panel styled as a ship's-log entry:
   `◇ SHIP'S LOG — ENTRY 0047`, outcome label big and colored by outcome
@@ -129,10 +143,12 @@ recap:
 - On the tick hull reaches 0, the last mining/escape HUD frame flickers for a
   handful of fast ticks — cycling monochrome and inverted renders of that
   frame to read as a dying CRT — before settling on the card above.
-- The settled card fills the *entire* screen (not just a centered box) in
-  deep red on near-black, `CONNECTION LOST` with a cursor block that blinks
-  at the end of the line, and a dim `press any key` beneath it. No stats, no
-  tips, no other buttons.
+- The settled presentation uses the common responsive frame, but paints its
+  reserved chrome and keybar rows as empty deep red/near-black treatment
+  rather than leaking pilot stats or normal controls. `CONNECTION LOST` with
+  a blinking cursor block and dim `press any key` is centered in its
+  single-region body. The frame centers on both axes above 144×48. No stats,
+  tips, or other buttons.
 - Reduced motion skips the flicker entirely (cuts straight to the settled
   card) and holds the cursor solid instead of blinking.
 - The next key transitions to the Death Recap / Run Summary.
@@ -140,6 +156,7 @@ recap:
 
 ### Ship's Log screen
 
+- The log occupies the full responsive body as one region.
 - Panels for **SERVICE RECORD** (runs by outcome, ships lost, credits
   earned/spent, cargo sold/lost, systems unlocked, stations completed,
   cosmetics purchased, fuel burned, salvage advances, pilot since),

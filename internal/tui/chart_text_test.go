@@ -51,13 +51,21 @@ func TestChartFootersShareTheBottomRow(t *testing.T) {
 	g := newChartGame(t, 80, 24)
 	g.worldSel = 1 // Vesta's description fits, making the footer easy to read.
 	lines := strings.Split(ansi.Strip(g.renderChart()), "\n")
-	footerRow := g.height - 7 // panel top + all body rows except the final border
-	if footerRow >= len(lines) {
-		t.Fatalf("footer row %d missing from chart:\n%s", footerRow, strings.Join(lines, "\n"))
+	footerRow := -1
+	for i, row := range lines {
+		if strings.Contains(row, "Close to port.") && strings.Contains(row, "Bigger rocks pay") {
+			footerRow = i
+			break
+		}
 	}
-	row := lines[footerRow]
-	if !strings.Contains(row, "Close to port.") || !strings.Contains(row, "Bigger rocks pay") {
-		t.Fatalf("chart footer was not bottom-aligned in both columns (row %d): %q", footerRow, row)
+	if footerRow < 0 {
+		t.Fatalf("chart footers were not aligned on the same rendered row:\n%s", strings.Join(lines, "\n"))
+	}
+	for i := footerRow + 1; i < len(lines); i++ {
+		row := lines[i]
+		if strings.Contains(row, "│") && strings.Trim(row, " │") != "" {
+			t.Fatalf("chart footer row %d was not bottom-aligned inside its panes; later body row %d contains %q", footerRow, i, row)
+		}
 	}
 }
 
@@ -92,14 +100,19 @@ func TestPirateRadarShowsJammerCountdownBeforeETA(t *testing.T) {
 func TestWideCockpitCentersAndOffsetsHitboxes(t *testing.T) {
 	g := newChartGame(t, 180, 24)
 	g.View()
-	if g.contentWidth() != maxCockpitW || g.contentX() != 18 {
-		t.Fatalf("wide content layout = %d at x=%d, want %d at x=18", g.contentWidth(), g.contentX(), maxCockpitW)
+	if g.contentWidth() != maxFrameW || g.contentX() != 18 {
+		t.Fatalf("wide content layout = %d at x=%d, want %d at x=18", g.contentWidth(), g.contentX(), maxFrameW)
 	}
-	if _, ok := g.hits.At(1, panelBodyY(1)); ok {
-		t.Fatal("content hitbox should not remain at the terminal edge on a wide screen")
+	if _, ok := g.hitAt(1, panelBodyY(1)); ok {
+		t.Fatal("gutter click should not resolve to a frame hitbox")
 	}
-	if b, ok := g.hits.At(g.contentX()+1, panelBodyY(1)); !ok || b.ID != "world:0" {
-		t.Fatalf("offset world hitbox missing: %#v", b)
+	termX := g.contentX() + 1
+	termY := g.contentY() + panelBodyY(1)
+	if b, ok := g.hitAt(termX, termY); !ok || b.ID != "world:0" {
+		t.Fatalf("offset world hitbox missing at terminal (%d,%d): %#v", termX, termY, b)
+	}
+	if b, ok := g.hits.At(1, panelBodyY(1)); !ok || b.ID != "world:0" {
+		t.Fatalf("frame-local world hitbox missing: %#v", b)
 	}
 }
 

@@ -132,8 +132,13 @@ Asteroid rarity tiers (the one place color breaks from blue monochrome):
   bars and pirate radar distance ramp blue → amber → red as they worsen. Full
   palette and semantic roles live in
   [tui/04-theme-components-and-tweaks.md](tui/04-theme-components-and-tweaks.md).
-- **Everything fits 80×24.** Larger terminals get more breathing room, never
-  extra information.
+- **Everything fits 80×24.** The v1.7 game frame grows independently to
+  144×48, then centers horizontally and vertically inside larger terminals.
+  Larger frames get more breathing room, reflow, and taller scroll viewports,
+  never extra gameplay information. Chart is an equal 40/40 split; Shipyard
+  uses 24/32/24 HANGAR/LOADOUT/STATUS minima with 3/4/3 flex; Mining/Combat
+  uses 46/34 STATUS/TACTICAL minima with 3/2 flex. See
+  [tui/06-responsive-menu-overhaul.md](tui/06-responsive-menu-overhaul.md).
 
 ## Controls (global contract)
 

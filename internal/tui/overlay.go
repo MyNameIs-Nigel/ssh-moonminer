@@ -26,7 +26,12 @@ func (g *Game) renderOverlay() string {
 	case ovPermit:
 		return g.renderPermitOverlay()
 	case ovKicked:
-		return theme.Panel("NOTICE", 50, 5, theme.Red.Render(g.kickReason)+"\n"+theme.DimStyle.Render("Press any key."), theme.Accent(theme.HueRed))
+		panelW, panelH := g.layoutOverlaySize(50, 5)
+		body := strings.Join(reflowOverlayLines([]string{
+			theme.Red.Render(g.kickReason),
+			theme.DimStyle.Render("Press any key."),
+		}, panelW-4), "\n")
+		return theme.Panel("NOTICE", panelW, panelH, body, theme.Accent(theme.HueRed))
 	case ovSignalLost:
 		return g.renderSignalLostOverlay()
 	case ovOnboard:
@@ -34,11 +39,17 @@ func (g *Game) renderOverlay() string {
 		if pg >= len(onboardPages) {
 			pg = len(onboardPages) - 1
 		}
+		panelW, panelH := g.layoutOverlaySize(70, 6)
 		hint := "Press any key for more."
 		if pg == len(onboardPages)-1 {
 			hint = "Press any key to start."
 		}
-		return theme.Panel("ONBOARDING", 70, 6, onboardPages[pg]+"\n\n"+theme.DimStyle.Render(hint), theme.Accent(theme.HueGold))
+		body := strings.Join(reflowOverlayLines([]string{
+			onboardPages[pg],
+			"",
+			theme.DimStyle.Render(hint),
+		}, panelW-4), "\n")
+		return theme.Panel("ONBOARDING", panelW, panelH, body, theme.Accent(theme.HueGold))
 	default:
 		return ""
 	}
@@ -76,7 +87,10 @@ func (g *Game) renderSignalLostOverlay() string {
 		theme.Amber.Render(fmt.Sprintf("HULL DELTA: %+d   FUEL DELTA: %+.0f", rec.HullDelta, rec.FuelDelta)),
 		"",
 		theme.DimStyle.Render("Press any key."))
-	return theme.Panel("RECONNECTED", 58, len(lines)+2, strings.Join(lines, "\n"), theme.OutcomeAccent(rec.Outcome))
+	panelW, panelH := g.layoutOverlaySize(58, len(lines)+2)
+	innerW := panelW - 4
+	body := strings.Join(reflowOverlayLines(lines, innerW), "\n")
+	return theme.Panel("RECONNECTED", panelW, panelH, body, theme.OutcomeAccent(rec.Outcome))
 }
 
 func (g *Game) compositeView(base string) string {
@@ -87,25 +101,20 @@ func (g *Game) compositeView(base string) string {
 	if ov == "" {
 		return base
 	}
+	layout := g.frameLayout()
 	faint := lipgloss.NewStyle().Faint(true)
-	baseLines := strings.Split(base, "\n")
-	for len(baseLines) < g.height {
-		baseLines = append(baseLines, "")
-	}
+	baseLines := normalizeFrameLines(strings.Split(base, "\n"), layout.Width, layout.Height)
 	for i := range baseLines {
-		if i >= g.height {
-			break
-		}
 		line := baseLines[i]
-		if lipgloss.Width(line) < g.width {
-			line += strings.Repeat(" ", g.width-lipgloss.Width(line))
+		if lipgloss.Width(line) < layout.Width {
+			line += strings.Repeat(" ", layout.Width-lipgloss.Width(line))
 		}
 		baseLines[i] = faint.Render(line)
 	}
 	ovLines := strings.Split(ov, "\n")
 	ovW, ovH := overlayBounds(ovLines)
-	y0 := (g.height - ovH) / 2
-	x0 := (g.width - ovW) / 2
+	y0 := chromeH + (layout.BodyH-ovH)/2
+	x0 := (layout.Width - ovW) / 2
 	if y0 < 0 {
 		y0 = 0
 	}
@@ -114,13 +123,10 @@ func (g *Game) compositeView(base string) string {
 	}
 	for i, ovLine := range ovLines {
 		row := y0 + i
-		if row < 0 || row >= len(baseLines) || row >= g.height {
+		if row < 0 || row >= len(baseLines) {
 			continue
 		}
-		baseLines[row] = overlayLine(baseLines[row], x0, ovLine, g.width)
-	}
-	if len(baseLines) > g.height {
-		baseLines = baseLines[:g.height]
+		baseLines[row] = overlayLine(baseLines[row], x0, ovLine, layout.Width)
 	}
 	return strings.Join(baseLines, "\n")
 }
@@ -135,14 +141,14 @@ func overlayBounds(lines []string) (w, h int) {
 	return w, h
 }
 
-func overlayLine(base string, x int, insert string, termW int) string {
+func overlayLine(base string, x int, insert string, frameW int) string {
 	if x < 0 {
 		x = 0
 	}
 	insertW := lipgloss.Width(insert)
 	right := x + insertW
-	if right > termW {
-		right = termW
+	if right > frameW {
+		right = frameW
 	}
 	// Keep the faint-rendered base content on either side of the overlay
 	// instead of blanking it out.
@@ -150,9 +156,9 @@ func overlayLine(base string, x int, insert string, termW int) string {
 	if lipgloss.Width(left) < x {
 		left += strings.Repeat(" ", x-lipgloss.Width(left))
 	}
-	trailStr := ansi.Cut(base, right, termW)
+	trailStr := ansi.Cut(base, right, frameW)
 	trailW := lipgloss.Width(trailStr)
-	if want := termW - right; trailW < want {
+	if want := frameW - right; trailW < want {
 		trailStr += strings.Repeat(" ", want-trailW)
 	}
 	return left + insert + trailStr

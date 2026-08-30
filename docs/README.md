@@ -123,6 +123,11 @@ Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
 
 Live fix (done, v1.6.2):
   framework/05 (reconnect and location restore — the shipped softlock)
+
+v1.7 (implemented on integration branch):
+  tui/06 (responsive 80×24–144×48 frame, deterministic region allocation,
+  frame-relative hitboxes, constrained overlays, and responsive regression
+  matrix)
 ```
 
 Dependencies are listed per-task; the summary:
@@ -233,6 +238,7 @@ unachievable.
 | [tui/03-belt-views-and-mining-screen.md](tui/03-belt-views-and-mining-screen.md) | Belt screen (3 view modes), target lock, live Mining screen |
 | [tui/04-theme-components-and-tweaks.md](tui/04-theme-components-and-tweaks.md) | Phosphor-blue theme, panel/bar components, Tweaks overlay |
 | [tui/05-shipyard-screen.md](tui/05-shipyard-screen.md) | Standalone cyber-futuristic Shipyard screen: hangar, loadout, power/mass meters |
+| [tui/06-responsive-menu-overhaul.md](tui/06-responsive-menu-overhaul.md) | **Authoritative v1.7 layout contract:** centered capped frame, shared allocator, responsive screen regions, overlays, clipping, hitboxes, and exhaustive test matrix |
 | [tests/01-sim-engine-tests.md](tests/01-sim-engine-tests.md) | Determinism, outcome tables, distribution + property tests |
 | [tests/02-server-integration-tests.md](tests/02-server-integration-tests.md) | In-process SSH client tests: auth, PTY, policy, shutdown |
 | [tests/03-tui-rendering-and-input-tests.md](tests/03-tui-rendering-and-input-tests.md) | Update-loop tests, golden renders, hitbox/mouse tests |

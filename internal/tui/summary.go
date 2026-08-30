@@ -46,7 +46,10 @@ func (g *Game) renderSummary() string {
 	}
 	st := g.snap.State
 	accent := theme.OutcomeAccent(string(out.Kind))
-	body := []string{
+	panelH := g.bodyHeight()
+	panelW := g.contentWidth()
+	panelBodyH := panelH - 2
+	header := []string{
 		theme.OutcomeStyle(string(out.Kind)).Render(out.Label),
 		theme.DimStyle.Render(out.Description),
 		"",
@@ -57,15 +60,16 @@ func (g *Game) renderSummary() string {
 		theme.Gold.Render(fmt.Sprintf("HOLD VALUE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue)),
 	}
 	if out.Record.PirateDestroyed != "" {
-		body = append(body, theme.Red.Render(fmt.Sprintf("PIRATE DESTROYED: %s — BOUNTY %s %d (voucher held)",
+		header = append(header, theme.Red.Render(fmt.Sprintf("PIRATE DESTROYED: %s — BOUNTY %s %d (voucher held)",
 			out.Record.PirateDestroyed, theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.BountyEarned)))
 	}
 	continueBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
 	dockBtn := theme.Button("Q", "DOCK AT PORT", "", true, theme.HueGold)
-	body = append(body, "", continueBtn, dockBtn)
-	content := theme.Panel("RUN SUMMARY", g.contentWidth()-4, 16, strings.Join(body, "\n"), accent)
-	g.hitPanelLine(len(body)-2, 1, continueBtn, "btn:summary:continue", nil)
-	g.hitPanelLine(len(body)-1, 1, dockBtn, "btn:summary:dock", nil)
+	footer := []string{"", continueBtn, dockBtn}
+	body := strings.Join(bottomAlignPanelLines(header, footer, panelBodyH), "\n")
+	content := theme.Panel("RUN SUMMARY", panelW, panelH, body, accent)
+	g.hitPanelLine(panelBodyH-2, 1, continueBtn, "btn:summary:continue", nil)
+	g.hitPanelLine(panelBodyH-1, 1, dockBtn, "btn:summary:dock", nil)
 	hint := "[ENTER] RETURN TO BELT · [Q] DOCK AT PORT"
 	return content + "\n" + g.renderKeybar(hint)
 }
@@ -76,7 +80,10 @@ func (g *Game) renderSummary() string {
 func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 	st := g.snap.State
 	accent := theme.OutcomeAccent(string(out.Kind))
-	body := []string{
+	panelH := g.bodyHeight()
+	panelW := g.contentWidth()
+	panelBodyH := panelH - 2
+	header := []string{
 		theme.OutcomeStyle(string(out.Kind)).Render("SHIP LOST"),
 		theme.DimStyle.Render(out.Description),
 		"",
@@ -90,9 +97,10 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 			sim.FuelAmount(&st, g.content), sim.TankSize(&st, g.content))),
 	}
 	dockBtn := theme.Button("ENTER", "RESPAWN AT DOCK", "", true, theme.HueGold)
-	body = append(body, "", dockBtn)
-	content := theme.Panel("RESPAWN — SHIP LOST", g.contentWidth()-4, 16, strings.Join(body, "\n"), accent)
-	g.hitPanelLine(len(body)-1, 1, dockBtn, "btn:summary:dock", nil)
+	footer := []string{"", dockBtn}
+	body := strings.Join(bottomAlignPanelLines(header, footer, panelBodyH), "\n")
+	content := theme.Panel("RESPAWN — SHIP LOST", panelW, panelH, body, accent)
+	g.hitPanelLine(panelBodyH-1, 1, dockBtn, "btn:summary:dock", nil)
 	hint := "[ENTER] RESPAWN AT DOCK"
 	return content + "\n" + g.renderKeybar(hint)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/identity"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
 func TestCompositeViewCentersOverlay(t *testing.T) {
@@ -18,14 +19,14 @@ func TestCompositeViewCentersOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := &Game{
-		content: c,
-		width:   80,
-		height:  24,
-		scr:     scrChart,
-		overlay: ovHelp,
-		snap:    sim.Snapshot{State: *sim.New(c, 1, 1000)},
-		id:      identity.SessionIdentity{Slot: "test"},
-		hits:    hitbox.New(),
+		content:   c,
+		width:     80,
+		height:    24,
+		scr:       scrChart,
+		overlay:   ovHelp,
+		snap:      sim.Snapshot{State: *sim.New(c, 1, 1000)},
+		id:        identity.SessionIdentity{Slot: "test"},
+		hits:      hitbox.New(),
 		tickCount: 1,
 	}
 	base := g.renderChrome() + "\n" + g.renderScreen()
@@ -70,8 +71,8 @@ func TestCompositeViewPreservesBackgroundBesideOverlay(t *testing.T) {
 	ov := g.renderOverlay()
 	ovLines := strings.Split(ov, "\n")
 	ovW, ovH := overlayBounds(ovLines)
-	y0 := (g.height - ovH) / 2
-	x0 := (g.width - ovW) / 2
+	y0 := chromeH + (g.bodyHeight()-ovH)/2
+	x0 := (g.contentWidth() - ovW) / 2
 
 	// Pick a row inside the overlay's vertical span but check the columns to
 	// its left, which should still show the original background text rather
@@ -88,5 +89,22 @@ func TestCompositeViewPreservesBackgroundBesideOverlay(t *testing.T) {
 	wantLeftPlain := strings.TrimRight(ansi.Strip(wantLeft), " ")
 	if gotLeft != wantLeftPlain {
 		t.Fatalf("background left of overlay was blanked: got %q want %q", gotLeft, wantLeftPlain)
+	}
+}
+
+func TestReflowOverlayLinesPreservesStyle(t *testing.T) {
+	long := strings.Repeat("warning ", 8)
+	styled := theme.Red.Render(long)
+	lines := reflowOverlayLines([]string{styled}, 20)
+	if len(lines) < 2 {
+		t.Fatalf("expected wrapped lines, got %d: %#v", len(lines), lines)
+	}
+	for i, line := range lines {
+		if ansi.Strip(line) == "" {
+			t.Fatalf("line %d lost visible text: %q", i, line)
+		}
+		if !strings.HasPrefix(line, "\x1b[") {
+			t.Fatalf("line %d lost style prefix: %q", i, line)
+		}
 	}
 }

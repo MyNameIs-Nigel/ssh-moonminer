@@ -127,7 +127,6 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	fuelPct := fuelAmount / sim.TankSize(st, g.content) * 100
 	hullPct := sim.HullPct(st, g.content)
 
-	leftW, rightW := g.miningColumnWidths()
 	leftLines := []string{title}
 	if sim.FuelMinerRecoveryMul(st, g.content) > 0 {
 		if run.FuelAsteroid {
@@ -193,22 +192,9 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	actionRow := len(leftLines)
 	leftLines = append(leftLines, actionLine)
 
-	bodyH := g.height - chromeH - 2
-	leftLines = fitMiningColumn(leftLines, leftW)
-	for len(leftLines) < bodyH {
-		leftLines = append(leftLines, "")
-	}
-	if skillRow >= 0 {
-		g.addHit(g.contentX(), bodyLineY(skillRow), leftW, 2, "btn:skillcheck", nil)
-	}
-	g.hitBodyLine(actionRow, 1, actionLine, "btn:bail", nil)
-
+	_, rightW := g.miningColumnWidths()
+	bodyH := g.bodyHeight()
 	viewport, activePoint := g.renderAsteroidViewport(st, run, rightW, bodyH)
-	if activePoint {
-		// The right-hand cockpit viewport — the area bounded by the four blue
-		// corners — is the mouse target for the currently lit surface point.
-		g.addHit(g.contentX()+leftW+1, bodyLineY(0), rightW, bodyH, "btn:skillcheck", nil)
-	}
 
 	hint := "B BAIL"
 	if depleted {
@@ -224,17 +210,62 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		hint = theme.Red.Render("▼ TANKS DRY — DRILL PAUSED, DECIDE NOW")
 	}
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top,
-		strings.Join(leftLines, "\n"), " ", viewport)
-	return g.renderBottomKeybar(body, hint)
+	return g.renderMiningRunSplit(leftLines[:actionRow], []string{actionLine}, viewport, hint, []miningHit{
+		{scroll: true, row: skillRow, line: "PRESSURE POINT ACTIVE", id: "btn:skillcheck", data: nil},
+		{pinned: true, row: 0, line: actionLine, id: "btn:bail", data: nil},
+	}, func(leftW, rightW, bodyH, topScroll int) {
+		if skillRow >= 0 {
+			if visRow := skillRow - topScroll; visRow >= 0 && visRow+1 < bodyH {
+				g.addHit(0, bodyLineY(visRow), leftW, 2, "btn:skillcheck", nil)
+			}
+		}
+		if activePoint {
+			g.addHit(leftW, bodyLineY(0), rightW, bodyH, "btn:skillcheck", nil)
+		}
+	})
 }
 
 func (g *Game) miningColumnWidths() (left, right int) {
-	// Reserve a 33-column viewport at the 80-column minimum: it fits the
-	// 30-column asteroid art while leaving a stable, readable status column.
-	left = min(50, max(46, g.contentWidth()-34))
-	right = g.contentWidth() - left - 1
-	return left, right
+	return miningRunPaneWidths(g.contentWidth())
+}
+
+type miningHit struct {
+	scroll bool
+	pinned bool
+	row    int
+	line   string
+	id     string
+	data   any
+}
+
+// renderMiningRunSplit lays out the shared STATUS-ACTIONS / TACTICAL split used
+// by every mining-run phase renderer. scrollTop scrolls inside the column;
+// pinnedBottom rows stay visible at the foot.
+func (g *Game) renderMiningRunSplit(scrollTop, pinnedBottom []string, rightViewport, hint string, hits []miningHit, wideHits func(leftW, rightW, bodyH, topScroll int)) string {
+	leftW, rightW := g.miningColumnWidths()
+	bodyH := g.bodyHeight()
+	leftLines, topScroll := layoutPinnedColumn(scrollTop, pinnedBottom, leftW, bodyH)
+	pinnedStart := len(leftLines) - len(pinnedBottom)
+	for _, h := range hits {
+		var visRow int
+		switch {
+		case h.pinned:
+			visRow = pinnedStart + h.row
+		case h.scroll:
+			visRow = h.row - topScroll
+		default:
+			continue
+		}
+		if visRow < 0 || visRow >= bodyH {
+			continue
+		}
+		g.hitBodyLine(visRow, 1, h.line, h.id, h.data)
+	}
+	if wideHits != nil {
+		wideHits(leftW, rightW, bodyH, topScroll)
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Top, strings.Join(leftLines, "\n"), rightViewport)
+	return g.renderBottomKeybar(body, hint)
 }
 
 func fitMiningColumn(lines []string, width int) []string {
@@ -467,18 +498,24 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 	)
 	dropBtn := theme.Button("D", "DROP CARGO", "", true, theme.HueAmber)
 	refuseBtn := theme.Button("R", "REFUSE / RUN", "", true, theme.HueRed)
-	lines = append(lines, dropBtn, refuseBtn)
-	g.hitBodyLine(len(lines)-2, 1, dropBtn, "btn:tribute:accept", nil)
-	g.hitBodyLine(len(lines)-1, 1, refuseBtn, "btn:tribute:refuse", nil)
+	pinned := []string{dropBtn, refuseBtn}
+	hits := []miningHit{
+		{pinned: true, row: 0, line: dropBtn, id: "btn:tribute:accept", data: nil},
+		{pinned: true, row: 1, line: refuseBtn, id: "btn:tribute:refuse", data: nil},
+	}
 	hint := "D DROP CARGO · R REFUSE / RUN"
+	fightBtn := ""
 	if armed {
 		odds := int(math.Round(sim.EstimateOddsForRun(st, g.content, run) * 100))
-		fightBtn := theme.Button("F", fmt.Sprintf("FIGHT — EST. ODDS %d%%", odds), "", true, theme.HueRed)
-		lines = append(lines, fightBtn)
-		g.hitBodyLine(len(lines)-1, 1, fightBtn, "btn:tribute:fight", nil)
+		fightBtn = theme.Button("F", fmt.Sprintf("FIGHT — EST. ODDS %d%%", odds), "", true, theme.HueRed)
+		pinned = append(pinned, fightBtn)
+		hits = append(hits, miningHit{pinned: true, row: 2, line: fightBtn, id: "btn:tribute:fight", data: nil})
 		hint = "D DROP CARGO · R REFUSE / RUN · F FIGHT"
 	}
-	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
+	_, rightW := g.miningColumnWidths()
+	bodyH := g.bodyHeight()
+	viewport, _ := g.renderAsteroidViewport(st, run, rightW, bodyH)
+	return g.renderMiningRunSplit(lines, pinned, viewport, hint, hits, nil)
 }
 
 func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier int) string {
@@ -531,7 +568,10 @@ func (g *Game) renderEscape(st *sim.State, run *sim.ActiveRun, name string, tier
 	if run.UnderAttack {
 		hint = theme.Red.Render("UNDER FIRE — HULL FALLING")
 	}
-	return g.renderBottomKeybar(strings.Join(lines, "\n"), hint)
+	_, rightW := g.miningColumnWidths()
+	bodyH := g.bodyHeight()
+	viewport, _ := g.renderAsteroidViewport(st, run, rightW, bodyH)
+	return g.renderMiningRunSplit(lines, nil, viewport, hint, nil, nil)
 }
 
 func (g *Game) renderHullLine(st *sim.State, hullPct float64, width int) string {
