@@ -564,6 +564,16 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.BaseMass > 0 {
 		massRatio = mass / model.BaseMass
 	}
+	maxHull := sim.MaxHullFor(st, g.content, model.ID)
+	hullPct := 0.0
+	if maxHull > 0 {
+		hullPct = float64(sim.ShipHull(st, model.ID)) / float64(maxHull) * 100
+	}
+	fuelCapacity := sim.ShipFuelCapacity(st, g.content, model.ID)
+	fuelPct := 0.0
+	if fuelCapacity > 0 {
+		fuelPct = sim.ShipFuelAmount(st, g.content, model.ID) / fuelCapacity * 100
+	}
 	statusBarW := min(18, statusInnerW)
 	statusPlain := shipyardReflowPlain([]string{
 		fmt.Sprintf("HULL %d/%d", sim.ShipHull(st, model.ID), sim.MaxHullFor(st, g.content, model.ID)),
@@ -584,6 +594,10 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		switch {
 		case line == "":
 			statusLines = append(statusLines, "")
+		case strings.HasPrefix(line, "HULL "):
+			statusLines = append(statusLines, theme.HullStyle(hullPct).Render(line))
+		case strings.HasPrefix(line, "FUEL "):
+			statusLines = append(statusLines, theme.FuelStyle(fuelPct).Render(line))
 		case strings.HasPrefix(line, "PWR "):
 			statusLines = append(statusLines, line, theme.RampBar(powerPct, statusBarW, true))
 		case strings.HasPrefix(line, theme.Glyph("credit", st.Settings.ASCIISafe)):
