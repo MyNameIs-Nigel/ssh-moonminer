@@ -90,6 +90,42 @@ func SlotItemName(itemID string) string {
 	return itemID
 }
 
+// SlotItemDesc returns a one-line summary of what the item does
+// (docs/gameplay/05-fleet-ships-and-shipyard-economy.md "Slot device
+// catalog"), shown in the Shipyard when the item is selected or highlighted
+// in the install picker.
+func SlotItemDesc(itemID string) string {
+	switch itemID {
+	case ItemCargo:
+		return "Adds cargo capacity. Draws no power."
+	case ItemFuelTank:
+		return "Adds fuel capacity. Draws no power."
+	case ItemShield:
+		return "Absorbs pirate damage before your hull does; recharges between runs."
+	case ItemSeismicOvercharge:
+		return "Unique. Raises drill speed well above a bare hull's."
+	case ItemEMPLauncher:
+		return "Auto-deploys on pirate contact, delaying their approach."
+	case ItemTurret:
+		return "Fires continuously for steady passive damage."
+	case ItemMissileLauncher:
+		return "G fires one guided, 100% accurate missile per shot."
+	case ItemPulseLaser:
+		return "F fires every fitted laser as one heat-limited volley."
+	case ItemSeismic:
+		return "Pre-scans 3 in-range asteroids for free on lock."
+	case ItemFuelMiner:
+		return "Chance to recover fuel burned while drilling."
+	case ItemJammer:
+		return "Suppresses pirate approach for a time after lock."
+	case ItemHeatSink:
+		return "Raises weapon heat capacity before overheat lock."
+	case ItemJumpDrive:
+		return "Opens Eridani Drift while installed. Draws no power."
+	}
+	return ""
+}
+
 // SlotItemLocked reports whether the item is unavailable for purchase. Every
 // current catalog item is usable; the Jump Drive now unlocks Eridani Drift.
 func SlotItemLocked(itemID string) bool { return false }

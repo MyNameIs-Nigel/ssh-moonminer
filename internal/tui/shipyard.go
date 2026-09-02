@@ -608,8 +608,30 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			statusLines = append(statusLines, line)
 		}
 	}
-	statusBody := strings.Join(statusLines, "\n")
+	var descLines []string
+	if sel := g.shipyardRowSel; g.shipyardPane == shipyardPaneLoadout && sel >= 0 && sel < len(rows) {
+		if desc := shipyardRowDesc(inst, rows[sel]); desc != "" {
+			for _, w := range wrapChartText(desc, statusInnerW) {
+				descLines = append(descLines, theme.TxtStyle.Render(w))
+			}
+			descLines = append(descLines, "")
+		}
+	}
+	statusBody := strings.Join(append(descLines, statusLines...), "\n")
 	return loadoutBody, statusBody
+}
+
+// shipyardRowDesc names what a LOADOUT row does — a track's stat effect or a
+// slot's installed item — shown in STATUS when that row is selected (the
+// Shipyard menu otherwise names upgrades without saying what they improve).
+func shipyardRowDesc(inst *sim.ShipInstance, row shipyardRow) string {
+	if row.kind == rowTrack {
+		return sim.TrackDesc(row.track)
+	}
+	if d := slotDeviceAt(inst, row); d != nil {
+		return sim.SlotItemDesc(d.ItemID)
+	}
+	return "Empty slot — Enter to install."
 }
 
 func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, rowIdx int, tag string) string {

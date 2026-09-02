@@ -159,6 +159,31 @@ func TestPickerRendersStorageSection(t *testing.T) {
 
 // TestPickerReplacementUsesRemoveConfirmation ensures selecting a different
 // module never overwrites the installed one directly.
+func TestPickerShowsSelectedEntryDescription(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+
+	out := g.renderSlotPickerOverlay()
+	_, _, entries, ok := g.pickerContext()
+	if !ok || len(entries) == 0 {
+		t.Fatal("expected a non-empty entries list to seed the description check")
+	}
+	wantDesc := sim.SlotItemDesc(entries[g.pickerSel].itemID)
+	if wantDesc == "" || !strings.Contains(out, wantDesc) {
+		t.Fatalf("expected picker to show the selected entry's description %q, got:\n%s", wantDesc, out)
+	}
+}
+
 func TestPickerReplacementUsesRemoveConfirmation(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)
