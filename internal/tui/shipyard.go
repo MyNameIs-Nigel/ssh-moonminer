@@ -382,7 +382,7 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 				style = theme.Amber
 			}
 		default:
-			suffix = theme.DimStyle.Render(fmt.Sprintf("%d cr", model.Price))
+			suffix = theme.DimStyle.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), model.Price))
 			if sel {
 				style = theme.Bright
 			}
@@ -403,7 +403,7 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 		if sim.IsBuyback(st, model.ID) {
 			label = "BUY BACK"
 		}
-		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%d cr", price), st.Credits >= price, theme.HueViolet)
+		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), price), st.Credits >= price, theme.HueViolet)
 		lines = append(lines, "", theme.Violet.Render("◇ ACQUIRE"), acquireBtn)
 		acquireRow = len(lines) - 1
 	}
@@ -444,7 +444,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		statusPlain := shipyardReflowPlain([]string{
 			"ACQUIRE",
 			"",
-			fmt.Sprintf("%s — %d cr", label, price),
+			fmt.Sprintf("%s — %s %d", label, theme.Glyph("credit", st.Settings.ASCIISafe), price),
 			"New hull starts fully serviced.",
 		}, statusInnerW)
 		if statusInnerW >= lipgloss.Width("Purchase does not switch ships.") {
@@ -481,7 +481,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		sel := g.shipyardPane == shipyardPaneLoadout && g.shipyardRowSel == i
 		priceStr := "CAPPED"
 		if grade < cap {
-			priceStr = fmt.Sprintf("%d cr", sim.TrackPrice(g.content, model, t, grade))
+			priceStr = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.TrackPrice(g.content, model, t, grade))
 		}
 		prefix := "  "
 		if sel {
@@ -584,7 +584,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		fmt.Sprintf("MASS %.0f", mass),
 		fmt.Sprintf("×%.2f fx", massRatio),
 		"",
-		fmt.Sprintf("%s %d cr", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
+		fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
 	}, statusInnerW)
 	if model.ID != st.ActiveShipID {
 		statusPlain = append(statusPlain, "", "Not active — select in HANGAR to switch/fly.")

@@ -338,6 +338,7 @@ func (g *Game) installPickerEntry(model *content.ShipModel, row shipyardRow, e p
 }
 
 func (g *Game) renderSlotPickerOverlay() string {
+	st := g.snap.State
 	_, row, entries, ok := g.pickerContext()
 	if !ok {
 		return ""
@@ -380,11 +381,11 @@ func (g *Game) renderSlotPickerOverlay() string {
 		case e.uniqueBlocked:
 			right = "UNIQUE"
 		case e.afford:
-			right = fmt.Sprintf("CASH %d", e.price)
+			right = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), e.price)
 		case e.saleAfford:
 			right = fmt.Sprintf("SELL+BUY %d", e.price)
 		default:
-			right = fmt.Sprintf("%d cr", e.price)
+			right = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), e.price)
 		}
 		powerGlyph := ""
 		if power := sim.SlotItemPower(g.content, e.itemID, e.grade); power > 0 {
@@ -561,10 +562,11 @@ func (g *Game) renderSlotRemoveOverlay() string {
 		sellMarker = "▸ "
 	}
 	sellPct := g.content.Slots.SellValuePct * 100
+	credit := theme.Glyph("credit", st.Settings.ASCIISafe)
 	storeLine := storeStyle.Render(storeMarker + "[S] STORE — keep it, install free later")
-	sellText := fmt.Sprintf("[V] SELL — %d cr (%.0f%% value)", sellValue, sellPct)
+	sellText := fmt.Sprintf("[V] SELL — %s %d (%.0f%% value)", credit, sellValue, sellPct)
 	if g.pendingSlotInstall != nil && !g.pendingSlotInstall.fromInv {
-		sellText = fmt.Sprintf("[V] SELL + BUY — net %d cr", g.pendingSlotInstall.price-sellValue)
+		sellText = fmt.Sprintf("[V] SELL + BUY — net %s %d", credit, g.pendingSlotInstall.price-sellValue)
 	}
 	sellLine := sellStyle.Render(sellMarker + sellText)
 	panelW, panelH := g.layoutOverlaySize(removePanelW, removePanelH)
