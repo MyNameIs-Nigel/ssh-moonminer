@@ -164,6 +164,41 @@ func TestShipyardNotOwnedShipShowsBuyPrompt(t *testing.T) {
 	}
 }
 
+func TestShipyardLoadoutShowsSelectedRowDescription(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	g.shipyardRowSel = 0 // first track row: thrusters
+
+	out := g.renderShipyard()
+	// A narrow STATUS column can word-wrap the description across lines, so
+	// check a fragment short enough to survive that rather than the full
+	// sentence.
+	if !strings.Contains(out, "Faster escapes") {
+		t.Fatalf("expected STATUS to show the selected track's description, got:\n%s", out)
+	}
+}
+
+func TestShipyardLoadoutShowsEmptySlotDescription(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+
+	out := g.renderShipyard()
+	if !strings.Contains(out, "Empty slot") {
+		t.Fatalf("expected STATUS to prompt for an empty selected slot, got:\n%s", out)
+	}
+}
+
 func TestShipyardKeyNavigationDoesNotPanic(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)
