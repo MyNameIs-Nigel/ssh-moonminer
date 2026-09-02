@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/identity"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
 func shipyardTestContent(t *testing.T) *content.Content {
@@ -196,6 +198,49 @@ func TestShipyardLoadoutShowsEmptySlotDescription(t *testing.T) {
 	out := g.renderShipyard()
 	if !strings.Contains(out, "Empty slot") {
 		t.Fatalf("expected STATUS to prompt for an empty selected slot, got:\n%s", out)
+	}
+}
+
+func TestShipyardTrackRowPriceNotTruncated(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st) // width 80 — the narrowest production allows
+	g.shipyardPane = shipyardPaneLoadout
+
+	model := c.ShipByID("skiff")
+	grade := sim.TrackGrade(st, model.ID, sim.TrackThrusters)
+	wantPrice := sim.TrackPrice(c, model, sim.TrackThrusters, grade)
+	wantSuffix := fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), wantPrice)
+
+	out := g.renderShipyard()
+	if !strings.Contains(out, wantSuffix) {
+		t.Fatalf("expected the LOADOUT panel to show the full Thrusters price %q without truncation, got:\n%s", wantSuffix, out)
+	}
+}
+
+func TestShipyardStatusDescriptionWrapsWithoutEllipsis(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st) // width 80 — the narrowest production allows, STATUS innerW ~22
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	// Install a Shield, whose description is long enough to force a wrap at
+	// this width — regression coverage for #31: this text must word-wrap,
+	// never truncate with an ellipsis.
+	st.Ships["skiff"].Utility[0] = &sim.SlotDevice{ItemID: sim.ItemShield, Grade: 0}
+
+	out := g.renderShipyard()
+	if strings.Contains(out, "…") {
+		t.Fatalf("expected the selected item's description to word-wrap, not truncate with an ellipsis:\n%s", out)
+	}
+	if !strings.Contains(out, "Absorbs pirate") {
+		t.Fatalf("expected the wrapped description to still be visible, got:\n%s", out)
 	}
 }
 

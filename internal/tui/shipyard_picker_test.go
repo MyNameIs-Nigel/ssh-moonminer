@@ -184,6 +184,33 @@ func TestPickerShowsSelectedEntryDescription(t *testing.T) {
 	}
 }
 
+func TestPickerDescriptionWrapsWithoutEllipsis(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+	// utilityItems order is Cargo, FuelTank, Shield, ... — move to Shield,
+	// whose description is long enough to force a wrap at pickerPanelW.
+	g.updateSlotPickerOverlay("down")
+	g.updateSlotPickerOverlay("down")
+
+	out := g.renderSlotPickerOverlay()
+	if strings.Contains(out, "…") {
+		t.Fatalf("expected the highlighted entry's description to word-wrap, not truncate with an ellipsis:\n%s", out)
+	}
+	if !strings.Contains(out, "Absorbs pirate") {
+		t.Fatalf("expected the wrapped description to still be visible, got:\n%s", out)
+	}
+}
+
 func TestPickerReplacementUsesRemoveConfirmation(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)

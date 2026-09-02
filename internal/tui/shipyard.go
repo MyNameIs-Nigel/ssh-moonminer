@@ -481,7 +481,13 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		sel := g.shipyardPane == shipyardPaneLoadout && g.shipyardRowSel == i
 		priceStr := "CAPPED"
 		if grade < cap {
-			priceStr = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.TrackPrice(g.content, model, t, grade))
+			// No space between glyph and digits (unlike other credit
+			// readouts) — every column in this row is load-bearing at the
+			// minimum 80-column terminal width, and this one character is
+			// what keeps a starter ship's own default loadout (e.g. a fresh
+			// SKIFF's Thrusters row) from overflowing into Panel's silent
+			// ellipsis fallback and losing price digits (#31).
+			priceStr = fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.TrackPrice(g.content, model, t, grade))
 		}
 		prefix := "  "
 		if sel {
