@@ -508,7 +508,7 @@ func (g *Game) renderChrome() string {
 	title := theme.Cyan.Render("MOON MINER")
 	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
 	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
-	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL %.0f%%", fuelPct))
+	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%s %.0f%%", theme.Glyph("fuel", st.Settings.ASCIISafe), fuelPct))
 	hullPct := sim.HullPct(&st, g.content)
 	hull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL %.0f%%", hullPct))
 	shield := g.renderShieldStatus(&st, 0)
@@ -524,7 +524,7 @@ func (g *Game) renderChrome() string {
 		// label and verbose fuel/credit spacing are the expendable chrome.
 		compactPilot := theme.Violet.Render(strings.ToUpper(g.id.Slot))
 		compactCredits := theme.Gold.Render(fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
-		compactFuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("FUEL%.0f%%", fuelPct))
+		compactFuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%s%.0f%%", theme.Glyph("fuel", st.Settings.ASCIISafe), fuelPct))
 		compactHull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL%.0f%%", hullPct))
 		hud = fmt.Sprintf(" %s · %s · %s · %s · %s · %s · %s ", title, compactPilot, compactCredits, compactFuel, compactHull, shield, cargo)
 	}

@@ -577,7 +577,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	statusBarW := min(18, statusInnerW)
 	statusPlain := shipyardReflowPlain([]string{
 		fmt.Sprintf("HULL %d/%d", sim.ShipHull(st, model.ID), sim.MaxHullFor(st, g.content, model.ID)),
-		fmt.Sprintf("FUEL %.0f/%.0f", sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
+		fmt.Sprintf("%s %.0f/%.0f", theme.Glyph("fuel", st.Settings.ASCIISafe), sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
 		"",
 		fmt.Sprintf("PWR %d/%d", power, capacity),
 		"",
@@ -596,7 +596,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			statusLines = append(statusLines, "")
 		case strings.HasPrefix(line, "HULL "):
 			statusLines = append(statusLines, theme.HullStyle(hullPct).Render(line))
-		case strings.HasPrefix(line, "FUEL "):
+		case strings.HasPrefix(line, theme.Glyph("fuel", st.Settings.ASCIISafe)):
 			statusLines = append(statusLines, theme.FuelStyle(fuelPct).Render(line))
 		case strings.HasPrefix(line, "PWR "):
 			statusLines = append(statusLines, line, theme.RampBar(powerPct, statusBarW, true))
