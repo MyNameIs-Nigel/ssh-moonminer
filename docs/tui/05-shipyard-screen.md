@@ -68,13 +68,13 @@ split — that's the point of giving it its own screen.
 
 ```
 ┌◇ HANGAR ─────────────┐┌◇ WARDEN — ALLIANCE · FIGHTER ───────────┐┌◇ STATUS ─┐
-│ ▸ WARDEN      ACTIVE ││ THRUSTERS  ●●●○○ C→B      2,145 cr [BUY]││ PWR 21/34│
+│ ▸ WARDEN      ACTIVE ││ THRUSTERS  ●●●○○ C→B      ◈ 2,145 [BUY]││ PWR 21/34│
 │   SKIFF              ││ HULL       ●●●○○ C        MAXED         ││ ███████░░│
-│   CICADA             ││ FUEL EFF   ●●○○○ D        1,780 cr [BUY]││          │
-│   [ MULE — LOCKED ]  ││ POWER GEN  ●●○○○ D        3,020 cr [BUY]││ MASS 268 │
-│   ── BUY NEW SHIP ── ││ SCANNER    ●○○○○ E        1,610 cr [BUY]││ ×1.22 fx │
+│   CICADA             ││ FUEL EFF   ●●○○○ D        ◈ 1,780 [BUY]││          │
+│   [ MULE — LOCKED ]  ││ POWER GEN  ●●○○○ D        ◈ 3,020 [BUY]││ MASS 268 │
+│   ── BUY NEW SHIP ── ││ SCANNER    ●○○○○ E        ◈ 1,610 [BUY]││ ×1.22 fx │
 │                       ││                                          ││          │
-│                       ││ UTILITY 1  [ SHIELD   ●●○○○ C ]  ⚡14   ││ 18,400 cr│
+│                       ││ UTILITY 1  [ SHIELD   ●●○○○ C ]  ⚡14   ││ ◈ 18,400 │
 │                       ││ UTILITY 2  [ empty            ]         ││          │
 │                       ││ WEAPON  1  [ TURRET    ●●●○○ B ]  ⚡13   ││          │
 │                       ││ WEAPON  2  [ empty            ]         ││          │
@@ -88,7 +88,7 @@ split — that's the point of giving it its own screen.
   marked `ACTIVE` and not-yet-owned models showing their price. Enter/Space
   on the selected unowned model purchases it directly. A
   destroyed-but-buyback-eligible model renders as
-  `[ MULE — LOST · BUYBACK 6,500 cr ]` in red/amber instead of the normal
+  `[ MULE — LOST · BUYBACK ◈ 6,500 ]` in red/amber instead of the normal
   greyed "not owned" treatment, distinguishing "never bought" from "died,
   rebuyable at a discount."
 - **LOADOUT panel** title bar shows the selected ship's name/brand/class.
@@ -111,7 +111,7 @@ split — that's the point of giving it its own screen.
   derived fuel/escape multiplier from gameplay/05's mass formula so the
   tradeoff is visible *before* buying, not discovered mid-run; total credits;
   and, when the selected ship is a buyback-eligible destroyed model, a
-  prominent noninteractive `BUYBACK QUOTE — 6,500 cr` readout (activation
+  prominent noninteractive `BUYBACK QUOTE — ◈ 6,500` readout (activation
   remains Enter/Space on its HANGAR row; you can't view/edit a loadout that
   doesn't exist yet).
 
