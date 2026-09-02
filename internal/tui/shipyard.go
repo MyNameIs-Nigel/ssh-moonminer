@@ -600,6 +600,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 
 func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, rowIdx int, tag string) string {
 	sel := g.shipyardPane == shipyardPaneLoadout && g.shipyardRowSel == rowIdx
+	style := theme.OptionHC(theme.HueViolet, sel, st.Settings.HighContrast)
 	prefix := "  "
 	if sel {
 		prefix = "▸ "
@@ -609,11 +610,7 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 		d = devices[index]
 	}
 	if d == nil {
-		label := fmt.Sprintf("%s%s  %s", prefix, tag, theme.DimStyle.Render("empty — enter to install"))
-		if sel {
-			return theme.Bright.Render(prefix+tag+"  ") + theme.DimStyle.Render("empty — enter to install")
-		}
-		return label
+		return style.Render(prefix+tag+"  ") + theme.DimStyle.Render("empty — enter to install")
 	}
 	name := sim.SlotItemName(d.ItemID)
 	powerGlyph := ""
@@ -621,8 +618,5 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 		powerGlyph = theme.Amber.Render(fmt.Sprintf(" ⚡%d", p))
 	}
 	line := fmt.Sprintf("%s%s %-14s %s %s%s", prefix, tag, name, gradeDots(d.Grade, sim.MaxGrade), sim.GradeLetter(d.Grade), powerGlyph)
-	if sel {
-		return theme.Bright.Render(line)
-	}
-	return theme.TxtStyle.Render(line)
+	return style.Render(line)
 }
