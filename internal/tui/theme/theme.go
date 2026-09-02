@@ -69,6 +69,14 @@ func Glyph(name string, asciiSafe bool) string {
 			return "✦"
 		case "legendary":
 			return "★"
+		case "slot_utility":
+			return "⚙"
+		case "slot_weapon":
+			return "⚔"
+		case "slot_internal":
+			return "▣"
+		case "slot_jumpdrive":
+			return "◎"
 		}
 		return "*"
 	}
@@ -93,6 +101,14 @@ func Glyph(name string, asciiSafe bool) string {
 		return "#"
 	case "legendary":
 		return "@"
+	case "slot_utility":
+		return "U"
+	case "slot_weapon":
+		return "W"
+	case "slot_internal":
+		return "I"
+	case "slot_jumpdrive":
+		return "J"
 	}
 	return "*"
 }
