@@ -173,7 +173,7 @@ func (g *Game) renderChart() string {
 	fuelAmount := sim.FuelAmount(&st, g.content)
 	fuelPct := fuelAmount / sim.TankSize(&st, g.content) * 100
 	hullPct := sim.HullPct(&st, g.content)
-	fuelLabel := "FUEL " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f/%.0f  %.0f%%", fuelAmount, sim.TankSize(&st, g.content), fuelPct))
+	fuelLabel := theme.Glyph("fuel", st.Settings.ASCIISafe) + " " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f/%.0f  %.0f%%", fuelAmount, sim.TankSize(&st, g.content), fuelPct))
 	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
 	shieldLabel := g.renderShieldStatus(&st, 8)
 
