@@ -499,7 +499,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.UtilitySlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("UTILITY"))
 		for i := 0; i < model.UtilitySlots; i++ {
-			line := g.renderSlotRow(st, inst.Utility, i, rowIdx, "U")
+			line := g.renderSlotRow(st, inst.Utility, i, rowIdx, theme.Glyph("slot_utility", st.Settings.ASCIISafe))
 			lines = append(lines, line)
 			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
@@ -508,7 +508,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.WeaponSlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("WEAPON"))
 		for i := 0; i < model.WeaponSlots; i++ {
-			line := g.renderSlotRow(st, inst.Weapon, i, rowIdx, "W")
+			line := g.renderSlotRow(st, inst.Weapon, i, rowIdx, theme.Glyph("slot_weapon", st.Settings.ASCIISafe))
 			lines = append(lines, line)
 			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
@@ -522,7 +522,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, "I")
+		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_internal", st.Settings.ASCIISafe))
 		lines = append(lines, line)
 		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 		rowIdx++
@@ -535,7 +535,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, "J")
+		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_jumpdrive", st.Settings.ASCIISafe))
 		lines = append(lines, line)
 		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 	}
