@@ -47,7 +47,7 @@ go vet ./...
 Behind `ssh-arcadelobby`, set `MOONMINER_PROXY_KEYS_PATH` to the router's bridge
 public key file (same pattern as ssh-farm's `FARM_PROXY_KEYS_PATH`). The fleet
 compose block in `ssh-arcadelobby/deploy/docker-compose.yml` is wired and live;
-`games.toml` lists this game with `version = "1.6.2"` — a fallback only; the
+`games.toml` lists this game with `version = "1.6.3"` — a fallback only; the
 router's prober reads the live version off the SSH banner, which comes from
 `internal/version`.
 
@@ -60,6 +60,24 @@ no AWS credentials required in dev (`LITESTREAM_REPLICA_URL` unset skips replica
 `release.yml` builds/publishes `ghcr.io/mynameis-nigel/ssh-moonminer` on merge to `main`
 and redeploys on the same self-hosted `play.ssharcade.dev` runner ssh-arcadelobby and
 ssh-farm use.
+
+**Durability drills** live in [`scripts/restore-drill/`](scripts/restore-drill/) and run
+locally against a MinIO container using the exact image the fleet ships. They kill the
+container without a graceful flush, delete its volume, and prove a fresh one restores
+real pilot data from the bucket — verified with `PRAGMA integrity_check` plus a decode of
+every save blob (`cmd/restore-check`, built into the runtime image), and a measured RPO:
+
+```sh
+cd scripts/restore-drill
+./run.sh                   # empty volume + populated bucket restores and serves
+./kill-drill.sh            # + real save data, integrity/decode, enforced RPO budget
+./restore-to-scratch.sh    # restores the replica with no game container involved
+./no-credentials-check.sh  # dev mode never touches S3, proven with --network none
+```
+
+They prove the *mechanism*. They cannot prove the *credentials*: production leaves the
+litestream access-key vars unset so it picks up the EC2 instance role, while the drill
+sets them explicitly. A broken IAM policy passes every drill here.
 
 ## Sibling references
 

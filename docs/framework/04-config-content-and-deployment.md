@@ -169,11 +169,31 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
 - [ ] Container runs non-root with read-only rootfs (inspect + smoke test).
 - [ ] With `LITESTREAM_REPLICA_URL` unset, the container boots and serves
   with no AWS/MinIO credentials present (dev-mode path).
-- [ ] Against a local MinIO (reuse `../ssh-farm/scripts/restore-drill/`'s
-  scripts pointed at this game's compose service — doc 06 rule 3 says the
-  drill script is fleet-wide, don't fork a new one): `kill-drill.sh` and
-  `restore-to-scratch.sh` pass, and `no-credentials-check.sh` confirms no
-  AWS keys anywhere in the image/compose.
+- [x] Against a local MinIO: `run.sh`, `kill-drill.sh`,
+  `restore-to-scratch.sh` and `no-credentials-check.sh` all pass. **Run for
+  real on 2026-08-15** — kill + volume delete restored 1 genuine save,
+  integrity+decode clean, measured RPO 12s against a 60s budget.
+
+  The scripts live in this repo at `scripts/restore-drill/`, not in
+  `ssh-farm`. Doc 06 rule 3 ("the drill script lives in ssh-farm and is reused
+  fleet-wide") and this row's original "don't fork a new one" are the right
+  instinct with the wrong location: **`ssh-farm` is private and this repo is
+  public**, so nothing here can depend on scripts that live there — not in CI,
+  and not for anyone who clones only this game. The port differs from farm's
+  only in service name, port (2224, so both drills can run side by side),
+  env-var prefix, volume name and the restore-check invocation. If the fleet
+  consolidates them, the home is `ssh-arcadelobby` — public, and already the
+  owner of the canonical durability doc.
+
+  One correction went in during the port: farm's scripts wait for
+  `grep -q "restoring"` as proof a restore happened, but `entrypoint.sh`
+  echoes that line **unconditionally** before litestream runs, so it is
+  printed even when the bucket is empty. Paired with a `[ -s "$DB_PATH" ]`
+  size test that the game satisfies by creating its own empty database,
+  farm's `run.sh` can report PASS having restored nothing. These scripts
+  assert on the *absence* of litestream's own `no matching backups found`
+  instead, plus a full `restore-check`, and the assertion was negative-tested
+  by wiping the bucket between the kill and the restore boot.
 
 ## Out of scope / handoffs
 
