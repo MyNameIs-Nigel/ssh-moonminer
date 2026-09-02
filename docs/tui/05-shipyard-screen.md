@@ -5,17 +5,18 @@
 (owns every action this screen calls) · **Parallel-safe with:** nothing else
 in phase 5 — this is the only TUI task this phase
 
+> **v1.7 layout supersession:** [06-responsive-menu-overhaul.md](06-responsive-menu-overhaul.md)
+> owns frame sizing and exact panel allocation: HANGAR/LOADOUT/STATUS minima
+> 24/32/24 with 3/4/3 flex. STATUS is informational, not a focus pane.
+
 ## Goal
 
-Today the Shipyard is a second column bolted onto the Star Chart panel
-(`scrShipyard` renders through `renderChart()`, `internal/tui/chart.go:78,159`)
-— five upgrade-track rows appended below the port-services buttons. Replace it
-with its own full screen: a proper destination the pilot navigates *to* and
-*from*, styled as a fancy cyber-futuristic dealership rather than a price
-list. It has to show a lot more than five rows now — a hangar of owned ships,
-per-ship track grades, three kinds of slots with power/mass meters, and a
-buy-new-ship catalog — so it needs the full 80×24 (or larger) canvas the chart
-screen currently keeps to itself.
+The shipped Shipyard is a standalone full screen: a destination the pilot
+navigates *to* and *from*, styled as a cyber-futuristic dealership rather
+than a price list. v1.7 preserves that behavior while replacing its fixed
+20-column HANGAR and 22-column STATUS rails with the responsive allocations
+below. Its hangar, per-ship track grades, four slot kinds, and power/mass
+meters must remain usable from the 80×24 minimum through the 144×48 cap.
 
 ## References
 
@@ -56,12 +57,14 @@ screen currently keeps to itself.
 
 ### Layout
 
-Three panels: a left **HANGAR** rail (owned ships + a switch/buy toggle), a
-center **LOADOUT** panel (the selected ship's track grades and four slot
-groups), and a right **STATUS** rail (power meter, mass meter, credits,
-buyback prompt if the selected ship is currently destroyed-and-buyable). This
-is a genuinely different layout from the chart's two-column world-list/
-services split — that's the point of giving it its own screen.
+Three panels: a left **HANGAR** rail (owned ships + acquisition), a center
+**LOADOUT** panel (the selected ship's track grades and four slot groups), and
+a right **STATUS** rail (power meter, mass meter, credits, and acquisition
+feedback). Outer-width minima are 24/32/24 and all extra cells are allocated
+with weights 3/4/3 by tui/06's shared deterministic allocator. STATUS is
+informational; keyboard focus exists only in HANGAR and LOADOUT. This is a
+genuinely different layout from the chart's two-column world-list/services
+split — that's the point of giving it its own screen.
 
 ```
 ┌◇ HANGAR ─────────────┐┌◇ WARDEN — ALLIANCE · FIGHTER ───────────┐┌◇ STATUS ─┐
@@ -78,22 +81,23 @@ services split — that's the point of giving it its own screen.
 │                       ││ INTERNAL   [ FUEL MINER ●●○○○ C ]  ⚡5   ││          │
 │                       ││ JUMP DRIVE [ empty            ]         ││          │
 └───────────────────────┘└──────────────────────────────────────────┘└──────────┘
- ↑/↓ SHIP · TAB PANE · ←/→ SELECT · ENTER BUY/EQUIP · B BUY SHIP · Q CHART ─ █
+ ↑/↓ SELECT · TAB HANGAR/LOADOUT · ENTER BUY/EQUIP · X REMOVE · Q CHART ─ █
 ```
 
-- **HANGAR rail**: owned ships listed first (current active ship marked
-  `ACTIVE`), then not-yet-owned models greyed with their price, then a
-  `BUY NEW SHIP` row that opens the purchase flow for a highlighted unowned
-  model. A destroyed-but-buyback-eligible model renders as
+- **HANGAR rail**: every ship model is listed, with the current active ship
+  marked `ACTIVE` and not-yet-owned models showing their price. Enter/Space
+  on the selected unowned model purchases it directly. A
+  destroyed-but-buyback-eligible model renders as
   `[ MULE — LOST · BUYBACK 6,500 cr ]` in red/amber instead of the normal
   greyed "not owned" treatment, distinguishing "never bought" from "died,
   rebuyable at a discount."
 - **LOADOUT panel** title bar shows the selected ship's name/brand/class.
-  Five track rows (grade dots at fixed width 5, current letter, price or
-  `MAXED` at cap) followed by the four slot groups. Utility/Weapon row count
-  matches that ship's slot counts (table in gameplay/05); a ship with zero
-  weapon slots (any Miner) omits the WEAPON rows entirely rather than showing
-  them disabled — Miners simply don't have that row.
+  Five track rows (grade dots sized to each model-specific track cap, current
+  letter, price or `CAPPED`) followed by the four slot groups.
+  Utility/Weapon row count matches that ship's slot counts (table in
+  gameplay/05); a ship with zero weapon slots (any Miner) omits the WEAPON
+  rows entirely rather than showing them disabled — Miners simply don't have
+  that row.
 - Every ship also has a single **JUMP DRIVE** row after **INTERNAL**. Its
   picker contains only Jump Drives, making route progression visible without
   forcing a choice against sensors, fuel mining, jamming, or a heat sink.
@@ -106,18 +110,22 @@ services split — that's the point of giving it its own screen.
   equip through if it would overflow (see below); a mass readout with the
   derived fuel/escape multiplier from gameplay/05's mass formula so the
   tradeoff is visible *before* buying, not discovered mid-run; total credits;
-  and, when the selected ship is a buyback-eligible destroyed model, a single
-  prominent `[B] BUY BACK — 6,500 cr` button in place of the normal track
-  list (you can't view/edit a loadout that doesn't exist yet).
+  and, when the selected ship is a buyback-eligible destroyed model, a
+  prominent noninteractive `BUYBACK QUOTE — 6,500 cr` readout (activation
+  remains Enter/Space on its HANGAR row; you can't view/edit a loadout that
+  doesn't exist yet).
 
 ### Navigation
 
-- `Tab`/`Shift+Tab` (or click) moves focus between the three panes.
+- `Tab`/`Shift+Tab` (or click) moves focus between HANGAR and LOADOUT.
+  STATUS never receives selection, keyboard focus, or action hitboxes.
+  Acquisition happens from the selected HANGAR row; STATUS may show its
+  noninteractive quote and service consequences.
 - In HANGAR: `↑/↓` moves the ship selection; `Enter` on an owned, non-active
   ship switches the active ship (docked-only, instant, no cost); `Enter` on
-  an unowned model or the `BUY NEW SHIP` row opens a confirm-purchase prompt
-  showing price and a one-line stat-cap summary; `Enter` on a buyback-eligible
-  row buys it back at 25% price and makes it active.
+  an unowned model buys it when affordable; `Enter` on a buyback-eligible row
+  buys it back at 25% price. Purchases start fully serviced but do not switch
+  the active ship.
 - In LOADOUT: `↑/↓` selects a track or slot row; `Enter`/`→` on a track row
   buys the next grade (present-but-disabled at cap, rendered `MAXED`);
   `Enter` on a slot row opens an item picker overlay scoped to that slot kind
@@ -178,11 +186,11 @@ one screen that feels like a showroom rather than an instrument panel:
 
 ### Fits within global constraints
 
-- Must degrade to 80×24 without losing information — three panels at that
-  width means each is ~26 columns; the mockup above already assumes that
-  width. Larger terminals get more breathing room in the LOADOUT panel
-  (e.g. showing both track price *and* effect-at-next-grade), never new
-  information unavailable at 80×24.
+- At 80×24 the three outer panel widths are exactly 24/32/24. They grow by
+  weights 3/4/3 to exactly 43/58/43 at the 144-column frame cap. Extra height
+  grows scroll viewports; LOADOUT and HANGAR keep their selected rows visible.
+  Larger frames add breathing room and reflow, never information unavailable
+  at 80×24.
 - Reduced-motion/high-contrast/ASCII-safe tweaks (tui/04) apply exactly as on
   every other screen — no shipyard-specific opt-out.
 
@@ -205,6 +213,8 @@ one screen that feels like a showroom rather than an instrument panel:
   hangar (just the Skiff), a fully-loaded ship, and the buyback prompt state.
 - [ ] Mouse click/double-click parity with keyboard for every action listed
   under Navigation.
+- [ ] Exact 24/32/24 minima and 3/4/3 weighted flex pass tui/06's boundary
+  matrix; STATUS cannot become the active keyboard pane.
 - [ ] `01-concept-and-story.md`'s Controls table and `chart.go`'s keybar hint
   both updated to `S` (not `U`) for Shipyard.
 

@@ -100,14 +100,18 @@ func (g *Game) renderScreen() string {
 
 func (g *Game) renderChart() string {
 	st := g.snap.State
-	w := g.contentWidth()
-	leftW := w / 2
-	rightW := w - leftW
+	leftW, rightW := chartPaneWidths(g.contentWidth())
 	rightX := leftW + 1
-	panelH := g.height - 5
+	panelH := g.bodyHeight()
 	panelBodyH := panelH - 2
 	accent := theme.Accent(theme.HueCyan)
 	leftLines := []string{}
+	type chartWorldHit struct {
+		row  int
+		line string
+		idx  int
+	}
+	var worldHits []chartWorldHit
 	for _, system := range g.content.Systems {
 		currentSystem := system.ID == st.SystemID
 		systemGlyph := theme.Glyph("diamond", st.Settings.ASCIISafe)
@@ -141,14 +145,28 @@ func (g *Game) renderChart() string {
 			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast || currentSystem).Render(namePart) + "  " + fuel
 			line = ansi.Truncate(line, leftW-2, "…")
 			leftLines = append(leftLines, line)
-			g.hitPanelLine(len(leftLines)-1, 1, line, fmt.Sprintf("world:%d", i), i)
+			worldHits = append(worldHits, chartWorldHit{len(leftLines) - 1, line, i})
 		}
 	}
 	leftFooter := []string{}
 	if g.worldSel >= 0 && g.worldSel < len(g.content.Worlds) {
 		leftFooter = g.chartFooterLines(g.content.Worlds[g.worldSel].Desc, leftW-2, panelBodyH-len(leftLines))
 	}
-	leftBody := strings.Join(bottomAlignPanelLines(leftLines, leftFooter, panelBodyH), "\n")
+	selRow := -1
+	for _, h := range worldHits {
+		if h.idx == g.worldSel {
+			selRow = h.row
+			break
+		}
+	}
+	leftBodyLines, leftScroll := panelViewportWithFooter(leftLines, leftFooter, panelBodyH, selRow)
+	for _, h := range worldHits {
+		visRow := h.row - leftScroll
+		if visRow >= 0 && visRow < len(leftBodyLines)-len(leftFooter) {
+			g.hitPanelLine(visRow, 1, h.line, fmt.Sprintf("world:%d", h.idx), h.idx)
+		}
+	}
+	leftBody := strings.Join(leftBodyLines, "\n")
 
 	refuelCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RefuelCost(&st, g.content))
 	repairCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RepairCost(&st, g.content))
@@ -164,15 +182,22 @@ func (g *Game) renderChart() string {
 	// five keys that all error (framework/05).
 	docked := st.IsDocked()
 
+	type chartServiceHit struct {
+		row  int
+		line string
+		id   string
+		data any
+	}
+	var serviceHits []chartServiceHit
 	rightLines := []string{fuelLabel}
 	refuelBtn := theme.Button("F", "REFUEL", refuelCost, docked && sim.RefuelCost(&st, g.content) > 0 && st.Credits >= g.content.Port.RefuelPerPoint, theme.HueGreen)
 	rightLines = append(rightLines, refuelBtn)
-	g.hitPanelLine(1, rightX, refuelBtn, "svc:refuel", nil)
+	serviceHits = append(serviceHits, chartServiceHit{1, refuelBtn, "svc:refuel", nil})
 
 	rightLines = append(rightLines, hullLabel)
 	repairBtn := theme.Button("R", "REPAIR — FULL", repairCost, docked && st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
 	rightLines = append(rightLines, repairBtn)
-	g.hitPanelLine(3, rightX, repairBtn, "svc:repair", nil)
+	serviceHits = append(serviceHits, chartServiceHit{3, repairBtn, "svc:repair", nil})
 
 	rightLines = append(rightLines, shieldLabel)
 	rightLines = append(rightLines, g.renderDockShieldService(&st))
@@ -188,24 +213,24 @@ func (g *Game) renderChart() string {
 	}
 	sellBtn := theme.Button("C", sellLabel, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sellTotal), docked && sellTotal > 0, theme.HueGold)
 	rightLines = append(rightLines, sellBtn)
-	g.hitPanelLine(len(rightLines)-1, rightX, sellBtn, "svc:sell", nil)
+	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, sellBtn, "svc:sell", nil})
 	if sim.InsuranceEligible(&st, g.content) {
 		insBtn := theme.Amber.Render("[I] INSURANCE ADVANCE")
 		rightLines = append(rightLines, insBtn)
-		g.hitPanelLine(len(rightLines)-1, rightX, insBtn, "svc:insurance", nil)
+		serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, insBtn, "svc:insurance", nil})
 	}
 	shipyardBtn := theme.Button("S", "SHIPYARD", "", docked, theme.HueViolet)
 	rightLines = append(rightLines, shipyardBtn)
-	g.hitPanelLine(len(rightLines)-1, rightX, shipyardBtn, "btn:shipyard", nil)
+	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, shipyardBtn, "btn:shipyard", nil})
 
 	logBtn := theme.Button("L", "SHIP'S LOG", "", true, theme.HueCyan)
 	rightLines = append(rightLines, logBtn)
-	g.hitPanelLine(len(rightLines)-1, rightX, logBtn, "btn:log", nil)
+	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, logBtn, "btn:log", nil})
 
 	if !docked {
 		returnBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
 		rightLines = append(rightLines, "", theme.Red.Render(theme.Glyph("diamond", st.Settings.ASCIISafe)+" IN BELT — RETURN TO BELT TO DOCK"), returnBtn)
-		g.hitPanelLine(len(rightLines)-1, rightX, returnBtn, "btn:return-belt", nil)
+		serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, returnBtn, "btn:return-belt", nil})
 	}
 
 	footerHint := "Bigger rocks pay more but attract pirates."
@@ -213,7 +238,14 @@ func (g *Game) renderChart() string {
 		footerHint = "Services open once the rig is docked."
 	}
 	rightFooter := g.chartFooterLines(footerHint, rightW-2, panelBodyH-len(rightLines))
-	rightBody := strings.Join(bottomAlignPanelLines(rightLines, rightFooter, panelBodyH), "\n")
+	rightBodyLines, rightScroll := panelViewportWithFooter(rightLines, rightFooter, panelBodyH, len(rightLines)-1)
+	for _, h := range serviceHits {
+		visRow := h.row - rightScroll
+		if visRow >= 0 && visRow < len(rightBodyLines)-len(rightFooter) {
+			g.hitPanelLine(visRow, rightX, h.line, h.id, h.data)
+		}
+	}
+	rightBody := strings.Join(rightBodyLines, "\n")
 
 	chartTitle := "STAR CHART"
 	if system := g.content.SystemByID(st.SystemID); system != nil {
@@ -237,7 +269,7 @@ func (g *Game) renderChart() string {
 const doubleClickMS = 400
 
 func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
-	if b, ok := g.hits.At(m.X, m.Y); ok {
+	if b, ok := g.hitAt(m.X, m.Y); ok {
 		// Buttons fire on single click.
 		switch b.ID {
 		case "svc:refuel":
@@ -250,6 +282,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyChart("c")
 		case "btn:shipyard":
 			return g.keyChart("s")
+		case "btn:acquire":
+			return g.keyShipyard("enter")
 		case "btn:shipyard:remove":
 			return g.keyShipyard("x")
 		case "btn:log":
@@ -258,6 +292,8 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 			return g.keyChart("enter")
 		case "btn:scan":
 			return g.keyBelt("s")
+		case "btn:lock":
+			return g.keyBelt("enter")
 		case "btn:bail":
 			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
 		case "btn:skillcheck":
@@ -344,6 +380,11 @@ func (g *Game) updateWheel(m tea.MouseWheelMsg) []tea.Cmd {
 			return g.keyBelt("up")
 		}
 		return g.keyBelt("down")
+	case scrLog:
+		if delta < 0 {
+			return g.keyLog("up")
+		}
+		return g.keyLog("down")
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
@@ -27,6 +28,19 @@ func (g *Game) keyLog(k string) []tea.Cmd {
 func (g *Game) renderLog() string {
 	st := g.snap.State
 	accent := theme.Accent(theme.HueCyan)
+	panelH := g.bodyHeight()
+	panelW := g.contentWidth()
+	panelBodyH := panelH - 2
+	innerW := panelW - 4
+	lines := g.logLines(&st, innerW)
+	clampScroll(&g.logScroll, len(lines), panelBodyH)
+	viewport := scrollWindowLines(lines, g.logScroll, panelBodyH)
+	body := strings.Join(viewport, "\n")
+	hint := "↑/↓ SCROLL · ESC BACK TO CHART"
+	return theme.Panel("SHIP'S LOG", panelW, panelH, body, accent) + "\n" + g.renderKeybar(hint)
+}
+
+func (g *Game) logLines(st *sim.State, innerW int) []string {
 	stats := []string{
 		fmt.Sprintf("RUNS: %s (departed %s / bailed %s / tribute %s / underfire %s / lost %s)",
 			theme.Bright.Render(fmt.Sprintf("%d", st.Stats.RunsTotal)),
@@ -41,35 +55,69 @@ func (g *Game) renderLog() string {
 			theme.Red.Render(fmt.Sprintf("%d", st.Stats.CreditsSpent)),
 			theme.Violet.Render(fmt.Sprintf("%d", st.Stats.LegendariesMined))),
 	}
-	var runs []string
-	for i, r := range st.RunLog {
-		if i < g.logScroll {
-			continue
-		}
-		outcome := theme.OutcomeStyle(r.Outcome).Render(strings.ToUpper(r.Outcome))
-		amount := r.CargoValueRecovered
-		sign := "+"
-		if r.CargoValueSold > 0 {
-			amount = r.CargoValueSold
-			sign = "$"
-		} else if r.Outcome == string(sim.OutcomeShipLost) {
-			amount = r.CargoValueLost
-			sign = "-"
-		}
-		line := fmt.Sprintf("%s %s %s %s%d",
-			theme.DimStyle.Render(r.World), theme.TxtStyle.Render(r.Asteroid),
-			outcome, sign, amount)
-		runs = append(runs, line)
-		if r.CargoValueJettisoned > 0 {
-			runs = append(runs, theme.Amber.Render(fmt.Sprintf("  TRIBUTE — dropped %d, retained %d", r.CargoValueJettisoned, r.CargoValueRecovered)))
-		}
-		if len(runs) > 8 {
-			break
-		}
+	lines := []string{
+		theme.Cyan.Render("SERVICE RECORD"),
+		strings.Join(stats, "\n"),
+		"",
+		theme.Bright.Render("RECENT RUNS"),
 	}
-	body := strings.Join(append([]string{theme.Cyan.Render("SERVICE RECORD"), strings.Join(stats, "\n"), "", theme.Bright.Render("RECENT RUNS")}, runs...), "\n")
-	hint := "ESC BACK TO CHART"
-	return theme.Panel("SHIP'S LOG", g.contentWidth()-4, g.height-6, body, accent) + "\n" + g.renderKeybar(hint)
+	for _, r := range st.RunLog {
+		lines = append(lines, g.formatRunLogRecord(st, r, innerW)...)
+	}
+	return lines
+}
+
+func (g *Game) formatRunLogRecord(st *sim.State, r sim.RunRecord, innerW int) []string {
+	outcome := strings.ToUpper(r.Outcome)
+	amount := r.CargoValueRecovered
+	sign := "+"
+	if r.CargoValueSold > 0 {
+		amount = r.CargoValueSold
+		sign = "$"
+	} else if r.Outcome == string(sim.OutcomeShipLost) {
+		amount = r.CargoValueLost
+		sign = "-"
+	}
+	if st.Settings.WrapLongText {
+		plain := fmt.Sprintf("%s %s %s %s%d", r.World, r.Asteroid, outcome, sign, amount)
+		wrapped := wrapChartText(plain, innerW)
+		out := make([]string, len(wrapped))
+		for i, line := range wrapped {
+			out[i] = g.styleRunLogPlainLine(line, r, outcome, sign, amount)
+		}
+		if r.CargoValueJettisoned > 0 {
+			out = append(out, theme.Amber.Render(fmt.Sprintf("  TRIBUTE — dropped %d, retained %d", r.CargoValueJettisoned, r.CargoValueRecovered)))
+		}
+		return out
+	}
+	line := fmt.Sprintf("%s %s %s %s%d",
+		theme.DimStyle.Render(r.World), theme.TxtStyle.Render(r.Asteroid),
+		theme.OutcomeStyle(r.Outcome).Render(outcome), sign, amount)
+	out := []string{ansi.Truncate(line, innerW, "…")}
+	if r.CargoValueJettisoned > 0 {
+		out = append(out, theme.Amber.Render(fmt.Sprintf("  TRIBUTE — dropped %d, retained %d", r.CargoValueJettisoned, r.CargoValueRecovered)))
+	}
+	return out
+}
+
+func (g *Game) styleRunLogPlainLine(plain string, r sim.RunRecord, outcome, sign string, amount int) string {
+	worldPrefix := r.World + " "
+	if strings.HasPrefix(plain, worldPrefix) {
+		rest := strings.TrimPrefix(plain, worldPrefix)
+		return theme.DimStyle.Render(r.World) + " " + g.styleRunLogRest(rest, r, outcome, sign, amount)
+	}
+	return g.styleRunLogRest(plain, r, outcome, sign, amount)
+}
+
+func (g *Game) styleRunLogRest(rest string, r sim.RunRecord, outcome, sign string, amount int) string {
+	tail := fmt.Sprintf("%s %s%d", outcome, sign, amount)
+	if idx := strings.LastIndex(rest, tail); idx >= 0 {
+		asteroid := strings.TrimSpace(rest[:idx])
+		return theme.TxtStyle.Render(asteroid) + " " +
+			theme.OutcomeStyle(r.Outcome).Render(outcome) + " " +
+			fmt.Sprintf("%s%d", sign, amount)
+	}
+	return theme.TxtStyle.Render(rest)
 }
 
 var onboardPages = []string{

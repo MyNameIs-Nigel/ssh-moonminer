@@ -9,7 +9,6 @@ import (
 
 const helpPanelW = 58
 const helpPanelH = 16
-const helpScrollVisible = 9
 
 func (g *Game) helpScreenName() string {
 	switch g.scr {
@@ -104,39 +103,49 @@ func (g *Game) helpLines() []string {
 	return append(global, screen...)
 }
 
+func (g *Game) helpScrollVisible(panelH int) int {
+	visible := panelH - 5
+	if visible < 1 {
+		return 1
+	}
+	return visible
+}
+
 func (g *Game) helpScrollMax() int {
+	_, panelH := g.layoutOverlaySize(helpPanelW, helpPanelH)
 	lines := g.helpLines()
-	if len(lines) <= helpScrollVisible {
+	visible := g.helpScrollVisible(panelH)
+	if len(lines) <= visible {
 		return 0
 	}
-	return len(lines) - helpScrollVisible
+	return len(lines) - visible
 }
 
 func (g *Game) renderHelpOverlay() string {
 	lines := g.helpLines()
+	panelW, panelH := g.layoutOverlaySize(helpPanelW, helpPanelH)
+	panelBodyH := panelH - 2
+	innerW := panelW - 4
 	if g.helpScroll > g.helpScrollMax() {
 		g.helpScroll = g.helpScrollMax()
 	}
 	if g.helpScroll < 0 {
 		g.helpScroll = 0
 	}
-	view := make([]string, 0, helpScrollVisible)
-	for i := 0; i < helpScrollVisible; i++ {
-		idx := g.helpScroll + i
-		if idx < len(lines) {
-			view = append(view, lines[idx])
-		} else {
-			view = append(view, "")
-		}
-	}
 	hint := theme.DimStyle.Render("↑/↓ scroll · ?, Esc, or Q close")
 	if g.helpScrollMax() == 0 {
 		hint = theme.DimStyle.Render("?, Esc, or Q close")
 	}
 	ver := theme.DimStyle.Render("MOON MINER v" + version.Version + " (" + version.Channel + ")")
-	view = append(view, "", hint, ver)
-	body := strings.Join(view, "\n")
-	return theme.Panel("HELP — "+g.helpScreenName(), helpPanelW, helpPanelH, body, theme.Accent(theme.HueCyan))
+	footer := []string{"", hint, ver}
+	scrollRows := panelBodyH - len(footer)
+	view := scrollWindowLines(lines, g.helpScroll, scrollRows)
+	bodyLines := bottomAlignPanelLines(view, footer, panelBodyH)
+	for i := range bodyLines {
+		bodyLines[i] = clipFrameLine(bodyLines[i], innerW)
+	}
+	body := strings.Join(bodyLines, "\n")
+	return theme.Panel("HELP — "+g.helpScreenName(), panelW, panelH, body, theme.Accent(theme.HueCyan))
 }
 
 func (g *Game) helpScrollBy(delta int) {

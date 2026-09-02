@@ -134,10 +134,14 @@ func pirateAggIndex(v float64) int {
 func (g *Game) renderTweaksOverlay() string {
 	st := g.snap.State
 	hc := st.Settings.HighContrast
+	panelW, panelH := g.layoutOverlaySize(tweaksPanelW, tweaksPanelH)
+	panelBodyH := panelH - 2
+	innerW := panelW - 4
 	lines := []string{
 		theme.LabelStyle(hc).Render("Arrow keys change values · T, Q, or Esc close"),
 		theme.DimStyle.Render("Pirate speed only. Rewards unchanged."),
 	}
+	tweakLineIdx := 2
 	for i := 0; i < tweakCount; i++ {
 		marker := "  "
 		sel := i == g.tweaksSel
@@ -147,22 +151,31 @@ func (g *Game) renderTweaksOverlay() string {
 		label := g.tweakLabel(i)
 		val := g.tweakValue(st.Settings, i)
 		left := marker + label
-		pad := tweaksPanelW - 4 - lipgloss.Width(left) - lipgloss.Width(val)
+		pad := innerW - lipgloss.Width(left) - lipgloss.Width(val)
 		if pad < 1 {
 			pad = 1
 		}
-		line := left + strings.Repeat(" ", pad) + theme.Bright.Render(val)
-		line = theme.OptionHC(theme.HueViolet, sel, hc).Render(left+strings.Repeat(" ", pad)) + theme.Bright.Render(val)
+		line := theme.OptionHC(theme.HueViolet, sel, hc).Render(left+strings.Repeat(" ", pad)) + theme.Bright.Render(val)
+		line = clipFrameLine(line, innerW)
 		lines = append(lines, line)
-		// Hitboxes registered relative to overlay panel; map to terminal in overlay click handler.
-		g.tweaksHitLine(len(lines)-1, line, i)
 	}
-	body := strings.Join(lines, "\n")
-	return theme.Panel("TWEAKS", tweaksPanelW, tweaksPanelH, body, theme.Accent(theme.HueViolet))
+	scroll := 0
+	if len(lines) > panelBodyH {
+		scroll = centeredScroll(g.tweaksSel+tweakLineIdx, len(lines), panelBodyH)
+	}
+	visible := scrollWindowLines(lines, scroll, panelBodyH)
+	for i, line := range visible {
+		src := scroll + i
+		if src >= tweakLineIdx && src < tweakLineIdx+tweakCount {
+			g.tweaksHitLine(i, line, src-tweakLineIdx, panelW, panelH)
+		}
+	}
+	body := strings.Join(visible, "\n")
+	return theme.Panel("TWEAKS", panelW, panelH, body, theme.Accent(theme.HueViolet))
 }
 
-func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx int) {
-	g.overlayHitLine(tweaksPanelW, tweaksPanelH, lineIdx, label, "tweak", tweakIdx)
+func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx, panelW, panelH int) {
+	g.overlayHitLine(panelW, panelH, lineIdx, label, "tweak", tweakIdx)
 }
 
 func (g *Game) updateTweaksOverlay(k string) []tea.Cmd {
@@ -199,21 +212,28 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 		// Dismissed by any input, mouse included — the game is mouse-everywhere.
 		return g.dismissSignalLost()
 	case ovPermit:
-		if b, ok := g.hits.At(m.X, m.Y); ok && b.ID == "permit:buy" {
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "permit:buy" {
 			return g.confirmPermitPurchase()
 		}
-		if b, ok := g.hits.At(m.X, m.Y); ok && b.ID == "permit:cancel" {
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "permit:cancel" {
 			g.overlay = ovNone
 		}
 	case ovTweaks:
-		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "tweak:") {
+		if b, ok := g.hitAt(m.X, m.Y); ok && strings.HasPrefix(b.ID, "tweak:") {
 			if idx, ok := b.Data.(int); ok {
 				g.tweaksSel = idx
 				return g.cycleTweak(1)
 			}
 		}
+	case ovDev:
+		if b, ok := g.hitAt(m.X, m.Y); ok && strings.HasPrefix(b.ID, "dev:") {
+			if idx, ok := b.Data.(int); ok {
+				g.devSel = idx
+				return g.devDelta(1)
+			}
+		}
 	case ovSlotPicker:
-		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "picker:") {
+		if b, ok := g.hitAt(m.X, m.Y); ok && strings.HasPrefix(b.ID, "picker:") {
 			if idx, ok := b.Data.(int); ok {
 				model, row, entries, ctxOK := g.pickerContext()
 				if !ctxOK {
@@ -227,7 +247,7 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 			}
 		}
 	case ovSlotRemove:
-		if b, ok := g.hits.At(m.X, m.Y); ok && strings.HasPrefix(b.ID, "removeopt:") {
+		if b, ok := g.hitAt(m.X, m.Y); ok && strings.HasPrefix(b.ID, "removeopt:") {
 			if sel, ok := b.Data.(int); ok {
 				model, row, ctxOK := g.removeContext()
 				if !ctxOK {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
@@ -103,6 +104,8 @@ func (g *Game) renderPermitOverlay() string {
 		return ""
 	}
 	st := g.snap.State
+	panelW, panelH := g.layoutOverlaySize(permitPanelW, permitPanelH)
+	innerW := panelW - 4
 	price := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), purchase.price)
 	buy := theme.Button("ENTER", "BUY PERMIT", price, st.Credits >= purchase.price, theme.HueRed)
 	cancel := theme.Button("ESC", "CANCEL", "", true, theme.HueRed)
@@ -116,7 +119,15 @@ func (g *Game) renderPermitOverlay() string {
 		buy,
 		cancel,
 	}
-	g.overlayHitLine(permitPanelW, permitPanelH, 6, buy, "permit", "buy")
-	g.overlayHitLine(permitPanelW, permitPanelH, 7, cancel, "permit", "cancel")
-	return theme.Panel("PERMIT GATE", permitPanelW, permitPanelH, strings.Join(lines, "\n"), theme.Accent(theme.HueRed))
+	bodyLines := reflowOverlayLines(lines, innerW)
+	for i, line := range bodyLines {
+		plain := ansi.Strip(line)
+		if strings.Contains(plain, "BUY PERMIT") {
+			g.overlayHitLine(panelW, panelH, i, line, "permit", "buy")
+		}
+		if strings.Contains(plain, "CANCEL") {
+			g.overlayHitLine(panelW, panelH, i, line, "permit", "cancel")
+		}
+	}
+	return theme.Panel("PERMIT GATE", panelW, panelH, strings.Join(bodyLines, "\n"), theme.Accent(theme.HueRed))
 }

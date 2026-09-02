@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -23,8 +25,8 @@ const (
 )
 
 // renderDeath draws the ship-loss sequence: a brief CRT-dying flicker over
-// the last HUD frame, then the deep-red, full-screen CONNECTION LOST card.
-// Reduced motion skips straight to the final card.
+// the last HUD frame, then the deep-red CONNECTION LOST card inside the
+// shared frame shell. Reduced motion skips straight to the final card.
 func (g *Game) renderDeath() string {
 	if g.deathFrame < g.deathFlickerFrames {
 		return g.renderDeathFlicker()
@@ -45,22 +47,33 @@ func (g *Game) renderDeathFlicker() string {
 	default:
 		style = lipgloss.NewStyle().Foreground(lipgloss.Color("#0a0a0a")).Background(lipgloss.Color("#d8d8d8"))
 	}
+	layout := g.frameLayout()
 	body := style.Render(g.deathFrameText)
-	return lipgloss.Place(g.width, g.height, lipgloss.Left, lipgloss.Top, body,
+	return lipgloss.Place(layout.Width, layout.Height, lipgloss.Left, lipgloss.Top, body,
 		lipgloss.WithWhitespaceStyle(style))
 }
 
-// renderDeathFinal draws the settled dark-red full-screen failure card. No
-// verbose recap appears here — that's the next screen's job.
+// renderDeathFinal draws the settled dark-red failure card inside the frame.
+// Chrome and keybar rows are reserved but carry no normal HUD data.
 func (g *Game) renderDeathFinal() string {
+	layout := g.frameLayout()
 	bgStyle := lipgloss.NewStyle().Background(lipgloss.Color(deathBg))
 	textStyle := bgStyle.Foreground(lipgloss.Color(deathFg)).Bold(true)
+	dimStyle := bgStyle.Foreground(lipgloss.Color(deathDim))
+
+	chrome := strings.Join([]string{
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+		bgStyle.Render(strings.Repeat(" ", layout.Width)),
+	}, "\n")
 
 	line := textStyle.Render("CONNECTION LOST")
-	body := lipgloss.Place(g.width, g.height-2, lipgloss.Center, lipgloss.Center, line,
+	body := lipgloss.Place(layout.Width, layout.BodyH, lipgloss.Center, lipgloss.Center, line,
 		lipgloss.WithWhitespaceStyle(bgStyle))
-	hint := bgStyle.Foreground(lipgloss.Color(deathDim)).Render("press any key")
-	hintLine := lipgloss.Place(g.width, 1, lipgloss.Center, lipgloss.Top, hint,
+
+	hint := dimStyle.Render("press any key")
+	keybar := lipgloss.Place(layout.Width, keybarH, lipgloss.Center, lipgloss.Bottom, hint,
 		lipgloss.WithWhitespaceStyle(bgStyle))
-	return body + "\n" + hintLine
+
+	return chrome + "\n" + body + "\n" + keybar
 }

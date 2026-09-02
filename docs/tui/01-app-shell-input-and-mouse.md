@@ -3,6 +3,11 @@
 **Area:** TUI · **Phase:** 2 · **Depends on:** tui/04 (theme; stub-able) ·
 **Blocks:** tui/02, tui/03 · **Parallel-safe with:** framework/*, gameplay/*
 
+> **v1.7 layout supersession:** [06-responsive-menu-overhaul.md](06-responsive-menu-overhaul.md)
+> is authoritative for frame geometry, vertical chrome/body/keybar structure,
+> overlays, clipping, and hitbox coordinates. This document remains
+> authoritative for routing and input semantics.
+
 ## Goal
 
 Build the Bubble Tea root model that every screen plugs into: screen
@@ -22,8 +27,9 @@ plug-in modules that receive sized regions and emit actions.
 
 ## Deliverables
 
-- `internal/tui/` — `game.go` (root model), `router.go`, `input.go`,
-  `hitbox.go`, `overlay.go`, `errscreen.go`
+- `internal/tui/` — root model/routing/input in `game.go`, shared geometry in
+  `layout.go`, overlays in `overlay.go`, help in `help.go`, and `errscreen.go`
+- `internal/tui/hitbox/registry.go` — per-frame hitbox registry
 
 ## Spec
 
@@ -70,9 +76,9 @@ type screenModel interface {
 (Exact shape may flex; the requirement is that tui/02 and tui/03 can add
 screens without touching the router beyond one registration line.)
 
-Global chrome owned by the shell: top HUD strip (pilot, credits, fuel/hull
-bars — data via tui/04 components) and bottom keybar (context-sensitive
-hints, blinking `█`).
+Global chrome owned by the shell: three top rows (rule, HUD strip, rule), a
+flexible body, and a two-row bottom keybar (rule plus context-sensitive hints
+and ship marker). Exact row allocation is owned by tui/06.
 
 ### Keyboard contract
 
@@ -115,7 +121,10 @@ idlefarmer's `teaHandler`).
 
   Screens compute rects from the same layout math they render with — a
   helper that wraps "render a row, register its box" keeps the two in sync.
-  The registry is rebuilt each frame, so stale boxes are impossible.
+  Boxes are frame-relative; the root translates terminal mouse coordinates
+  exactly once using the centered frame origin. The registry is rebuilt each
+  frame, so stale boxes are impossible. See tui/06 for gutter behavior,
+  overlay coordinates, and vertical centering.
 - **Semantics** (uniform across screens):
   - Click on a selectable row/tile → select it.
   - Click on an already-selected row, or double-click (two clicks on one ID
@@ -134,8 +143,10 @@ idlefarmer's `teaHandler`).
 - `tea.WindowSizeMsg` re-layouts everything; store w/h in the model.
 - Below **80×24**, render a centered "RESIZE TERMINAL — need 80×24, have
   W×H" screen and suspend hitboxes (mirror idlefarmer's guard if present;
-  else build it). All screens are designed at 80×24; larger sizes stretch
-  panel interiors, never add columns of information.
+  else build it).
+- At and above the minimum, use tui/06's centered frame: it grows independently
+  in width and height to **144×48**, then leaves blank terminal gutters.
+  Larger frames add breathing room, never gameplay information.
 
 ### Overlays
 
@@ -143,7 +154,9 @@ Shared overlay system rendering a bordered box over a dimmed screen: help
 (static keymap text per screen), kicked-notice ("boarded from another
 terminal…" — shown on the actor's kick message, any key exits), onboarding
 (3 short pages for `Created` pilots), tweaks (owned by tui/04, hosted
-here). Overlays capture all input while open.
+here). Overlays capture all input while open. Their intrinsic minima,
+frame-relative centering, clamp/reflow/scroll behavior, and hitbox rules are
+defined by tui/06.
 
 ## Acceptance criteria
 

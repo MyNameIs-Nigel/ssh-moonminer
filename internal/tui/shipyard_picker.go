@@ -228,12 +228,7 @@ func (g *Game) pickerClampScroll(total int) {
 		g.pickerScroll = 0
 		return
 	}
-	if g.pickerSel < g.pickerScroll {
-		g.pickerScroll = g.pickerSel
-	}
-	if g.pickerSel >= g.pickerScroll+visible {
-		g.pickerScroll = g.pickerSel - visible + 1
-	}
+	g.pickerScroll = centeredScroll(g.pickerSel, total, visible)
 }
 
 func (g *Game) updateSlotPickerOverlay(k string) []tea.Cmd {
@@ -347,21 +342,26 @@ func (g *Game) renderSlotPickerOverlay() string {
 	if !ok {
 		return ""
 	}
+	panelW, panelH := g.layoutOverlaySize(pickerPanelW, pickerPanelH)
+	panelBodyH := panelH - 2
+	innerW := panelW - 4
 
-	lines := []string{
+	type pickerLine struct {
+		text  string
+		entry int
+	}
+	built := make([]pickerLine, 0, len(entries)+4)
+	for _, line := range []string{
 		theme.DimStyle.Render("←/→ grade · ↑/↓ item · ENTER install · ESC cancel"),
 		theme.DimStyle.Render("CATALOG"),
+	} {
+		built = append(built, pickerLine{text: line, entry: -1})
 	}
 	catalogCount := len(sim.SlotItemsFor(row.slotKind()))
-	visible := pickerVisible
-	if len(entries) < visible {
-		visible = len(entries)
-	}
-	for i := g.pickerScroll; i < g.pickerScroll+visible && i < len(entries); i++ {
+	for i, e := range entries {
 		if i == catalogCount {
-			lines = append(lines, theme.Violet.Render("IN STORAGE — free to re-equip"))
+			built = append(built, pickerLine{text: theme.Violet.Render("IN STORAGE — free to re-equip"), entry: -1})
 		}
-		e := entries[i]
 		sel := i == g.pickerSel
 		prefix := "  "
 		if sel {
@@ -401,26 +401,43 @@ func (g *Game) renderSlotPickerOverlay() string {
 		default:
 			style = theme.DimStyle
 		}
-		line := style.Render(label)
-		lines = append(lines, line)
-		g.pickerHitLine(len(lines)-1, line, i)
+		line := clipFrameLine(style.Render(label), innerW)
+		built = append(built, pickerLine{text: line, entry: i})
 	}
-	for len(lines) < pickerVisible+2 {
-		lines = append(lines, "")
+	if len(entries) > pickerVisible {
+		built = append(built, pickerLine{text: theme.DimStyle.Render(fmt.Sprintf("%d/%d — wheel/↑↓ to scroll", g.pickerSel+1, len(entries))), entry: -1})
 	}
-	scrollHint := ""
-	if len(entries) > visible {
-		scrollHint = fmt.Sprintf("%d/%d — wheel/↑↓ to scroll", g.pickerSel+1, len(entries))
+	keepRow := 0
+	for i, pl := range built {
+		if pl.entry == g.pickerSel {
+			keepRow = i
+			break
+		}
 	}
-	lines = append(lines, theme.DimStyle.Render(scrollHint))
-	body := strings.Join(lines, "\n")
+	lines := make([]string, len(built))
+	for i, pl := range built {
+		lines[i] = pl.text
+	}
+	scroll := 0
+	if len(lines) > panelBodyH {
+		scroll = centeredScroll(keepRow, len(lines), panelBodyH)
+	}
+	visible := scrollWindowLines(lines, scroll, panelBodyH)
+	for i, line := range visible {
+		src := scroll + i
+		if src < 0 || src >= len(built) || built[src].entry < 0 {
+			continue
+		}
+		g.pickerHitLine(i, line, built[src].entry, panelW, panelH)
+	}
+	body := strings.Join(visible, "\n")
 	stored := inventoryCountForKind(g.snap.State.Inventory, row.slotKind())
 	title := fmt.Sprintf("INSTALL — %s · STORAGE %d", pickerRowLabel(row), stored)
-	return theme.Panel(title, pickerPanelW, pickerPanelH, body, theme.Accent(theme.HueViolet))
+	return theme.Panel(title, panelW, panelH, body, theme.Accent(theme.HueViolet))
 }
 
-func (g *Game) pickerHitLine(lineIdx int, label string, entryIdx int) {
-	g.overlayHitLine(pickerPanelW, pickerPanelH, lineIdx, label, "picker", entryIdx)
+func (g *Game) pickerHitLine(lineIdx int, label string, entryIdx, panelW, panelH int) {
+	g.overlayHitLine(panelW, panelH, lineIdx, label, "picker", entryIdx)
 }
 
 // --- Remove confirm: store vs. sell for sim.SlotItemSellValue --------------
@@ -550,15 +567,38 @@ func (g *Game) renderSlotRemoveOverlay() string {
 		sellText = fmt.Sprintf("[V] SELL + BUY — net %d cr", g.pendingSlotInstall.price-sellValue)
 	}
 	sellLine := sellStyle.Render(sellMarker + sellText)
-	actionStart := len(lines)
-	lines = append(lines, storeLine, sellLine, "", theme.DimStyle.Render("↑/↓ choose · Enter confirm · Esc cancel"))
-	g.removeHitLine(actionStart, storeLine, removeConfirmStore)
-	g.removeHitLine(actionStart+1, sellLine, removeConfirmSell)
-
-	body := strings.Join(lines, "\n")
-	return theme.Panel("REMOVE MODULE", removePanelW, removePanelH, body, theme.Accent(theme.HueViolet))
+	panelW, panelH := g.layoutOverlaySize(removePanelW, removePanelH)
+	innerW := panelW - 4
+	storeIdx := len(lines)
+	lines = append(lines, storeLine)
+	sellIdx := len(lines)
+	lines = append(lines, sellLine, "", theme.DimStyle.Render("↑/↓ choose · Enter confirm · Esc cancel"))
+	for i := range lines {
+		lines[i] = clipFrameLine(lines[i], innerW)
+	}
+	panelBodyH := panelH - 2
+	keepRow := storeIdx
+	if g.removeConfirmSel == removeConfirmSell {
+		keepRow = sellIdx
+	}
+	scroll := 0
+	if len(lines) > panelBodyH {
+		scroll = centeredScroll(keepRow, len(lines), panelBodyH)
+	}
+	visible := scrollWindowLines(lines, scroll, panelBodyH)
+	for i, line := range visible {
+		src := scroll + i
+		switch src {
+		case storeIdx:
+			g.removeHitLine(i, line, removeConfirmStore, panelW, panelH)
+		case sellIdx:
+			g.removeHitLine(i, line, removeConfirmSell, panelW, panelH)
+		}
+	}
+	body := strings.Join(visible, "\n")
+	return theme.Panel("REMOVE MODULE", panelW, panelH, body, theme.Accent(theme.HueViolet))
 }
 
-func (g *Game) removeHitLine(lineIdx int, label string, sel int) {
-	g.overlayHitLine(removePanelW, removePanelH, lineIdx, label, "removeopt", sel)
+func (g *Game) removeHitLine(lineIdx int, label string, sel, panelW, panelH int) {
+	g.overlayHitLine(panelW, panelH, lineIdx, label, "removeopt", sel)
 }
