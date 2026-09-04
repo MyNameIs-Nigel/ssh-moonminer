@@ -98,9 +98,12 @@ split — that's the point of giving it its own screen.
   gameplay/05); a ship with zero weapon slots (any Miner) omits the WEAPON
   rows entirely rather than showing them disabled — Miners simply don't have
   that row.
-- Every ship also has a single **JUMP DRIVE** row after **INTERNAL**. Its
-  picker contains only Jump Drives, making route progression visible without
-  forcing a choice against sensors, fuel mining, jamming, or a heat sink.
+- ~~Every ship also has a single **JUMP DRIVE** row after **INTERNAL**.~~
+  **Superseded by [../gameplay/08-jump-network-and-frontier-progression.md](../gameplay/08-jump-network-and-frontier-progression.md):**
+  the JUMP DRIVE row and its single-item picker are removed. Route access is
+  the pilot's Jump Rating, shown on the star chart, not in the hangar. The
+  HANGAR panel instead gains a **location** line per hull (`AT ERIDANI DRIFT`,
+  greyed and non-activatable when remote) and a ferry action.
 - Each installed slot row shows item name, its own grade dots, and its power
   draw (`⚡14`) except Extra Cargo/Extra Fuel Tank, which show a capacity
   value instead of a power glyph (they cost none — make that visually obvious,

@@ -31,7 +31,9 @@ single-manual-fire-key wording below:
   ship can fit and independently use both weapon types. Autocannons remain
   continuous and their higher 2.0 power coefficient is their balancing cost.
 - An installed Jump Drive migrates from Internal to a dedicated one-per-ship
-  Jump Drive slot. It still draws no power and still gates Eridani Drift, but
+  Jump Drive slot. **(Superseded by [08-jump-network-and-frontier-progression.md](08-jump-network-and-frontier-progression.md) —
+  the slot and the device are both deleted; route access is the pilot's Jump
+  Rating.)** It still draws no power and still gates Eridani Drift, but
   it no longer consumes the Internal slot.
 - Pirate Jammer suppression lasts E..S **3, 5, 8, 12, 15, 25 seconds**.
 
