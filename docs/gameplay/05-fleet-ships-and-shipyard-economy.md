@@ -237,6 +237,13 @@ installed):
 
 ### Slots, power, and mass
 
+> **Superseded in part by** [08-jump-network-and-frontier-progression.md](08-jump-network-and-frontier-progression.md):
+> the dedicated **Jump Drive slot** and the `jump_drive` device are deleted.
+> Route access moved to the pilot's lifetime Jump Rating, so every ship in
+> the tables below has three slot kinds (Utility / Weapon / Internal), not
+> four, and the Jump Drive rows in the power and mass tables are void.
+> Everything else in this section stands.
+
 Every ship has four slot *kinds*. Utility and Weapon slot **counts** are
 per-ship; Internal and the dedicated Jump Drive slot are each exactly **one**
 slot on every ship. The Jump Drive no longer competes with core equipment.

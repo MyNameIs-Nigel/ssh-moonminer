@@ -382,7 +382,7 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 				style = theme.Amber
 			}
 		default:
-			suffix = theme.DimStyle.Render(fmt.Sprintf("%d cr", model.Price))
+			suffix = theme.DimStyle.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), model.Price))
 			if sel {
 				style = theme.Bright
 			}
@@ -403,7 +403,7 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 		if sim.IsBuyback(st, model.ID) {
 			label = "BUY BACK"
 		}
-		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%d cr", price), st.Credits >= price, theme.HueViolet)
+		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), price), st.Credits >= price, theme.HueViolet)
 		lines = append(lines, "", theme.Violet.Render("◇ ACQUIRE"), acquireBtn)
 		acquireRow = len(lines) - 1
 	}
@@ -444,7 +444,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		statusPlain := shipyardReflowPlain([]string{
 			"ACQUIRE",
 			"",
-			fmt.Sprintf("%s — %d cr", label, price),
+			fmt.Sprintf("%s — %s %d", label, theme.Glyph("credit", st.Settings.ASCIISafe), price),
 			"New hull starts fully serviced.",
 		}, statusInnerW)
 		if statusInnerW >= lipgloss.Width("Purchase does not switch ships.") {
@@ -481,7 +481,13 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		sel := g.shipyardPane == shipyardPaneLoadout && g.shipyardRowSel == i
 		priceStr := "CAPPED"
 		if grade < cap {
-			priceStr = fmt.Sprintf("%d cr", sim.TrackPrice(g.content, model, t, grade))
+			// No space between glyph and digits (unlike other credit
+			// readouts) — every column in this row is load-bearing at the
+			// minimum 80-column terminal width, and this one character is
+			// what keeps a starter ship's own default loadout (e.g. a fresh
+			// SKIFF's Thrusters row) from overflowing into Panel's silent
+			// ellipsis fallback and losing price digits (#31).
+			priceStr = fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.TrackPrice(g.content, model, t, grade))
 		}
 		prefix := "  "
 		if sel {
@@ -499,7 +505,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.UtilitySlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("UTILITY"))
 		for i := 0; i < model.UtilitySlots; i++ {
-			line := g.renderSlotRow(st, inst.Utility, i, rowIdx, "U")
+			line := g.renderSlotRow(st, inst.Utility, i, rowIdx, theme.Glyph("slot_utility", st.Settings.ASCIISafe))
 			lines = append(lines, line)
 			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
@@ -508,7 +514,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.WeaponSlots > 0 {
 		lines = append(lines, theme.DimStyle.Render("WEAPON"))
 		for i := 0; i < model.WeaponSlots; i++ {
-			line := g.renderSlotRow(st, inst.Weapon, i, rowIdx, "W")
+			line := g.renderSlotRow(st, inst.Weapon, i, rowIdx, theme.Glyph("slot_weapon", st.Settings.ASCIISafe))
 			lines = append(lines, line)
 			hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 			rowIdx++
@@ -522,7 +528,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, "I")
+		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_internal", st.Settings.ASCIISafe))
 		lines = append(lines, line)
 		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 		rowIdx++
@@ -535,7 +541,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		} else {
 			single = []*sim.SlotDevice{nil}
 		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, "J")
+		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_jumpdrive", st.Settings.ASCIISafe))
 		lines = append(lines, line)
 		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 	}
@@ -564,17 +570,27 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 	if model.BaseMass > 0 {
 		massRatio = mass / model.BaseMass
 	}
+	maxHull := sim.MaxHullFor(st, g.content, model.ID)
+	hullPct := 0.0
+	if maxHull > 0 {
+		hullPct = float64(sim.ShipHull(st, model.ID)) / float64(maxHull) * 100
+	}
+	fuelCapacity := sim.ShipFuelCapacity(st, g.content, model.ID)
+	fuelPct := 0.0
+	if fuelCapacity > 0 {
+		fuelPct = sim.ShipFuelAmount(st, g.content, model.ID) / fuelCapacity * 100
+	}
 	statusBarW := min(18, statusInnerW)
 	statusPlain := shipyardReflowPlain([]string{
 		fmt.Sprintf("HULL %d/%d", sim.ShipHull(st, model.ID), sim.MaxHullFor(st, g.content, model.ID)),
-		fmt.Sprintf("FUEL %.0f/%.0f", sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
+		fmt.Sprintf("%s %.0f/%.0f", theme.Glyph("fuel", st.Settings.ASCIISafe), sim.ShipFuelAmount(st, g.content, model.ID), sim.ShipFuelCapacity(st, g.content, model.ID)),
 		"",
 		fmt.Sprintf("PWR %d/%d", power, capacity),
 		"",
 		fmt.Sprintf("MASS %.0f", mass),
 		fmt.Sprintf("×%.2f fx", massRatio),
 		"",
-		fmt.Sprintf("%s %d cr", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
+		fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
 	}, statusInnerW)
 	if model.ID != st.ActiveShipID {
 		statusPlain = append(statusPlain, "", "Not active — select in HANGAR to switch/fly.")
@@ -584,6 +600,10 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		switch {
 		case line == "":
 			statusLines = append(statusLines, "")
+		case strings.HasPrefix(line, "HULL "):
+			statusLines = append(statusLines, theme.HullStyle(hullPct).Render(line))
+		case strings.HasPrefix(line, theme.Glyph("fuel", st.Settings.ASCIISafe)):
+			statusLines = append(statusLines, theme.FuelStyle(fuelPct).Render(line))
 		case strings.HasPrefix(line, "PWR "):
 			statusLines = append(statusLines, line, theme.RampBar(powerPct, statusBarW, true))
 		case strings.HasPrefix(line, theme.Glyph("credit", st.Settings.ASCIISafe)):
@@ -594,12 +614,35 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 			statusLines = append(statusLines, line)
 		}
 	}
-	statusBody := strings.Join(statusLines, "\n")
+	var descLines []string
+	if sel := g.shipyardRowSel; g.shipyardPane == shipyardPaneLoadout && sel >= 0 && sel < len(rows) {
+		if desc := shipyardRowDesc(inst, rows[sel]); desc != "" {
+			for _, w := range wrapChartText(desc, statusInnerW) {
+				descLines = append(descLines, theme.TxtStyle.Render(w))
+			}
+			descLines = append(descLines, "")
+		}
+	}
+	statusBody := strings.Join(append(descLines, statusLines...), "\n")
 	return loadoutBody, statusBody
+}
+
+// shipyardRowDesc names what a LOADOUT row does — a track's stat effect or a
+// slot's installed item — shown in STATUS when that row is selected (the
+// Shipyard menu otherwise names upgrades without saying what they improve).
+func shipyardRowDesc(inst *sim.ShipInstance, row shipyardRow) string {
+	if row.kind == rowTrack {
+		return sim.TrackDesc(row.track)
+	}
+	if d := slotDeviceAt(inst, row); d != nil {
+		return sim.SlotItemDesc(d.ItemID)
+	}
+	return "Empty slot — Enter to install."
 }
 
 func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, rowIdx int, tag string) string {
 	sel := g.shipyardPane == shipyardPaneLoadout && g.shipyardRowSel == rowIdx
+	style := theme.OptionHC(theme.HueViolet, sel, st.Settings.HighContrast)
 	prefix := "  "
 	if sel {
 		prefix = "▸ "
@@ -609,11 +652,7 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 		d = devices[index]
 	}
 	if d == nil {
-		label := fmt.Sprintf("%s%s  %s", prefix, tag, theme.DimStyle.Render("empty — enter to install"))
-		if sel {
-			return theme.Bright.Render(prefix+tag+"  ") + theme.DimStyle.Render("empty — enter to install")
-		}
-		return label
+		return style.Render(prefix+tag+"  ") + theme.DimStyle.Render("empty — enter to install")
 	}
 	name := sim.SlotItemName(d.ItemID)
 	powerGlyph := ""
@@ -621,8 +660,5 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 		powerGlyph = theme.Amber.Render(fmt.Sprintf(" ⚡%d", p))
 	}
 	line := fmt.Sprintf("%s%s %-14s %s %s%s", prefix, tag, name, gradeDots(d.Grade, sim.MaxGrade), sim.GradeLetter(d.Grade), powerGlyph)
-	if sel {
-		return theme.Bright.Render(line)
-	}
-	return theme.TxtStyle.Render(line)
+	return style.Render(line)
 }

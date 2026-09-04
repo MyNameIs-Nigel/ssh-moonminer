@@ -60,6 +60,14 @@ only while docked at a public dock or an owned station in the current system.
 
 ### Route permits and locked systems
 
+> **Superseded in part by** [08-jump-network-and-frontier-progression.md](08-jump-network-and-frontier-progression.md):
+> the system-level `transfer_fee` / `BuySystemPermit` model below is retired.
+> Inter-system access is a lifetime pilot **Jump Rating** priced in
+> `[[ratings]]` and gated on a frontier qualification, and each crossing
+> charges its own mass-scaled fuel plus hull transit stress. **Destination**
+> permits and nav beacons (`permit_fee`, e.g. CERES) are unaffected and the
+> rest of this section stands.
+
 - `BuySystemPermit(state, content, systemID) error` spends the system's
   `transfer_fee`, marks the route unlocked, and survives ship death.
 - Buying a permit requires the active ship's class to meet the system's minimum

@@ -46,6 +46,14 @@ after death, and reflects.
 
 ### Star Chart (80×24 sketch)
 
+> **Extended by** [../gameplay/08-jump-network-and-frontier-progression.md](../gameplay/08-jump-network-and-frontier-progression.md):
+> the chart gains a `JUMP RATING — CLASS E` readout, rating-aware lock reasons,
+> a `[J]` CERTIFICATION overlay rendering the next class's requirements as a
+> live checklist, a pre-jump confirm overlay (projected hull/fuel + sub-20%
+> warning), and the full-frame blue jump sequence that mirrors the death
+> screen. Ships are parked per system, so the port services panel must show
+> which hulls are local.
+
 ```
 ┌ MOON MINER ─────────────────── PILOT: DEFAULT ── ◈ 4,820 ┐   ← shell HUD
 │ ◇ STAR CHART                      │ ◇ PORT / STATION      │

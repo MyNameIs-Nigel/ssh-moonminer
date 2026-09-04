@@ -56,6 +56,25 @@ func TrackName(t Track) string {
 	return ""
 }
 
+// TrackDesc returns a one-line summary of what upgrading a track improves
+// (docs/gameplay/05-fleet-ships-and-shipyard-economy.md "Ship upgrade
+// tracks"), shown in the Shipyard when the row is selected.
+func TrackDesc(t Track) string {
+	switch t {
+	case TrackThrusters:
+		return "Faster escapes when fleeing an asteroid."
+	case TrackHull:
+		return "Raises max hull — more damage before the ship is lost."
+	case TrackFuelEff:
+		return "Burns less fuel per run."
+	case TrackPowerGen:
+		return "More power capacity for installed slot devices."
+	case TrackScanner:
+		return "Longer scan-lock range and faster scans."
+	}
+	return ""
+}
+
 // ActiveShip returns the currently flown ship instance, or nil if the
 // hangar/active pointer is somehow unresolved (should not happen outside
 // mid-migration — DecodeState always repairs this).

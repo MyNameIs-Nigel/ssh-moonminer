@@ -159,6 +159,58 @@ func TestPickerRendersStorageSection(t *testing.T) {
 
 // TestPickerReplacementUsesRemoveConfirmation ensures selecting a different
 // module never overwrites the installed one directly.
+func TestPickerShowsSelectedEntryDescription(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+
+	out := g.renderSlotPickerOverlay()
+	_, _, entries, ok := g.pickerContext()
+	if !ok || len(entries) == 0 {
+		t.Fatal("expected a non-empty entries list to seed the description check")
+	}
+	wantDesc := sim.SlotItemDesc(entries[g.pickerSel].itemID)
+	if wantDesc == "" || !strings.Contains(out, wantDesc) {
+		t.Fatalf("expected picker to show the selected entry's description %q, got:\n%s", wantDesc, out)
+	}
+}
+
+func TestPickerDescriptionWrapsWithoutEllipsis(t *testing.T) {
+	c := shipyardTestContent(t)
+	st := sim.New(c, 1, 1000)
+	g := newShipyardGame(t, st)
+	g.shipyardPane = shipyardPaneLoadout
+	rows := shipyardRows(c.ShipByID("skiff"))
+	for i, r := range rows {
+		if r.kind == rowUtility {
+			g.shipyardRowSel = i
+			break
+		}
+	}
+	g.openSlotPicker(st.Ships["skiff"], rows[g.shipyardRowSel])
+	// utilityItems order is Cargo, FuelTank, Shield, ... — move to Shield,
+	// whose description is long enough to force a wrap at pickerPanelW.
+	g.updateSlotPickerOverlay("down")
+	g.updateSlotPickerOverlay("down")
+
+	out := g.renderSlotPickerOverlay()
+	if strings.Contains(out, "…") {
+		t.Fatalf("expected the highlighted entry's description to word-wrap, not truncate with an ellipsis:\n%s", out)
+	}
+	if !strings.Contains(out, "Absorbs pirate") {
+		t.Fatalf("expected the wrapped description to still be visible, got:\n%s", out)
+	}
+}
+
 func TestPickerReplacementUsesRemoveConfirmation(t *testing.T) {
 	c := shipyardTestContent(t)
 	st := sim.New(c, 1, 1000)

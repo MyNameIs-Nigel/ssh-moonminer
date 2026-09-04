@@ -19,6 +19,13 @@ and eventually owning infrastructure that softens the cost of each loss.
 
 ### Locked destinations
 
+> **Superseded in part by** [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md):
+> inter-system access is no longer an installed Jump Drive. It is a lifetime
+> pilot **Jump Rating** (Class E/D/C) earned with credits *plus* a
+> frontier qualification, and every crossing charges mass-scaled fuel, hull
+> transit stress, and a drift roll. The `LOCKED — NEED JUMP DRIVE` line and
+> the "expensive, ship-mounted commitment" paragraph below are historical.
+
 The chart is hierarchical:
 
 1. **Solar systems** are the large travel regions.

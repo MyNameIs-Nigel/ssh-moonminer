@@ -124,6 +124,10 @@ Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
 Live fix (done, v1.6.2):
   framework/05 (reconnect and location restore — the shipped softlock)
 
+Beta (design complete, not implemented): gameplay/08 (jump network, pilot
+  ratings, frontier systems and hulls — supersedes the Jump Drive slot from
+  gameplay/05 and the system transfer fee from gameplay/03; save schema v8)
+
 v1.7 (implemented on integration branch):
   tui/06 (responsive 80×24–144×48 frame, deterministic region allocation,
   frame-relative hitboxes, constrained overlays, and responsive regression
@@ -215,7 +219,7 @@ acceptance lists as regressions.
 | --- | --- | --- |
 | **Space stations** — build cost, ownership, capped offline passive income, the late-game credit sink | `02-danger-economy-and-progression.md` (16 refs), `gameplay/03` (32 refs), `gameplay/01`, `gameplay/04`, `tui/02` (17 refs), `framework/03` ("the actor calls the gameplay/03 station-income helper on attach") | No `Station` identifier anywhere in the repo. The attach path has no income helper. `B build station` is not a key on any screen |
 | **Cosmetics** — purchasable, persist through death, never change derived values | `gameplay/04` (18 refs), `tui/02` (12 refs), `tui/04`, `01-concept-and-story.md` | No `Cosmetic` identifier anywhere. `sim.Settings` carries only belt view, pirate aggression, high contrast, ASCII-safe, reduced motion, wrap, insurance-used. `C` on the star chart is **sell cargo**, not cosmetics |
-| **KEPLER REACH / REDLINE EXPANSE systems** | `01-concept-and-story.md` § "Systems, worlds, and ships" | `data/worlds.toml` ships two systems (SOL, ERIDANI DRIFT) and eight destinations. The lock model those two were meant to demonstrate is instead carried by permits and required-item gates on the Sol/Eridani destinations |
+| **KEPLER REACH / REDLINE EXPANSE systems** | `01-concept-and-story.md` § "Systems, worlds, and ships"; now fully specified in [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md) | `data/worlds.toml` ships two systems (SOL, ERIDANI DRIFT) and eight destinations. The lock model those two were meant to demonstrate is instead carried by permits and required-item gates on the Sol/Eridani destinations. **No longer aspirational** — gameplay/08 specifies both systems, their distinct pressures, the rating ladder that opens them, and the hulls sold there |
 
 The economy is currently balanced without a station sink, so adding one is a
 balance change, not a fill-in-the-blank. Decide whether stations and cosmetics
@@ -241,6 +245,7 @@ unachievable.
 | [gameplay/05-fleet-ships-and-shipyard-economy.md](gameplay/05-fleet-ships-and-shipyard-economy.md) | 4-ship hangar, brands/classes, stat grades, Utility/Weapon/Internal/Jump Drive slots, power/mass, buyback, scanner range/speed, hull-gated events |
 | [gameplay/06-gameplay-edge-case-audit.md](gameplay/06-gameplay-edge-case-audit.md) | Full-loop edge cases, gameplay-logic decisions, implementation order, and test plan |
 | [gameplay/07-pirate-combat-and-bounties.md](gameplay/07-pirate-combat-and-bounties.md) | Named pirate roster, autocannon, missile, and pulse weapons, tactical-scope combat, bounty vouchers, COMBAT MODE interstitial (owns its sim + TUI work) |
+| [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md) | **Beta:** pilot Jump Ratings replace the Jump Drive module, four-system network, mass-scaled jump fuel + transit stress + drift roll, the jump cinematic, located hangar + hauler ferry, three frontier hulls (owns its sim + TUI work) |
 | [tui/01-app-shell-input-and-mouse.md](tui/01-app-shell-input-and-mouse.md) | Root model, screen router, keyboard + mouse input, resize/idle |
 | [tui/02-star-chart-and-run-summary.md](tui/02-star-chart-and-run-summary.md) | Star Chart screen, port services panel, Run Summary screen |
 | [tui/03-belt-views-and-mining-screen.md](tui/03-belt-views-and-mining-screen.md) | Belt screen (3 view modes), target lock, live Mining screen |

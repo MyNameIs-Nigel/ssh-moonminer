@@ -81,8 +81,15 @@ expansion:
 | --- | --- | --- | --- |
 | **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit | shipped |
 | **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks | shipped |
-| **KEPLER REACH** | locked by expensive transfer + higher jump rating | late-game station value | **not built** |
-| **REDLINE EXPANSE** | locked endgame route | extremely profitable, routinely lethal | **not built** |
+| **KEPLER REACH** | Jump Rating Class D | **planning pressure** — vast distances, few docks, punishing fuel arithmetic | **designed, not built** |
+| **REDLINE EXPANSE** | Jump Rating Class C | **everything, faster** — unstable belts, short pirate ETAs, a hard clock | **designed, not built** |
+
+> **Updated by** [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md):
+> the "locked by an installed Jump Drive" gate on Eridani and the "expensive
+> transfer + higher jump rating" gate on Kepler are both replaced by the pilot
+> **Jump Rating** ladder (Class E → D → C). That doc also specifies the two
+> unbuilt systems above, three frontier hulls, and the located-hangar model in
+> which ships are parked at a specific dock rather than following the pilot.
 
 `data/worlds.toml` ships the first two systems and eight destinations between
 them. The last two remain aspirational, and "late-game station value" is doubly
@@ -154,7 +161,7 @@ actions:
 
 | Screen | Keys |
 | --- | --- |
-| Star Chart | ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · S shipyard · L log · I salvage advance (only while eligible) · T tweaks · Q quit |
+| Star Chart | ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · S shipyard · L log · J jump certification (gameplay/08) · I salvage advance (only while eligible) · T tweaks · Q quit |
 | Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · S scan selected contact · V cycle view mode · Q dock |
 | Mining | B/Esc/Enter bail while ore remains, depart once depleted · Space/click fracture a lit pressure point |
 | Tribute prompt | D accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |

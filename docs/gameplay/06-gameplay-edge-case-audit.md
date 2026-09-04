@@ -268,6 +268,14 @@ The shipyard must disable/relabel an item that cannot provide another effect.
 
 ### 8. Progression-gating hardware can be rented for one-way access
 
+> **Resolved (system half) by** [08-jump-network-and-frontier-progression.md](08-jump-network-and-frontier-progression.md),
+> which takes this finding's *recommended* option 1: systems are physical
+> locations with rating-gated links enforced in both directions. Because the
+> Jump Rating is a lifetime pilot credential it cannot be sold or stored at
+> all, so the `ErrRouteKeyRequired` guard is deleted rather than hardened.
+> The **fuel-capacity** half of this finding (buy a tank, pass a gate, sell
+> it at the next dock) is *not* resolved and remains open.
+
 **Priority:** P1 — progression gates do not mean what they appear to mean  
 **Current behavior:** route gates inspect only the active ship's equipment when
 departing *to* a destination. Once docked in Eridani, the player can store or

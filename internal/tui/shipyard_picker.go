@@ -25,7 +25,10 @@ import (
 const (
 	pickerPanelW  = 56
 	pickerVisible = 7
-	pickerPanelH  = pickerVisible + 6
+	// +6 is the fixed chrome (2 header rows, top/bottom border); +3 reserves
+	// room for the selected entry's description footer (blank separator plus
+	// up to two wrapped lines) so it doesn't have to steal from the list.
+	pickerPanelH = pickerVisible + 6 + 3
 )
 
 // pickerEntry is one selectable row in the slot picker: either a catalog
@@ -338,6 +341,7 @@ func (g *Game) installPickerEntry(model *content.ShipModel, row shipyardRow, e p
 }
 
 func (g *Game) renderSlotPickerOverlay() string {
+	st := g.snap.State
 	_, row, entries, ok := g.pickerContext()
 	if !ok {
 		return ""
@@ -380,11 +384,11 @@ func (g *Game) renderSlotPickerOverlay() string {
 		case e.uniqueBlocked:
 			right = "UNIQUE"
 		case e.afford:
-			right = fmt.Sprintf("CASH %d", e.price)
+			right = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), e.price)
 		case e.saleAfford:
 			right = fmt.Sprintf("SELL+BUY %d", e.price)
 		default:
-			right = fmt.Sprintf("%d cr", e.price)
+			right = fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), e.price)
 		}
 		powerGlyph := ""
 		if power := sim.SlotItemPower(g.content, e.itemID, e.grade); power > 0 {
@@ -418,17 +422,42 @@ func (g *Game) renderSlotPickerOverlay() string {
 	for i, pl := range built {
 		lines[i] = pl.text
 	}
-	scroll := 0
-	if len(lines) > panelBodyH {
-		scroll = centeredScroll(keepRow, len(lines), panelBodyH)
+
+	// The currently highlighted entry's description renders as a fixed
+	// footer (not part of the scrollable list) so it stays visible and
+	// wraps at innerW instead of being clipped — see pickerPanelH.
+	var descLines []string
+	if g.pickerSel >= 0 && g.pickerSel < len(entries) {
+		if desc := sim.SlotItemDesc(entries[g.pickerSel].itemID); desc != "" {
+			for _, w := range wrapChartText(desc, innerW) {
+				descLines = append(descLines, theme.TxtStyle.Render(w))
+			}
+		}
 	}
-	visible := scrollWindowLines(lines, scroll, panelBodyH)
+	listBodyH := panelBodyH
+	if len(descLines) > 0 {
+		listBodyH -= len(descLines) + 1
+	}
+	if listBodyH < 1 {
+		listBodyH = panelBodyH
+		descLines = nil
+	}
+
+	scroll := 0
+	if len(lines) > listBodyH {
+		scroll = centeredScroll(keepRow, len(lines), listBodyH)
+	}
+	visible := scrollWindowLines(lines, scroll, listBodyH)
 	for i, line := range visible {
 		src := scroll + i
 		if src < 0 || src >= len(built) || built[src].entry < 0 {
 			continue
 		}
 		g.pickerHitLine(i, line, built[src].entry, panelW, panelH)
+	}
+	if len(descLines) > 0 {
+		visible = append(visible, "")
+		visible = append(visible, descLines...)
 	}
 	body := strings.Join(visible, "\n")
 	stored := inventoryCountForKind(g.snap.State.Inventory, row.slotKind())
@@ -561,10 +590,11 @@ func (g *Game) renderSlotRemoveOverlay() string {
 		sellMarker = "▸ "
 	}
 	sellPct := g.content.Slots.SellValuePct * 100
+	credit := theme.Glyph("credit", st.Settings.ASCIISafe)
 	storeLine := storeStyle.Render(storeMarker + "[S] STORE — keep it, install free later")
-	sellText := fmt.Sprintf("[V] SELL — %d cr (%.0f%% value)", sellValue, sellPct)
+	sellText := fmt.Sprintf("[V] SELL — %s %d (%.0f%% value)", credit, sellValue, sellPct)
 	if g.pendingSlotInstall != nil && !g.pendingSlotInstall.fromInv {
-		sellText = fmt.Sprintf("[V] SELL + BUY — net %d cr", g.pendingSlotInstall.price-sellValue)
+		sellText = fmt.Sprintf("[V] SELL + BUY — net %s %d", credit, g.pendingSlotInstall.price-sellValue)
 	}
 	sellLine := sellStyle.Render(sellMarker + sellText)
 	panelW, panelH := g.layoutOverlaySize(removePanelW, removePanelH)
