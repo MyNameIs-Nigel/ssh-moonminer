@@ -58,8 +58,10 @@ Litestream/S3 durability pattern (`../ssh-arcadelobby/docs/06-fleet-data-durabil
 no AWS credentials required in dev (`LITESTREAM_REPLICA_URL` unset skips replication).
 `.github/workflows/ci.yml` runs `vet`/`build`/`test -race` on PRs and non-main pushes;
 `release.yml` builds/publishes `ghcr.io/mynameis-nigel/ssh-moonminer` on merge to `main`
-and redeploys on the same self-hosted `play.ssharcade.dev` runner ssh-arcadelobby and
-ssh-farm use.
+and stops there — nothing deploys automatically. Shipping that image to
+`play.ssharcade.dev` is a manual `docker compose pull moonminer && up -d moonminer`
+(`../ssh-arcadelobby/deploy/README.md` § "Deploying by hand"); the self-hosted runners the
+fleet used to deploy with were removed on 2026-09-04 ahead of the repos going public.
 
 **Durability drills** live in [`scripts/restore-drill/`](scripts/restore-drill/) and run
 locally against a MinIO container using the exact image the fleet ships. They kill the

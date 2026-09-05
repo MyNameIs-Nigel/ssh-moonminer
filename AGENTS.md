@@ -10,8 +10,11 @@ router as part of the ssharcade fleet (see `/home/nigel/repos/ssh-games/AGENTS.m
 context — sibling repos `../ssh-farm` and `../ssh-arcadelobby` are reference implementations for
 fleet-specific patterns like identity and durability).
 
-**`main` deploys for real** on every push (`release.yml` builds/publishes to `ghcr.io` and
-redeploys `play.ssharcade.dev` via a self-hosted runner) — never commit directly to `main`.
+**`main` publishes for real** on every push (`release.yml` builds and pushes to `ghcr.io`) —
+never commit directly to `main`. It no longer deploys: the self-hosted runners were removed on
+2026-09-04 ahead of the repos going public, so putting a published image on
+`play.ssharcade.dev` is a manual step (`../ssh-arcadelobby/deploy/README.md` §
+"Deploying by hand").
 
 ## Commands
 
