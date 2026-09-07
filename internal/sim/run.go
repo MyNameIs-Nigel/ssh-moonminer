@@ -88,6 +88,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if !ast.Scanned {
 		return ErrNotScanned
 	}
+	if IsOutOfRange(s, c, ast) {
+		return ErrOutOfRange
+	}
 	if RemainingCargoCapacity(s, c) <= 0 {
 		return ErrCargoFull
 	}
@@ -187,9 +190,8 @@ func TickScan(s *State, dt float64) {
 // while resources remain on the asteroid and the green DEPART action once
 // it is depleted; the sim doesn't distinguish the two calls, only the
 // resulting intent. Safe to call with state.Run == nil (a no-op) because
-// disconnect races a just-finished run. It is also a no-op once the run has
-// already left the mining phase (tribute/escaping), matching "no menu
-// actions are accepted" once fleeing has begun.
+// disconnect races a just-finished run. It is also rejected once the run has left the mining phase, matching
+// "no menu actions are accepted" once fleeing has begun.
 func BailOrDepart(s *State, c *content.Content, now int64) error {
 	run := s.Run
 	if run == nil {
@@ -396,8 +398,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	}
 	outage := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventPowerOutage
 	if !outage {
-		// Mining stops at the ship's cargo capacity exactly like depletion —
-		// RunDepleted treats "hold full" and "rock exhausted" the same way.
+		// Mining pauses when the hold fills; only exhausted rock enables DEPART.
 		extractionRemaining := math.Max(0, float64(ast.Volume)-run.ExtractedUnits)
 		holdRemaining := math.Max(0, RemainingCargoCapacity(s, c)-run.HeldUnits)
 		remaining := math.Min(extractionRemaining, holdRemaining)
@@ -456,8 +457,7 @@ func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bo
 	if ast == nil {
 		return true
 	}
-	normalizeRunAccounting(run)
-	return run.ExtractedUnits >= float64(ast.Volume)
+	return RunExtractedUnits(run) >= float64(ast.Volume)
 }
 
 // RunCargoFull reports whether the current run has filled all cargo space
@@ -467,8 +467,7 @@ func RunCargoFull(s *State, c *content.Content, run *ActiveRun) bool {
 	if run == nil {
 		return false
 	}
-	normalizeRunAccounting(run)
-	return run.HeldUnits >= RemainingCargoCapacity(s, c)
+	return RunHeldUnits(run) >= RemainingCargoCapacity(s, c)
 }
 
 // updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
@@ -545,7 +544,7 @@ func EmergencyResolve(s *State, c *content.Content, now int64) *RunOutcome {
 		return nil
 	}
 	out := resolveAbandonedRun(s, c, now)
-	if s.Run != nil {
+	if s.Run != nil || out == nil {
 		// Nothing resolved (an early bail/refuse error left the run standing);
 		// there is no outcome to report to the next session.
 		return out
@@ -599,20 +598,19 @@ func resolveAbandonedRun(s *State, c *content.Content, now int64) *RunOutcome {
 	if run == nil {
 		return nil
 	}
-	remaining := run.EscapeSecondsRequired - run.EscapeSecondsElapsed
-	if remaining < 0 {
-		remaining = 0
-	}
-	out, ended := TickRun(s, c, remaining+1, now)
-	if !ended {
-		// Escape requirement kept growing (e.g. fuel-out penalty loop); force
-		// the timer closed rather than loop forever.
-		if s.Run != nil {
-			s.Run.EscapeSecondsRequired = s.Run.EscapeSecondsElapsed
-			out, _ = TickRun(s, c, 0, now)
+	// Use the same simulation step as the live actor. A single giant tick
+	// changes combat aim, event expiry, and fuel-out damage; forcing the timer
+	// closed also fails because tickEscapeBurn recomputes it on every tick.
+	// This is a CPU safety budget, not a gameplay timeout. If invalid content
+	// or state exhausts it, retain the run instead of manufacturing a safe escape.
+	const maxEmergencyTicks = 10000
+	dt := 1.0 / float64(c.Mining.TickHz)
+	for i := 0; i < maxEmergencyTicks && s.Run != nil; i++ {
+		if out, ended := TickRun(s, c, dt, now); ended {
+			return out
 		}
 	}
-	return out
+	return nil
 }
 
 // TickInterval returns the mining tick duration from content.

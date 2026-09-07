@@ -10,6 +10,12 @@
 > specification tests and no production implementation; the follow-up layout
 > PR makes them pass before refreshing goldens.
 
+## Workflow
+
+Apply [the test-first workflow](README.md): audit affected tests, write a failing
+behavioral test, implement, and verify. The coverage goals below supplement
+feature tests; they do not defer testing until a later phase.
+
 ## Goal
 
 Test the TUI as a pure function: feed the model synthetic messages (keys,

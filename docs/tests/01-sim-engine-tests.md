@@ -3,6 +3,12 @@
 **Area:** Tests · **Phase:** 4 (start any time after gameplay/01 lands) ·
 **Depends on:** gameplay/01–04 · **Parallel-safe with:** everything
 
+## Workflow
+
+Apply [the test-first workflow](README.md): audit affected tests, write a failing
+behavioral test, implement, and verify. The coverage goals below supplement
+feature tests; they do not defer testing until a later phase.
+
 ## Goal
 
 Prove the engine is deterministic, revamp-faithful, and balance-sound. The
@@ -30,7 +36,7 @@ game.
 
 ### Fixtures
 
-Tests load `testdata/*.toml` (a snapshot of the shipped numbers), so balance
+Target coverage: introduce `testdata/*.toml` (a snapshot of shipped numbers), so balance
 tuning in `data/` fails invariant tests *deliberately* rather than silently
 shifting every unit expectation. Invariant tests run against **both** the
 fixture and the live `data/` files; unit-math tests run against the fixture
@@ -47,8 +53,9 @@ only.
   and a station-income claim with committed final-state JSON goldens. Any
   formula change shows up as a readable golden diff.
 - Cross-check: same script executed twice in one process and via
-  encode→decode mid-script produces identical hashes (persistence can't
-  fork reality).
+  encode→decode at a persisted boundary produces identical hashes. Active
+  runs and scans are intentionally omitted from saves; test their disconnect
+  resolution separately rather than demanding a mid-run round trip.
 
 ### Distribution tests (belt generation)
 
@@ -58,7 +65,7 @@ only.
   mine seconds, in-belt fuel cost, risk 8–96, dots 1–5, coords in range).
 - Tier mix: observed tier frequencies within ±2% absolute of the analytic
   weights per world (e.g. Io legendary ≈ 0.08+0.05·0.4 = 10%; Titan ≈ 20%).
-- Ordering: belts sorted by fuel cost; IDs unique; names match
+- Ordering: belts sorted by distance; IDs unique; names match
   `^[A-Z]{2}-\d{4}$`.
 - Monotonicity spot checks: value strictly increases with tier at fixed units;
   mine time monotone in units.

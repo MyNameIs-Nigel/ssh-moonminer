@@ -3,6 +3,8 @@ package sim
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
@@ -442,15 +444,16 @@ type State struct {
 	DisconnectNotice *RunRecord `json:"disconnect_notice,omitempty"`
 
 	// DevGodMode disables hull damage. It is a dev-server-only debug flag.
-	// It has a real json tag so it survives Clone()'s JSON round-trip
-	// in-memory, but Encode() (used for the persisted DB payload) always
+	// Clone preserves it in memory, but Encode (the persisted DB payload) always
 	// zeroes it first so it can never leak into a saved pilot file.
 	DevGodMode bool `json:"dev_god_mode,omitempty"`
 }
 
 // Snapshot is a value copy for rendering.
 type Snapshot struct {
-	State State
+	// Revision orders actor snapshots across tick and action delivery channels.
+	Revision uint64
+	State    State
 }
 
 // New creates a fresh pilot save, owning the free starter ship.
@@ -477,12 +480,12 @@ func New(c *content.Content, seed uint64, now int64) *State {
 
 // Encode serializes state for storage. Run is cleared before encode.
 func (s *State) Encode() ([]byte, error) {
-	copy := s.Clone()
-	syncActiveConditionMirrorForEncode(copy)
+	copy := *s
+	syncActiveConditionMirrorForEncode(&copy)
 	copy.Run = nil
 	copy.Scan = nil
 	copy.DevGodMode = false
-	return json.Marshal(copy)
+	return json.Marshal(&copy)
 }
 
 func syncActiveConditionMirrorForEncode(s *State) {
@@ -504,15 +507,60 @@ func (s *State) Clone() *State {
 	if s == nil {
 		return nil
 	}
-	b, err := json.Marshal(s)
-	if err != nil {
-		return nil
+	out := *s
+	out.Belt = slices.Clone(s.Belt)
+	out.SystemPermits = maps.Clone(s.SystemPermits)
+	out.DestinationPermits = maps.Clone(s.DestinationPermits)
+	out.ShipsUnlocked = maps.Clone(s.ShipsUnlocked)
+	out.Ships = maps.Clone(s.Ships)
+	for id, ship := range s.Ships {
+		copy := cloneValue(ship)
+		if copy != nil {
+			copy.Utility = cloneDevices(ship.Utility)
+			copy.Weapon = cloneDevices(ship.Weapon)
+			copy.Internal = cloneValue(ship.Internal)
+			copy.JumpDrive = cloneValue(ship.JumpDrive)
+		}
+		out.Ships[id] = copy
 	}
-	var out State
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil
+	out.Inventory = cloneDevices(s.Inventory)
+	out.RunLog = slices.Clone(s.RunLog)
+	for i := range out.RunLog {
+		out.RunLog[i].Events = slices.Clone(s.RunLog[i].Events)
+	}
+	out.DisconnectNotice = cloneValue(s.DisconnectNotice)
+	if out.DisconnectNotice != nil {
+		out.DisconnectNotice.Events = slices.Clone(s.DisconnectNotice.Events)
+	}
+	out.Scan = cloneValue(s.Scan)
+	out.Run = cloneValue(s.Run)
+	if r := out.Run; r != nil {
+		r.PressurePoints = slices.Clone(s.Run.PressurePoints)
+		r.SkillCheck = cloneValue(s.Run.SkillCheck)
+		r.ActiveEvent = cloneValue(s.Run.ActiveEvent)
+		r.EventLog = slices.Clone(s.Run.EventLog)
+		r.Combat = cloneValue(s.Run.Combat)
+		if r.Combat != nil {
+			r.Combat.Log = slices.Clone(s.Run.Combat.Log)
+		}
 	}
 	return &out
+}
+
+func cloneValue[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+func cloneDevices(devices []*SlotDevice) []*SlotDevice {
+	out := slices.Clone(devices)
+	for i, d := range devices {
+		out[i] = cloneValue(d)
+	}
+	return out
 }
 
 // DecodeState parses and upgrades stored state. c is required to build a
@@ -564,7 +612,7 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 		// in content (e.g. removed from data/*.toml) so later lookups like
 		// CargoCapacityUnits can't silently resolve against a nil model.
 		for id, inst := range s.Ships {
-			if id != s.ActiveShipID && c.ShipByID(inst.ModelID) == nil {
+			if id != s.ActiveShipID && (inst == nil || c.ShipByID(inst.ModelID) == nil) {
 				delete(s.Ships, id)
 				delete(s.ShipsUnlocked, id)
 			}

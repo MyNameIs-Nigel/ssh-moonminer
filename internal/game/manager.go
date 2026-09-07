@@ -115,6 +115,7 @@ func (m *Manager) Attach(ctx context.Context, id identity.SessionIdentity, publi
 		}
 		a.session = sess
 		a.state.Stats.LastSeen = now
+		a.dirty = true
 	})
 	if !ok {
 		delete(m.actors, key)
@@ -130,6 +131,7 @@ func (m *Manager) detach(s *Session) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	a := s.actor
+	var stop bool
 	a.do(func() {
 		if a.session == s {
 			if a.state.Run != nil {
@@ -139,8 +141,10 @@ func (m *Manager) detach(s *Session) {
 			a.session = nil
 		}
 		a.persist("disconnect")
+		// Keep failed saves in memory for autosave/reconnect to retry.
+		stop = a.session == nil && !a.dirty
 	})
-	if a.session == nil {
+	if stop {
 		m.stopActorLocked(a)
 	}
 }
@@ -168,6 +172,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Unlock()
 
 	done := make(chan struct{})
+	var flushErr error
 	go func() {
 		defer close(done)
 		for _, a := range actors {
@@ -183,12 +188,13 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			})
 			m.mu.Lock()
 			m.stopActorLocked(a)
+			flushErr = errors.Join(flushErr, a.finalErr)
 			m.mu.Unlock()
 		}
 	}()
 	select {
 	case <-done:
-		return nil
+		return flushErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}

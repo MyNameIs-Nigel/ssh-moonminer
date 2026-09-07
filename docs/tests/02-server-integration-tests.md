@@ -4,11 +4,17 @@
 framework/03) · **Depends on:** framework/01–03 · **Parallel-safe with:**
 tests/01, tests/03, gameplay/*
 
+## Workflow
+
+Apply [the test-first workflow](README.md): audit affected tests, write a failing
+behavioral test, implement, and verify. The coverage goals below supplement
+feature tests; they do not defer testing until a later phase.
+
 ## Goal
 
 Exercise the real SSH stack in-process: a `golang.org/x/crypto/ssh` client
-dialing an ephemeral server instance — no Docker, no network, no mocks of
-Wish. These tests are what let an agent refactor middleware or the actor
+dialing an ephemeral server instance — no Docker or external network services, and no mocks of
+Wish. The harness needs permission to bind local loopback ports. These tests are what let an agent refactor middleware or the actor
 model without fear.
 
 ## References

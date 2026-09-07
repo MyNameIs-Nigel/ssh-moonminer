@@ -42,6 +42,14 @@ go test ./...
 go vet ./...
 ```
 
+## Development workflow
+
+Follow [the test-first workflow](docs/tests/README.md) for features and fixes:
+write the acceptance/regression test, observe its failure, implement, then
+refactor. Feature updates must audit affected existing tests for obsolete
+expectations, invalid fixtures, and missing edge cases. Run build, vet, the full
+test suite, and the race suite before opening a PR.
+
 ## Fleet integration
 
 Behind `ssh-arcadelobby`, set `MOONMINER_PROXY_KEYS_PATH` to the router's bridge

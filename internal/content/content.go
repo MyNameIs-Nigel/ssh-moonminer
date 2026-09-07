@@ -4,7 +4,10 @@ package content
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
+	"reflect"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -486,13 +489,41 @@ func decodeTOML(fsys fs.FS, name string, v any) error {
 	if err != nil {
 		return fmt.Errorf("content: read %s: %w", name, err)
 	}
-	if err := toml.Unmarshal(b, v); err != nil {
+	metadata, err := toml.Decode(string(b), v)
+	if err != nil {
 		return fmt.Errorf("content: parse %s: %w", name, err)
+	}
+	if keys := metadata.Undecoded(); len(keys) > 0 {
+		return fmt.Errorf("content: %s has unknown keys: %v", name, keys)
 	}
 	return nil
 }
 
 func (c *Content) validate() error {
+	// TOML supports nan/inf; ordinary range comparisons do not reject NaN.
+	// Validate all numeric leaves once at boot, including future tuning fields.
+	if err := validateFinite(reflect.ValueOf(*c), "content"); err != nil {
+		return err
+	}
+	if c.Pilot.StartFuel <= 0 || c.Pilot.StartHull <= 0 || c.Pilot.StartCredits < 0 {
+		return fmt.Errorf("content: pilot fuel/hull must be positive and credits non-negative")
+	}
+	if len(c.Belt.NamePrefixes) == 0 {
+		return fmt.Errorf("content: belt name_prefixes must not be empty")
+	}
+	if c.Belt.VolumeMin <= 0 || c.Belt.VolumeMax < c.Belt.VolumeMin || c.Belt.VolumeStep <= 0 || c.Belt.ValueStep <= 0 {
+		return fmt.Errorf("content: belt volume bounds and volume/value steps must be positive and ordered")
+	}
+	if c.Belt.DrillSecPerVol <= 0 || c.Belt.DrillSecMin <= 0 || c.Belt.DrillSecMax < c.Belt.DrillSecMin || c.Belt.ValuePerVolume <= 0 {
+		return fmt.Errorf("content: belt drill bounds/divisor and value_per_volume must be positive and ordered")
+	}
+	if c.Belt.ScanFuelCost < 0 {
+		return fmt.Errorf("content: belt scan_fuel_cost must be non-negative")
+	}
+	if c.Mining.TickHz > int(time.Second) {
+		return fmt.Errorf("content: mining tick_hz exceeds timer resolution")
+	}
+
 	if len(c.Systems) < 2 {
 		return fmt.Errorf("content: need at least 2 systems, got %d", len(c.Systems))
 	}
@@ -841,6 +872,29 @@ func (c *Content) WorldByID(id string) *World {
 	for i := range c.Worlds {
 		if c.Worlds[i].ID == id {
 			return &c.Worlds[i]
+		}
+	}
+	return nil
+}
+
+// Reflection is confined to startup validation; simulation hot paths do not use it.
+func validateFinite(v reflect.Value, path string) error {
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if err := validateFinite(v.Field(i), path+"."+v.Type().Field(i).Name); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice:
+		for i := 0; i < v.Len(); i++ {
+			if err := validateFinite(v.Index(i), fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+	case reflect.Float64:
+		if math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0) {
+			return fmt.Errorf("%s must be finite", path)
 		}
 	}
 	return nil

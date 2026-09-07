@@ -36,10 +36,13 @@ func TestBailOrDepartStartsEscapeNotImmediateOutcome(t *testing.T) {
 func TestDepartAfterDepletion(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	ast.Volume = 200 // smaller than the starter hold: exercise true rock depletion
 	ast.DrillSec = 1
+	ast.Risk = 0 // isolate exhaustion from pirate arrival
 	s.Belt[0] = ast
 	s.Belt[0].Scanned = true
 	s.Fuel = 500
@@ -56,7 +59,7 @@ func TestDepartAfterDepletion(t *testing.T) {
 		t.Fatal("run resolved on its own — mining must never auto-resolve on depletion")
 	}
 	if s.Run.Phase != sim.PhaseMining {
-		t.Skip("pirates arrived before depletion in this scenario; not exercising depart path")
+		t.Fatal("isolated depletion fixture left mining phase")
 	}
 	// Only actual rock exhaustion enables DEPART. A full hold pauses the drill
 	// but preserves a non-zero resource meter and requires BAIL.
@@ -86,7 +89,9 @@ func TestBailOrDepartNoOp(t *testing.T) {
 func TestBailOrDepartInvalidOnceEscaping(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -108,7 +113,9 @@ func forcePirateArrival(s *sim.State) {
 func TestEMPLauncherDelaysPiratesAndSpendsHighestGradeFirst(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -156,7 +163,9 @@ func TestDockRearamsSpentEMPLaunchers(t *testing.T) {
 	s := sim.New(c, 1, 1000)
 	s.Ships["skiff"].Utility[0] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: 0}
 	s.Ships["skiff"].Utility[1] = &sim.SlotDevice{ItemID: sim.ItemEMPLauncher, Grade: sim.MaxGrade}
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	sim.Dock(s, c)
 	for _, d := range s.Ships["skiff"].Utility {
 		if !d.EMPArmed {
@@ -168,7 +177,9 @@ func TestDockRearamsSpentEMPLaunchers(t *testing.T) {
 func TestPirateActionRolledDeterministically(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -187,10 +198,13 @@ func TestPirateActionRolledDeterministically(t *testing.T) {
 
 func TestAcceptTributeRemovesCargoAndAvoidsAttack(t *testing.T) {
 	c := testContent(t)
-	// Try a handful of seeds to find one that rolls a tribute demand.
+	// Pin the branch under test; roster randomness is covered separately.
+	c.Mining.TributeChance = 1
 	for seed := uint64(1); seed < 50; seed++ {
 		s := sim.New(c, seed, 1000)
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
@@ -219,14 +233,17 @@ func TestAcceptTributeRemovesCargoAndAvoidsAttack(t *testing.T) {
 		}
 		return
 	}
-	t.Skip("no seed in range rolled a tribute demand — tribute_chance may need review")
+	t.Fatal("tribute fixture never reached the required phase")
 }
 
 func TestRefuseTributeStartsAttack(t *testing.T) {
 	c := testContent(t)
+	c.Mining.TributeChance = 1
 	for seed := uint64(1); seed < 50; seed++ {
 		s := sim.New(c, seed, 1000)
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
@@ -252,7 +269,7 @@ func TestRefuseTributeStartsAttack(t *testing.T) {
 		}
 		return
 	}
-	t.Skip("no seed in range rolled a tribute demand")
+	t.Fatal("tribute fixture never reached the required phase")
 }
 
 func TestShipLostResetsHangarEntryKeepsCredits(t *testing.T) {
@@ -260,7 +277,9 @@ func TestShipLostResetsHangarEntryKeepsCredits(t *testing.T) {
 	s := sim.New(c, 1, 1000)
 	s.Ships["skiff"].Grades.Thrusters = 3 // direct mutation — must not cost credits
 	s.Credits = 5000
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -315,7 +334,9 @@ func TestShipLostFallsBackToBestRemainingOwnedShip(t *testing.T) {
 	if s.ActiveShipID != "cicada" {
 		t.Fatalf("expected cicada active, got %s", s.ActiveShipID)
 	}
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -346,7 +367,9 @@ func TestFullCargoEscapesSlowerThanEmptyCargo(t *testing.T) {
 
 	escapeReqFor := func(minedFrac float64) float64 {
 		s := sim.New(c, 7, 1000)
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
@@ -371,7 +394,9 @@ func TestFullCargoEscapesSlowerThanEmptyCargo(t *testing.T) {
 func TestNumericFloorsAtDtEdgeCases(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -416,7 +441,9 @@ func TestAttackDamagePerSecondUnmitigatedByTurret(t *testing.T) {
 		if err := sim.SwitchActiveShip(s, c, "warden"); err != nil {
 			t.Fatal(err)
 		}
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
@@ -444,7 +471,9 @@ func TestAttackDamagePerSecondUnmitigatedByTurret(t *testing.T) {
 func TestFuelOutEscapePenaltyCaps(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -479,7 +508,9 @@ func TestFuelOutEscapePenaltyCaps(t *testing.T) {
 func TestAttemptSkillCheckHitGrantsBonusAndConsumesCheck(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -508,7 +539,9 @@ func TestAttemptSkillCheckHitGrantsBonusAndConsumesCheck(t *testing.T) {
 func TestAttemptSkillCheckNoActiveCheckIsNoop(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -528,7 +561,9 @@ func TestAttemptSkillCheckNoActiveCheckIsNoop(t *testing.T) {
 func TestSkillCheckExpiryHasNoEffectOnShip(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	s.Fuel = 500
 	s.Belt[0].Scanned = true
@@ -570,7 +605,9 @@ func TestPirateETANarrowsWithHighScannerGrade(t *testing.T) {
 		if err := sim.SwitchActiveShip(s, c, "cicada"); err != nil {
 			t.Fatal(err)
 		}
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		s.Fuel = 500
 		s.Belt[0].Scanned = true
@@ -594,9 +631,12 @@ func TestLowHullIncreasesEventChance(t *testing.T) {
 		total := 0
 		for seed := uint64(1); seed <= uint64(seeds); seed++ {
 			s := sim.New(c, seed, 1000)
-			_ = sim.Depart(s, c, 1)
+			if err := sim.Depart(s, c, 1); err != nil {
+				t.Fatal(err)
+			}
 			ast := s.Belt[0]
-			ast.Risk = 8 // keep pirates from arriving mid-loop for this sample
+			ast.Distance = sim.ScannerLockKm(s, c) // event sample is independent of scanner reach
+			ast.Risk = 8                           // keep pirates from arriving mid-loop for this sample
 			s.Belt[0] = ast
 			s.Belt[0].Scanned = true
 			s.Fuel = 500
@@ -635,7 +675,9 @@ func TestLowHullIncreasesEventChance(t *testing.T) {
 func TestCargoCapDepletionStopsMiningAndLeavesRemnant(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 1, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	ast.Volume = 4600 // force it well above the starter skiff's cargo cap
 	s.Belt[0] = ast
@@ -770,7 +812,9 @@ func TestPressurePointsAreDeterministicAndResolveToHitOrMiss(t *testing.T) {
 	c.Mining.PressurePointsMin = 3
 	c.Mining.PressurePointsMax = 3
 	s := sim.New(c, 99, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	ast.Scanned = true
 	s.Belt[0] = ast
@@ -821,7 +865,9 @@ func TestPressurePointsAreDeterministicAndResolveToHitOrMiss(t *testing.T) {
 func TestNoPressurePointAppearsAfterMiningStops(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 100, 1000)
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	ast.Volume = 100
 	ast.Scanned = true
@@ -843,7 +889,9 @@ func TestFuelMinerOnlyRecoversFuelOnConfiguredFuelAsteroids(t *testing.T) {
 	c.Mining.FuelAsteroidChance = 1 // proves the chance comes from content, not rarity/distance.
 	s := sim.New(c, 101, 1000)
 	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemFuelMiner, Grade: 0}
-	_ = sim.Depart(s, c, 1)
+	if err := sim.Depart(s, c, 1); err != nil {
+		t.Fatal(err)
+	}
 	ast := s.Belt[0]
 	ast.Scanned = true
 	s.Belt[0] = ast
@@ -878,7 +926,9 @@ func TestSeismicOverchargeAcceleratesMiningAndIsUnique(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		_ = sim.Depart(s, c, 1)
+		if err := sim.Depart(s, c, 1); err != nil {
+			t.Fatal(err)
+		}
 		ast := s.Belt[0]
 		ast.Scanned = true
 		s.Belt[0] = ast

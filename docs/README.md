@@ -102,6 +102,14 @@ against them):
    downstream (session caps, store rows, logging) keys on the *resolved*
    fingerprint, never the wire key. See framework/01.
 
+## Test-first implementation
+
+Follow [tests/README.md](tests/README.md) for every feature and update. Start
+with an affected-test audit and a failing acceptance or regression test; then
+implement and refactor. Tests belong in the same change as the behavior they
+protect. The historical phases below describe dependencies, not permission to
+postpone testing until Phase 4.
+
 ## Build order and parallelism
 
 ```
@@ -140,8 +148,9 @@ Dependencies are listed per-task; the summary:
   `tui/02,03` their data types.
 - `framework/01` (SSH server) and `tui/01` (app shell) can be built with stub
   models/stores; they meet in Phase 3.
-- `tests/*` tasks can start as soon as their target area has landed; writing
-  them in the same PR as the feature is also fine.
+- Feature acceptance tests are written before implementation in every phase.
+  `tests/*` adds deeper integration, replay, distribution, and fuzz coverage;
+  it does not replace the tests required in each feature PR.
 
 ## Task-doc format
 
@@ -152,7 +161,10 @@ context:
 - **References** — exact files in `../ssh-idlefarmer` (or the prototype) to
   mirror for standalone game mechanics; `../ssh-arcadelobby` and `../ssh-farm`
   for anything touching the arcade fleet (identity, durability, deployment).
-- **Deliverables** — packages/files to create.
+- **Test plan and affected-test audit** — observable expectations, boundary and
+  failure cases, existing tests to review, and the focused command to run red
+  before implementation.
+- **Deliverables** — packages/files and tests to create or update.
 - **Spec** — requirements, including exact formulas/values where they exist.
 - **Acceptance criteria** — checklist the work must pass.
 - **Out of scope / handoffs** — what belongs to a different task.
@@ -189,7 +201,9 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
    durability entrypoint (item 10), which distroless can't run. This
    supersedes any older "distroless" guidance; see framework/04.
 9. Run `go build ./...`, `go vet ./...`, and `go test ./...` before declaring
-   any task done. Table-driven tests live alongside code as `*_test.go`.
+   any task done; run `CGO_ENABLED=1 go test -race ./...` before a PR. Follow
+   the [test-first workflow](tests/README.md), including an audit of existing
+   tests affected by feature updates. Tests live alongside code as `*_test.go`.
 10. **This game lives behind the arcade router.** Identity must resolve both
     direct connections (dev/local) and proxied connections from
     `ssh-arcadelobby` per its canonical protocol

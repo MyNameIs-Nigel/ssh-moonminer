@@ -249,6 +249,10 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case snapMsg:
+		if m.Revision < g.snap.Revision {
+			cmds = append(cmds, listenSnaps(g.sess))
+			break
+		}
 		g.snap = sim.Snapshot(m)
 		if g.snap.State.Run != nil && g.scr != scrMining {
 			g.scr = scrMining
@@ -264,12 +268,11 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			g.overlay = ovKicked
 		}
 	case tea.KeyPressMsg:
+		if m.String() == "ctrl+c" {
+			return g, tea.Quit
+		}
 		g.lastInput = g.now
 		if g.combatIntroActive {
-			if m.String() == "ctrl+c" {
-				cmds = append(cmds, tea.Quit)
-				break
-			}
 			g.combatIntroActive = false
 			break
 		}
@@ -410,7 +413,7 @@ func (g *Game) setFlash(text string) {
 // mining view.
 func (g *Game) consumeRunOutcome() []tea.Cmd {
 	out := g.sess.LastOutcome()
-	if out == nil || g.scr != scrMining {
+	if out == nil || g.scr != scrMining || g.snap.State.Run != nil {
 		return nil
 	}
 	g.lastOutcome = out
@@ -442,6 +445,9 @@ func (g *Game) consumeRunOutcome() []tea.Cmd {
 func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
 	if err != nil {
 		g.setFlash(err.Error())
+		return nil
+	}
+	if snap.Revision < g.snap.Revision {
 		return nil
 	}
 	g.snap = snap

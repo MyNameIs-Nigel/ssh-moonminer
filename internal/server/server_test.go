@@ -25,17 +25,18 @@ func testServer(t *testing.T) string {
 
 	dir := t.TempDir()
 	cfg := config.Config{
-		ListenHost:         "127.0.0.1",
-		HostKeyPath:        filepath.Join(dir, "host_key"),
-		DBPath:             filepath.Join(dir, "moonminer.db"),
-		IdleTimeout:        time.Hour,
-		MaxSessionsPerKey:  2,
-		MaxConnections:     10,
-		RateLimitPerSecond: 100,
-		RateLimitBurst:     5,
-		DefaultSlot:        "default",
-		SessionPolicy:      "takeover",
-		AutosaveInterval:   30 * time.Second,
+		ListenHost:          "127.0.0.1",
+		HostKeyPath:         filepath.Join(dir, "host_key"),
+		DBPath:              filepath.Join(dir, "moonminer.db"),
+		IdleTimeout:         time.Hour,
+		MaxSessionsPerKey:   2,
+		MaxConnections:      10,
+		RateLimitPerSecond:  100,
+		RateLimitBurst:      5,
+		RateLimitMaxEntries: 100,
+		DefaultSlot:         "default",
+		SessionPolicy:       "takeover",
+		AutosaveInterval:    30 * time.Second,
 	}
 
 	logger := applog.New("error", "text")

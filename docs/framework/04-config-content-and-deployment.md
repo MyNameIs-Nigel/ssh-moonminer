@@ -205,3 +205,15 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   image with the right env-var contract.
 - CI/CD workflow files — small effort once this task lands (copy farm's
   verbatim), but not part of this task's acceptance criteria.
+
+## Configuration validation
+
+Content loading rejects unknown TOML keys, non-finite numeric values, empty
+asteroid name pools, invalid generation divisors/ranges, and tick rates below
+the timer's resolution. Treat new tuning keys as schema changes: add validation
+and rejection tests before using them in simulation formulas.
+
+`MOONMINER_DEV_MODE` is a boolean (`true`/`1` enables it, `false`/`0` disables
+it; unset is false). Non-boolean values fail startup. Rate limits must be finite
+and positive, burst and IP-cache capacity must be at least one, and idle timeout
+must be positive. IPv6 listen hosts are formatted with standard address brackets.

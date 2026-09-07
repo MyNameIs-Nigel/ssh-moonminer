@@ -188,7 +188,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 	lockKm := ScannerLockKm(s, c)
 	candidates := make([]int, 0, len(s.Belt))
 	for i := range s.Belt {
-		if s.Belt[i].Distance < lockKm {
+		if s.Belt[i].Distance <= lockKm {
 			candidates = append(candidates, i)
 		}
 	}

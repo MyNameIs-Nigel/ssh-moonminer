@@ -334,7 +334,7 @@ func TestRenderShipyardTrackPipsMatchTrackCapNotFixedFive(t *testing.T) {
 	model := c.ShipByID("skiff")
 	cap := sim.TrackCap(model, sim.TrackThrusters)
 	if cap >= sim.MaxGrade {
-		t.Skip("skiff's thrusters cap must be below MaxGrade for this test to be meaningful")
+		t.Fatal("fixture requires a thruster cap below MaxGrade; update it explicitly if balance changes")
 	}
 
 	out := g.renderShipyard()

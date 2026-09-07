@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"math"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -44,7 +46,12 @@ func Load() (Config, error) {
 		SessionPolicy: envOr("MOONMINER_SESSION_POLICY", "takeover"),
 		DataDir:       os.Getenv("MOONMINER_DATA_DIR"),
 		ProxyKeysPath: os.Getenv("MOONMINER_PROXY_KEYS_PATH"),
-		DevMode:       os.Getenv("MOONMINER_DEV_MODE") != "",
+	}
+	if raw := os.Getenv("MOONMINER_DEV_MODE"); raw != "" {
+		cfg.DevMode, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("MOONMINER_DEV_MODE: invalid boolean %q", raw)
+		}
 	}
 	if cfg.ListenPort, err = envIntOr("MOONMINER_LISTEN_PORT", 22); err != nil {
 		return Config{}, err
@@ -80,8 +87,17 @@ func Load() (Config, error) {
 	if cfg.MaxConnections < 1 {
 		return Config{}, fmt.Errorf("MOONMINER_MAX_CONNECTIONS must be at least 1")
 	}
-	if cfg.RateLimitPerSecond <= 0 {
+	if cfg.RateLimitPerSecond <= 0 || math.IsNaN(cfg.RateLimitPerSecond) || math.IsInf(cfg.RateLimitPerSecond, 0) {
 		return Config{}, fmt.Errorf("MOONMINER_RATE_LIMIT_PER_SECOND must be positive")
+	}
+	if cfg.RateLimitBurst < 1 {
+		return Config{}, fmt.Errorf("MOONMINER_RATE_LIMIT_BURST must be at least 1")
+	}
+	if cfg.RateLimitMaxEntries < 1 {
+		return Config{}, fmt.Errorf("MOONMINER_RATE_LIMIT_MAX_IPS must be at least 1")
+	}
+	if cfg.IdleTimeout <= 0 {
+		return Config{}, fmt.Errorf("MOONMINER_IDLE_TIMEOUT must be positive")
 	}
 	if cfg.AutosaveInterval < time.Second {
 		return Config{}, fmt.Errorf("MOONMINER_AUTOSAVE_INTERVAL must be at least 1s")
@@ -98,7 +114,7 @@ func Load() (Config, error) {
 }
 
 func (c Config) ListenAddr() string {
-	return fmt.Sprintf("%s:%d", c.ListenHost, c.ListenPort)
+	return net.JoinHostPort(c.ListenHost, strconv.Itoa(c.ListenPort))
 }
 
 func envOr(key, fallback string) string {
