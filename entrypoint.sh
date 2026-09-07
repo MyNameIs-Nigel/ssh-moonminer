@@ -15,6 +15,17 @@ HOST_KEY_PATH="${MOONMINER_HOST_KEY_PATH:-/var/lib/moonminer/ssh_host_key}"
 # local/CI durability drills (which uses alias "drill").
 HOST_KEY_MC_PATH="${MOONMINER_HOST_KEY_MC_PATH:-}"
 
+# Production guard (§4.1, failure mode 1). The dev-mode fall-through below is a
+# real convenience — local dev and CI must never need AWS credentials — but in
+# production it is the most dangerous failure in the fleet: the game serves
+# players normally while nothing replicates, and the loss stays silent until
+# someone actually needs a restore. Setting MOONMINER_REQUIRE_REPLICATION=true turns
+# that fall-through into a crash loop, which gets noticed in seconds instead.
+if [ "${MOONMINER_REQUIRE_REPLICATION:-}" = "true" ] && [ -z "${LITESTREAM_REPLICA_URL:-}" ]; then
+	echo "entrypoint: FATAL — MOONMINER_REQUIRE_REPLICATION=true but LITESTREAM_REPLICA_URL is unset; refusing to serve unreplicated" >&2
+	exit 1
+fi
+
 # Dev mode: no replica configured, skip straight to the app with a loud log
 # line. Local dev and CI must never require AWS/MinIO credentials.
 if [ -z "${LITESTREAM_REPLICA_URL:-}" ]; then
@@ -56,8 +67,17 @@ if [ -n "$HOST_KEY_MC_PATH" ]; then
 		i=0
 		while [ "$i" -lt 30 ]; do
 			if [ -f "$HOST_KEY_PATH" ]; then
-				mc pipe "$HOST_KEY_MC_PATH" <"$HOST_KEY_PATH" 2>/dev/null \
-					&& echo "entrypoint: host key uploaded to $HOST_KEY_MC_PATH"
+				# Seed the bucket only when it is genuinely empty. This used
+				# to upload unconditionally, so a boot from a volume holding
+				# a stale key overwrote the good key in S3 and gave every
+				# player a host-key-changed warning. A failed `mc stat` also
+				# skips the upload: not seeding is recoverable, clobbering is not.
+				if mc stat "$HOST_KEY_MC_PATH" >/dev/null 2>&1; then
+					echo "entrypoint: host key already in bucket at $HOST_KEY_MC_PATH — not overwriting"
+				else
+					mc pipe "$HOST_KEY_MC_PATH" <"$HOST_KEY_PATH" 2>/dev/null \
+						&& echo "entrypoint: host key uploaded to $HOST_KEY_MC_PATH"
+				fi
 				break
 			fi
 			i=$((i + 1))
