@@ -140,10 +140,12 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   **No published ports** on the game service — the router is the only public
   entry point (doc 02's requirement); this repo's job is just to publish a
   working `ghcr.io/mynameis-nigel/ssh-moonminer` image the existing block can
-  pull. CI/CD to build and publish that image (and, once ready, deploy it on
-  the same self-hosted `play.ssharcade.dev` runner arcadelobby/farm already
-  use) is a small, mechanical fast-follow — copy `../ssh-farm/.github/workflows/{ci,release}.yml`
-  nearly verbatim; not blocking for this task.
+  pull. CI/CD to build and publish that image is a small, mechanical
+  fast-follow — copy `../ssh-farm/.github/workflows/{ci,release}.yml` nearly
+  verbatim; not blocking for this task. It builds and publishes only: the
+  fleet has no automated deploy since the self-hosted runners were removed on
+  2026-09-04, so `play.ssharcade.dev` is updated by hand
+  (`../ssh-arcadelobby/deploy/README.md` § "Deploying by hand").
 - The binary must write **only** under the volume and `/tmp` — audit config
   defaults in the container to guarantee this.
 
