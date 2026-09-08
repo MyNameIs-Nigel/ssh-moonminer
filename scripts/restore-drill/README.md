@@ -70,8 +70,11 @@ worth fixing there too.
 Production leaves `LITESTREAM_ACCESS_KEY_ID`/`SECRET` **unset** so litestream
 picks up the EC2 instance role; this stack sets them explicitly, because MinIO
 has no instance-role concept. A broken IAM policy therefore passes every drill
-here and still fails in production. Same blind spot for `MC_HOST_s3`, which is
-a separate explicit key pair since `mc` has no instance-role support at all.
+here and still fails in production — which is exactly how the missing
+`s3:GetBucketLocation` went unnoticed until a restore was attempted on the host.
+The second blind spot, `MC_HOST_s3`, is gone: `mc` and its static key pair were
+removed on 2026-09-08, so the instance role is now the only way anything in
+production reaches S3.
 
 These drills prove the *mechanism*. Only the live host proves the
 *credentials*. See
