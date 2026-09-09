@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -62,5 +63,15 @@ func TestListenAddrIPv6(t *testing.T) {
 	c := Config{ListenHost: "::1", ListenPort: 2222}
 	if got := c.ListenAddr(); got != "[::1]:2222" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestComposeControlsDevModeWithExplicitDefault(t *testing.T) {
+	compose, err := os.ReadFile("../../docker-compose.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(compose), "MOONMINER_DEV_MODE: ${MOONMINER_COMPOSE_DEV_MODE:-false}") {
+		t.Fatal("docker compose must pass MOONMINER_COMPOSE_DEV_MODE to MOONMINER_DEV_MODE with a false default")
 	}
 }

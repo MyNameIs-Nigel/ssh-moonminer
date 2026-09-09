@@ -159,6 +159,11 @@ func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.C
 		g.overlay = ovOnboard
 	}
 	snap, _ := g.sess.SnapshotNow()
+	if normalizePirateThreatAssist(&snap.State.Settings, devMode) {
+		snap, _ = g.sess.UpdateSettings(now, func(s *sim.Settings) {
+			normalizePirateThreatAssist(s, devMode)
+		})
+	}
 	g.snap = snap
 	// Open the session where the pilot actually is. WorldIdx, SystemID and
 	// Belt survive a disconnect by design (framework/02), so hardcoding the

@@ -343,12 +343,14 @@ and no active claim. Reset the claim on the documented recovery milestones
 
 **Difficulty:** M — 1–2 days including content/invariant tests.
 
-### 10. Pirate Aggression is a no-cost difficulty/reward lever
+### 10. Pirate Threat Assist is development-only
 
-**Priority:** P1 — unresolved game-design choice  
-**Current behavior:** the Tweaks overlay allows 0.5, 1.0, 1.5, and 2.0 Pirate
-Aggression. It directly changes pirate approach speed while asteroid values,
-permits, ship prices, and stats remain unchanged.
+**Priority:** Resolved
+**Current behavior:** Pirate Threat Assist directly changes pirate approach
+speed while asteroid values, permits, ship prices, and stats remain unchanged.
+It is available only when `MOONMINER_DEV_MODE` is enabled; production does not
+render or accept the option and normalizes an inherited dev-assist value to
+`1.0`.
 
 **Why it hurts the loop:** If it is meant to be an optimisation control, every
 rational pilot uses 0.5 for the same income. If it is an accessibility setting,
@@ -356,12 +358,9 @@ calling it aggression without explaining its consequence makes players feel
 that they are cheating or missing rewards. A hard roguelite needs a clear
 answer, not an accidental one.
 
-**Fix:** Choose one of these valid models:
-
-- **Accessibility (recommended):** rename it to a threat-assist setting,
-  explain that rewards are unchanged, and keep it freely selectable.
-- **Challenge contract:** lock a chosen difficulty for a pilot/run and apply a
-  transparent reward/score multiplier, with 1.0 as the intended balance.
+**Resolution:** Keep the mechanism as a developer test control, not a player
+difficulty or accessibility setting. This preserves production balance while
+still making pirate timing easy to exercise locally.
 
 Do not leave a mechanical risk knob disguised as a neutral visual tweak.
 
