@@ -6,16 +6,13 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// SlotKind identifies which of a ship's four slot kinds an item belongs in.
-// Internal and Jump Drive are each exactly one slot per ship; Utility/Weapon
-// counts vary per ship model (Weapon may be zero).
+// SlotKind identifies a physical utility, weapon, or internal device slot.
 type SlotKind int
 
 const (
 	SlotUtility SlotKind = iota
 	SlotWeapon
 	SlotInternal
-	SlotJumpDrive
 )
 
 // Slot item IDs — the fixed catalog from
@@ -38,7 +35,6 @@ const (
 	ItemFuelMiner  = "fuel_miner"
 	ItemJammer     = "pirate_jammer"
 	ItemHeatSink   = "heat_sink"
-	ItemJumpDrive  = "jump_drive"
 )
 
 const legacyItemMassDriver = "mass_driver"
@@ -50,8 +46,6 @@ func SlotItemKind(itemID string) SlotKind {
 		return SlotWeapon
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink:
 		return SlotInternal
-	case ItemJumpDrive:
-		return SlotJumpDrive
 	default:
 		return SlotUtility
 	}
@@ -84,8 +78,6 @@ func SlotItemName(itemID string) string {
 		return "PIRATE JAMMER"
 	case ItemHeatSink:
 		return "HEAT SINK"
-	case ItemJumpDrive:
-		return "JUMP DRIVE"
 	}
 	return itemID
 }
@@ -120,22 +112,18 @@ func SlotItemDesc(itemID string) string {
 		return "Suppresses pirate approach for a time after lock."
 	case ItemHeatSink:
 		return "Raises weapon heat capacity before overheat lock."
-	case ItemJumpDrive:
-		return "Opens Eridani Drift while installed. Draws no power."
 	}
 	return ""
 }
 
-// SlotItemLocked reports whether the item is unavailable for purchase. Every
-// current catalog item is usable; the Jump Drive now unlocks Eridani Drift.
-func SlotItemLocked(itemID string) bool { return false }
+// SlotItemLocked rejects retired or unknown devices at every installation path.
+func SlotItemLocked(itemID string) bool { return SlotItemDesc(itemID) == "" }
 
 // utilityItems/weaponItems/internalItems list the buyable items per slot
 // kind, in catalog display order.
 var utilityItems = []string{ItemCargo, ItemFuelTank, ItemShield, ItemSeismicOvercharge, ItemEMPLauncher}
 var weaponItems = []string{ItemTurret, ItemMissileLauncher, ItemPulseLaser}
 var internalItems = []string{ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink}
-var jumpDriveItems = []string{ItemJumpDrive}
 
 // SlotItemsFor returns the buyable item catalog for a slot kind.
 func SlotItemsFor(kind SlotKind) []string {
@@ -144,8 +132,6 @@ func SlotItemsFor(kind SlotKind) []string {
 		return weaponItems
 	case SlotInternal:
 		return internalItems
-	case SlotJumpDrive:
-		return jumpDriveItems
 	default:
 		return utilityItems
 	}
@@ -178,8 +164,6 @@ func slotItemBasePrice(c *content.Content, itemID string) int {
 		return sc.JammerBasePrice
 	case ItemHeatSink:
 		return sc.HeatSinkBasePrice
-	case ItemJumpDrive:
-		return sc.JumpDriveBasePrice
 	}
 	return 0
 }
@@ -192,7 +176,7 @@ func SlotItemPrice(c *content.Content, itemID string, grade int) int {
 }
 
 // SlotItemPower returns itemID's power draw at grade. Cargo, Fuel Tank, and
-// Jump Drive always return 0 — the explicit structural/unpowered exceptions.
+// fuel tanks always return 0 — the structural/unpowered exceptions.
 func SlotItemPower(c *content.Content, itemID string, grade int) int {
 	g := math.Pow(float64(grade+1), c.Fleet.PowerCurveExponent)
 	sc := c.Slots
@@ -211,7 +195,7 @@ func SlotItemPower(c *content.Content, itemID string, grade int) int {
 		return int(math.Round(sc.PulseLaserPowerK * g))
 	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink:
 		return int(math.Round(sc.InternalPowerK * g))
-	default: // ItemCargo, ItemFuelTank, ItemJumpDrive
+	default: // ItemCargo, ItemFuelTank
 		return 0
 	}
 }
@@ -237,7 +221,7 @@ func SlotItemMass(c *content.Content, itemID string, grade int) float64 {
 		return sc.MissileLauncherMassPerGrade * n
 	case ItemPulseLaser:
 		return sc.PulseLaserMassPerGrade * n
-	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink, ItemJumpDrive:
+	case ItemSeismic, ItemFuelMiner, ItemJammer, ItemHeatSink:
 		return sc.InternalMassPerGrade * n
 	}
 	return 0
@@ -249,6 +233,8 @@ func deviceSlice(inst *ShipInstance, kind SlotKind) []*SlotDevice {
 		return inst.Utility
 	case SlotWeapon:
 		return inst.Weapon
+	case SlotInternal:
+		return InternalDevices(inst)
 	default:
 		return nil
 	}
@@ -289,11 +275,10 @@ func InstalledPower(s *State, c *content.Content, shipID string) int {
 			total += SlotItemPower(c, d.ItemID, d.Grade)
 		}
 	}
-	if inst.Internal != nil {
-		total += SlotItemPower(c, inst.Internal.ItemID, inst.Internal.Grade)
-	}
-	if inst.JumpDrive != nil {
-		total += SlotItemPower(c, inst.JumpDrive.ItemID, inst.JumpDrive.Grade)
+	for _, d := range InternalDevices(inst) {
+		if d != nil {
+			total += SlotItemPower(c, d.ItemID, d.Grade)
+		}
 	}
 	return total
 }
@@ -320,11 +305,10 @@ func InstalledMass(s *State, c *content.Content, shipID string) float64 {
 			total += SlotItemMass(c, d.ItemID, d.Grade)
 		}
 	}
-	if inst.Internal != nil {
-		total += SlotItemMass(c, inst.Internal.ItemID, inst.Internal.Grade)
-	}
-	if inst.JumpDrive != nil {
-		total += SlotItemMass(c, inst.JumpDrive.ItemID, inst.JumpDrive.Grade)
+	for _, d := range InternalDevices(inst) {
+		if d != nil {
+			total += SlotItemMass(c, d.ItemID, d.Grade)
+		}
 	}
 	return total
 }
@@ -412,7 +396,7 @@ func hasOtherDevice(inst *ShipInstance, kind SlotKind, exclude int, itemID strin
 // ship. Extra cargo/fuel and EMP launchers deliberately stack; weapons stack
 // their damage/heat additively in FireWeapons.
 func SlotItemIsUnique(itemID string) bool {
-	return itemID == ItemShield || itemID == ItemSeismicOvercharge
+	return itemID == ItemShield || itemID == ItemSeismicOvercharge || SlotItemKind(itemID) == SlotInternal
 }
 
 func validateUniqueSlotItem(inst *ShipInstance, kind SlotKind, index int, itemID string) error {
@@ -863,8 +847,8 @@ func AutocannonDamagePerSecond(s *State, c *content.Content) float64 {
 func HeatCapacity(s *State, c *content.Content) float64 {
 	capacity := c.Combat.HeatCapacity
 	inst := ActiveShip(s)
-	if inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemHeatSink {
-		capacity += c.Slots.HeatSinkCapacityPerGrade * float64(inst.Internal.Grade+1)
+	if inst != nil && internalDevice(inst, ItemHeatSink) != nil {
+		capacity += c.Slots.HeatSinkCapacityPerGrade * float64(internalDevice(inst, ItemHeatSink).Grade+1)
 	}
 	return capacity
 }
@@ -875,10 +859,10 @@ func HeatCapacity(s *State, c *content.Content) float64 {
 // Miner in its internal slot.
 func FuelMinerRecoveryMul(s *State, c *content.Content) float64 {
 	inst := ActiveShip(s)
-	if inst == nil || inst.Internal == nil || inst.Internal.ItemID != ItemFuelMiner {
+	if inst == nil || internalDevice(inst, ItemFuelMiner) == nil {
 		return 0
 	}
-	return c.Slots.FuelMinerERecoveryMul + c.Slots.FuelMinerPerGradeGainMul*float64(inst.Internal.Grade)
+	return c.Slots.FuelMinerERecoveryMul + c.Slots.FuelMinerPerGradeGainMul*float64(internalDevice(inst, ItemFuelMiner).Grade)
 }
 
 // MiningSpeedMul returns the drilling multiplier from a single equipped
@@ -939,16 +923,16 @@ func JammerDurationSeconds(c *content.Content, grade int) float64 {
 // and instant — called whenever the pilot docks (see Dock in belt.go).
 func RearmJammer(s *State, c *content.Content) {
 	inst := ActiveShip(s)
-	if inst == nil || inst.Internal == nil || inst.Internal.ItemID != ItemJammer {
+	if inst == nil || internalDevice(inst, ItemJammer) == nil {
 		return
 	}
-	inst.JammerCharges = jammerMaxCharges(c, inst.Internal.Grade)
+	inst.JammerCharges = jammerMaxCharges(c, internalDevice(inst, ItemJammer).Grade)
 }
 
 // deviceSlot resolves the addressable **SlotDevice for kind/index on inst —
 // a pointer to the exact map/slice/field slot itself, so Install/Remove can
 // share one read-modify-write path instead of a three-way switch each.
-// index is ignored for SlotInternal and SlotJumpDrive, which each have one
+// index is ignored for SlotInternal, which each have one
 // dedicated slot.
 func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, error) {
 	switch kind {
@@ -963,9 +947,13 @@ func deviceSlot(inst *ShipInstance, kind SlotKind, index int) (**SlotDevice, err
 		}
 		return &inst.Weapon[index], nil
 	case SlotInternal:
-		return &inst.Internal, nil
-	case SlotJumpDrive:
-		return &inst.JumpDrive, nil
+		if index == 0 {
+			return &inst.Internal, nil
+		}
+		if index < 1 || index > len(inst.AdditionalInternal) {
+			return nil, ErrInvalidSlotIndex
+		}
+		return &inst.AdditionalInternal[index-1], nil
 	}
 	return nil, ErrInvalidSlotItem
 }
@@ -993,6 +981,12 @@ func InstallSlotDevice(s *State, c *content.Content, shipID string, kind SlotKin
 	inst := s.Ships[shipID]
 	if inst == nil {
 		return ErrNotOwned
+	}
+	if inst.SystemID != s.SystemID {
+		return ErrShipRemote
+	}
+	if c.ShipByID(inst.ModelID).NoShield && itemID == ItemShield {
+		return ErrInvalidSlotItem
 	}
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
@@ -1052,9 +1046,6 @@ func StoreSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind,
 	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
 		return err
 	}
-	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
-		return err
-	}
 	s.Inventory = append(s.Inventory, *target)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
@@ -1077,9 +1068,6 @@ func SellSlotDevice(s *State, c *content.Content, shipID string, kind SlotKind, 
 	if err := validateDeviceRemovalCargo(s, c, shipID, *target); err != nil {
 		return err
 	}
-	if err := validateDeviceRemovalRouteKey(s, c, shipID, *target, nil); err != nil {
-		return err
-	}
 	s.Credits += SlotItemSellValue(c, (*target).ItemID, (*target).Grade)
 	*target = nil
 	normalizeShipShield(s, c, shipID)
@@ -1099,20 +1087,6 @@ func validateDeviceRemovalCargo(s *State, c *content.Content, shipID string, d *
 		return ErrCargoDoesNotFit
 	}
 	return nil
-}
-
-func validateDeviceRemovalRouteKey(s *State, c *content.Content, shipID string, old, replacement *SlotDevice) error {
-	if shipID != s.ActiveShipID || old == nil {
-		return nil
-	}
-	system := c.SystemByID(s.SystemID)
-	if system == nil || system.RequiredItemID == "" || old.ItemID != system.RequiredItemID {
-		return nil
-	}
-	if replacement != nil && replacement.ItemID == system.RequiredItemID {
-		return nil
-	}
-	return ErrRouteKeyRequired
 }
 
 // cargoCapacityAfterChange calculates a ship's capacity with old removed and
@@ -1171,6 +1145,12 @@ func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, 
 	if inst == nil {
 		return ErrNotOwned
 	}
+	if inst.SystemID != s.SystemID {
+		return ErrShipRemote
+	}
+	if c.ShipByID(inst.ModelID).NoShield && itemID == ItemShield {
+		return ErrInvalidSlotItem
+	}
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
 		return err
@@ -1184,9 +1164,6 @@ func ReplaceSlotDeviceWithPurchase(s *State, c *content.Content, shipID string, 
 	}
 	replacement := &SlotDevice{ItemID: itemID, Grade: grade}
 	if err := validateCargoAfterReplacement(s, c, shipID, old, replacement); err != nil {
-		return err
-	}
-	if err := validateDeviceRemovalRouteKey(s, c, shipID, old, replacement); err != nil {
 		return err
 	}
 	powerWithout := InstalledPower(s, c, shipID) - devicePower(c, old)
@@ -1219,6 +1196,9 @@ func resolveOccupiedSlot(s *State, shipID string, kind SlotKind, index int) (*Sh
 	inst := s.Ships[shipID]
 	if inst == nil {
 		return nil, nil, ErrNotOwned
+	}
+	if inst.SystemID != s.SystemID {
+		return nil, nil, ErrShipRemote
 	}
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
@@ -1254,6 +1234,12 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 	if inst == nil {
 		return ErrNotOwned
 	}
+	if inst.SystemID != s.SystemID {
+		return ErrShipRemote
+	}
+	if c.ShipByID(inst.ModelID).NoShield && d.ItemID == ItemShield {
+		return ErrInvalidSlotItem
+	}
 	target, err := deviceSlot(inst, kind, index)
 	if err != nil {
 		return err
@@ -1281,4 +1267,15 @@ func InstallSlotDeviceFromInventory(s *State, c *content.Content, shipID string,
 		syncActiveConditionMirror(s, c)
 	}
 	return nil
+}
+
+// InternalDevices returns the physical internal slots in stable slot order.
+func InternalDevices(inst *ShipInstance) []*SlotDevice {
+	if inst == nil {
+		return nil
+	}
+	return append([]*SlotDevice{inst.Internal}, inst.AdditionalInternal...)
+}
+func internalDevice(inst *ShipInstance, id string) *SlotDevice {
+	return findDevice(InternalDevices(inst), id)
 }

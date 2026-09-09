@@ -28,7 +28,7 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 			g.scr = scrBelt
 			g.rockSel = 0
 			return nil
-		case "f", "r", "c", "i", "s":
+		case "f", "r", "c", "i", "s", "j", "h":
 			g.setFlash("STILL IN BELT — RETURN TO BELT, THEN [Q] DOCK")
 			return nil
 		}
@@ -36,9 +36,18 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 	switch k {
 	case "up", "k":
 		g.worldSel = (g.worldSel - 1 + n) % n
-	case "down", "j":
+	case "down":
 		g.worldSel = (g.worldSel + 1) % n
+	case "j":
+		g.overlay = ovCertify
+	case "h":
+		g.ferrySel = 0
+		g.overlay = ovFerry
 	case "enter", " ":
+		if w := g.content.WorldByIndex(g.worldSel); w != nil && w.SystemID != st.SystemID {
+			g.openJumpConfirm()
+			return nil
+		}
 		if g.openPermitPrompt() {
 			return nil
 		}
@@ -105,7 +114,11 @@ func (g *Game) renderChart() string {
 	panelH := g.bodyHeight()
 	panelBodyH := panelH - 2
 	accent := theme.Accent(theme.HueCyan)
-	leftLines := []string{}
+	rating := "UNCERTIFIED"
+	if st.JumpClass >= 0 {
+		rating = "CLASS " + sim.GradeLetter(st.JumpClass)
+	}
+	leftLines := []string{"JUMP RATING — " + rating + "  [J] CERTIFY", "[H] HAULER FERRY · ENTER REMOTE WORLD TO JUMP"}
 	type chartWorldHit struct {
 		row  int
 		line string
@@ -150,7 +163,7 @@ func (g *Game) renderChart() string {
 	}
 	leftFooter := []string{}
 	if g.worldSel >= 0 && g.worldSel < len(g.content.Worlds) {
-		leftFooter = g.chartFooterLines(g.content.Worlds[g.worldSel].Desc, leftW-2, panelBodyH-len(leftLines))
+		leftFooter = g.chartFooterLines(g.content.Worlds[g.worldSel].Desc, leftW-2, panelBodyH-4)
 	}
 	selRow := -1
 	for _, h := range worldHits {

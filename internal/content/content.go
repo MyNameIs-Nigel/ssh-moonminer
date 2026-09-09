@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -16,13 +17,16 @@ import (
 
 // System is one large travel region on the star chart.
 type System struct {
+	SalvageAdvance    int      `toml:"salvage_advance"`
 	ID                string   `toml:"id"`
 	Name              string   `toml:"name"`
 	Links             []string `toml:"links"`
 	StartsUnlocked    bool     `toml:"starts_unlocked"`
-	TransferFee       int      `toml:"transfer_fee"`
+	RequiredRating    int      `toml:"required_rating"`
+	Signature         string   `toml:"signature"`
+	Pressure          string   `toml:"pressure"`
+	Hostile           bool     `toml:"hostile"`
 	RequiredShipClass string   `toml:"required_ship_class"`
-	RequiredItemID    string   `toml:"required_item_id"`
 }
 
 // World is one mineable destination on the star chart. The retained Go name
@@ -49,6 +53,7 @@ type World struct {
 	PirateStartDistance  float64 `toml:"pirate_start_distance"`
 	PiratesAlwaysAttack  bool    `toml:"pirates_always_attack"`
 	PirateAttackMul      float64 `toml:"pirate_attack_mul"`
+	InstabilityPerSecond float64 `toml:"instability_per_second"`
 }
 
 // Pirate is one named roster entry — docs/gameplay/07-pirate-combat-and-
@@ -229,8 +234,7 @@ const StarterShipID = "skiff"
 // ShipModel is one purchasable hull design (gameplay/05's "4 starter
 // ships"). Track *Start/*Cap fields are grades 0..5 (E..S) — the range this
 // specific hull can ever install for that track. UtilitySlots/WeaponSlots
-// are slot counts; every ship has exactly one Internal slot and one dedicated
-// Jump Drive slot (not configurable per-ship, per gameplay/05).
+// are slot counts; InternalSlots is one except on the two-slot Lantern.
 type ShipModel struct {
 	ID    string `toml:"id"`
 	Name  string `toml:"name"`
@@ -243,8 +247,13 @@ type ShipModel struct {
 	BaseMass  float64 `toml:"base_mass"`
 	BaseCargo float64 `toml:"base_cargo"` // unit capacity before Extra Cargo devices
 
-	UtilitySlots int `toml:"utility_slots"`
-	WeaponSlots  int `toml:"weapon_slots"`
+	UtilitySlots  int      `toml:"utility_slots"`
+	WeaponSlots   int      `toml:"weapon_slots"`
+	InternalSlots int      `toml:"internal_slots"`
+	SoldIn        []string `toml:"sold_in"`
+	NoBuyback     bool     `toml:"no_buyback"`
+	NoShield      bool     `toml:"no_shield"`
+	DockRepairPct float64  `toml:"dock_repair_pct"`
 
 	ThrustersStart int `toml:"thrusters_start"`
 	ThrustersCap   int `toml:"thrusters_cap"`
@@ -383,7 +392,7 @@ type SlotsConfig struct {
 	HeatSinkBasePrice        int     `toml:"heat_sink_base_price"`
 	HeatSinkCapacityPerGrade float64 `toml:"heat_sink_capacity_per_grade"`
 
-	JumpDriveBasePrice int `toml:"jump_drive_base_price"`
+	LegacyDriveBasePrice int `toml:"legacy_drive_base_price"`
 }
 
 type worldsFile struct {
@@ -392,16 +401,20 @@ type worldsFile struct {
 }
 
 type balanceFile struct {
-	Pilot  PilotStart   `toml:"pilot"`
-	Belt   BeltConfig   `toml:"belt"`
-	Tiers  TierConfig   `toml:"tiers"`
-	Mining MiningConfig `toml:"mining"`
-	Combat CombatConfig `toml:"combat"`
-	Events EventsConfig `toml:"events"`
-	Port   PortConfig   `toml:"port"`
-	Fleet  FleetConfig  `toml:"fleet"`
-	Slots  SlotsConfig  `toml:"slots"`
-	Ships  []ShipModel  `toml:"ships"`
+	Jump    JumpConfig   `toml:"jump"`
+	Ferry   FerryConfig  `toml:"ferry"`
+	Gates   []Gate       `toml:"gates"`
+	Ratings []Rating     `toml:"ratings"`
+	Pilot   PilotStart   `toml:"pilot"`
+	Belt    BeltConfig   `toml:"belt"`
+	Tiers   TierConfig   `toml:"tiers"`
+	Mining  MiningConfig `toml:"mining"`
+	Combat  CombatConfig `toml:"combat"`
+	Events  EventsConfig `toml:"events"`
+	Port    PortConfig   `toml:"port"`
+	Fleet   FleetConfig  `toml:"fleet"`
+	Slots   SlotsConfig  `toml:"slots"`
+	Ships   []ShipModel  `toml:"ships"`
 }
 
 type piratesFile struct {
@@ -410,6 +423,10 @@ type piratesFile struct {
 
 // Content is immutable validated game configuration.
 type Content struct {
+	Jump    JumpConfig
+	Ferry   FerryConfig
+	Gates   []Gate
+	Ratings []Rating
 	Systems []System
 	Worlds  []World
 	Pilot   PilotStart
@@ -427,6 +444,7 @@ type Content struct {
 
 // ShipByID returns the ship model with the given ID, or nil.
 func (c *Content) ShipByID(id string) *ShipModel {
+	id, _, _ = strings.Cut(id, "@")
 	for i := range c.Ships {
 		if c.Ships[i].ID == id {
 			return &c.Ships[i]
@@ -465,6 +483,7 @@ func Load(overrideDir string) (*Content, error) {
 	}
 	c := &Content{
 		Systems: wf.Systems,
+		Jump:    bf.Jump, Ferry: bf.Ferry, Gates: bf.Gates, Ratings: bf.Ratings,
 		Worlds:  wf.Destinations,
 		Pilot:   bf.Pilot,
 		Belt:    bf.Belt,
@@ -500,6 +519,9 @@ func decodeTOML(fsys fs.FS, name string, v any) error {
 }
 
 func (c *Content) validate() error {
+	if err := c.validateJump(); err != nil {
+		return err
+	}
 	// TOML supports nan/inf; ordinary range comparisons do not reject NaN.
 	// Validate all numeric leaves once at boot, including future tuning fields.
 	if err := validateFinite(reflect.ValueOf(*c), "content"); err != nil {
@@ -535,15 +557,13 @@ func (c *Content) validate() error {
 		if systems[system.ID] {
 			return fmt.Errorf("content: duplicate system id %q", system.ID)
 		}
-		if system.TransferFee < 0 {
-			return fmt.Errorf("content: system %q transfer_fee must be non-negative", system.ID)
+		if system.RequiredRating < -1 {
+			return fmt.Errorf("content: system %q required_rating must be at least -1", system.ID)
 		}
 		if system.RequiredShipClass != "" && !validClasses[system.RequiredShipClass] {
 			return fmt.Errorf("content: system %q has invalid required_ship_class %q", system.ID, system.RequiredShipClass)
 		}
-		if system.RequiredItemID != "" && system.RequiredItemID != "jump_drive" {
-			return fmt.Errorf("content: system %q has unsupported required_item_id %q", system.ID, system.RequiredItemID)
-		}
+
 		systems[system.ID] = true
 	}
 	for _, system := range c.Systems {
@@ -745,7 +765,7 @@ func (c *Content) SystemByID(id string) *System {
 	return nil
 }
 
-var validBrands = map[string]bool{"federation": true, "alliance": true, "independent": true}
+var validBrands = map[string]bool{"federation": true, "alliance": true, "independent": true, "frontier": true}
 var validClasses = map[string]bool{"miner": true, "fighter": true, "freighter": true}
 
 const maxGrade = 5

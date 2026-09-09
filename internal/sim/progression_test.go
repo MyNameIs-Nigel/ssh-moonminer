@@ -58,15 +58,17 @@ func TestRouteGatesAndPermits(t *testing.T) {
 	if got := sim.RouteLockReason(s, c, 3); got != "" {
 		t.Fatalf("Titan route remains locked: %q", got)
 	}
-	if got := sim.RouteLockReason(s, c, 4); got != "NEED JUMP DRIVE" {
-		t.Fatalf("Eridani lock = %q", got)
+	if got := sim.RouteLockReason(s, c, 4); got != "NOT IN SYSTEM — JUMP TO ERIDANI DRIFT FIRST" {
+		t.Fatal(got)
 	}
-	if err := sim.InstallSlotDevice(s, c, "warden", sim.SlotJumpDrive, 0, sim.ItemJumpDrive, 0); err != nil {
+	s.JumpClass = 0
+	if _, err := sim.Jump(s, c, "eridani", 1); err != nil {
 		t.Fatal(err)
 	}
 	if got := sim.RouteLockReason(s, c, 4); got != "" {
-		t.Fatalf("Eridani route remains locked: %q", got)
+		t.Fatal(got)
 	}
+
 }
 
 func TestSolDestinationOrderKeepsTitanBeforeEridani(t *testing.T) {
@@ -93,9 +95,11 @@ func TestEridaniRingsAreSlowAndLethal(t *testing.T) {
 
 	s := sim.New(c, 78, 0)
 	s.Credits = 100000
-	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotJumpDrive, 0, sim.ItemJumpDrive, 0); err != nil {
+	s.JumpClass = 0
+	if _, err := sim.Jump(s, c, "eridani", 1); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 0, sim.ItemFuelTank, 1); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +205,7 @@ func TestVersionThreeSaveMigratesToSolWithEmptyCargo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.SystemID != "sol" || got.CargoValue != 0 || got.SystemPermits == nil || got.DestinationPermits == nil {
+	if got.SystemID != "sol" || got.CargoValue != 0 || got.JumpClass != -1 || got.DestinationPermits == nil {
 		t.Fatalf("bad v3 migration: %+v", got)
 	}
 }

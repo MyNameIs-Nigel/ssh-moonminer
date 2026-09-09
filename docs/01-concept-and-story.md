@@ -80,19 +80,19 @@ expansion:
 | System | Starting access | Design role | Built? |
 | --- | --- | --- | --- |
 | **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit | shipped |
-| **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks | shipped |
-| **KEPLER REACH** | Jump Rating Class D | **planning pressure** — vast distances, few docks, punishing fuel arithmetic | **designed, not built** |
-| **REDLINE EXPANSE** | Jump Rating Class C | **everything, faster** — unstable belts, short pirate ETAs, a hard clock | **designed, not built** |
+| **ERIDANI DRIFT** | Jump Rating Class E | harsher rings, distant pirates, lethal attacks | shipped |
+| **KEPLER REACH** | Jump Rating Class D | **planning pressure** — vast distances, few docks, punishing fuel arithmetic | **shipped on beta 2.0.0** |
+| **REDLINE EXPANSE** | Jump Rating Class C | **everything, faster** — unstable belts, short pirate ETAs, a hard clock | **shipped on beta 2.0.0** |
 
 > **Updated by** [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md):
 > the "locked by an installed Jump Drive" gate on Eridani and the "expensive
 > transfer + higher jump rating" gate on Kepler are both replaced by the pilot
 > **Jump Rating** ladder (Class E → D → C). That doc also specifies the two
-> unbuilt systems above, three frontier hulls, and the located-hangar model in
+> frontier systems above, three frontier hulls, and the located-hangar model in
 > which ships are parked at a specific dock rather than following the pilot.
 
-`data/worlds.toml` ships the first two systems and eight destinations between
-them. The last two remain aspirational, and "late-game station value" is doubly
+`data/worlds.toml` on beta ships all four systems and eleven destinations.
+Stations remain aspirational, and "late-game station value" is doubly
 so — **stations and cosmetics were never implemented**; see `README.md`
 § "Designed but not built" before planning against either.
 
@@ -102,8 +102,8 @@ planet locked behind a permit, and one outer destination that needs both a
 bigger tank and a better ship.
 
 Ships gate range and risk capacity. **Superseded:** the five-ship list below
-is historical — the authoritative fleet is now 4 ships across 3 brands
-(Federation, Alliance, Independent) and 3 classes (Miner, Fighter, Freighter),
+is historical — the authoritative beta fleet is now 7 ships across 4 brands
+(Federation, Alliance, Independent, Frontier) and 3 classes (Miner, Fighter, Freighter),
 each with persistent per-ship stat grades and swappable slot devices under a
 per-ship power/mass budget, owned simultaneously in a hangar rather than
 replaced one-for-one. See

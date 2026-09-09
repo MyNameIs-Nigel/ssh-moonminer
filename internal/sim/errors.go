@@ -21,7 +21,6 @@ var (
 	ErrInvalidRunPhase   = errors.New("action not valid in current run phase")
 	ErrOutOfRange        = errors.New("asteroid is beyond scanner range")
 	ErrRouteLocked       = errors.New("route is locked")
-	ErrRouteKeyRequired  = errors.New("required route key cannot be removed in this system")
 	ErrInvalidSystem     = errors.New("invalid system")
 	ErrAlreadyUnlocked   = errors.New("route already unlocked")
 	ErrCargoEmpty        = errors.New("cargo hold is empty")
@@ -29,6 +28,7 @@ var (
 	ErrCargoDoesNotFit   = errors.New("cargo does not fit in the selected ship or loadout")
 
 	// Fleet/shipyard errors (gameplay/05-fleet-ships-and-shipyard-economy.md).
+	ErrShipRemote       = errors.New("ship is at another system — use the hauler ferry")
 	ErrInvalidShip      = errors.New("unknown ship model")
 	ErrAlreadyOwned     = errors.New("ship already owned")
 	ErrNotOwned         = errors.New("ship not owned")

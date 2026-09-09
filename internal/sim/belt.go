@@ -161,9 +161,13 @@ func Dock(s *State, c *content.Content) {
 	if s.Run != nil {
 		return
 	}
+	arrived := !s.IsDocked()
 	s.WorldIdx = -1
 	s.Belt = nil
 	s.Scan = nil
+	if model := c.ShipByID(s.ActiveShipID); arrived && model != nil && model.DockRepairPct > 0 {
+		setActiveHull(s, c, s.Hull+int(math.Round(float64(MaxHull(s, c))*model.DockRepairPct)))
+	}
 	RearmJammer(s, c)
 	RearmEMPLaunchers(s)
 	RearmMissiles(s, c)
@@ -178,7 +182,7 @@ func Dock(s *State, c *content.Content) {
 // way to bypass the Scanner distance lock that gates Lock()/manual Scan().
 func applySeismicSensors(s *State, c *content.Content) {
 	inst := ActiveShip(s)
-	if inst == nil || inst.Internal == nil || inst.Internal.ItemID != ItemSeismic {
+	if inst == nil || internalDevice(inst, ItemSeismic) == nil {
 		return
 	}
 	n := c.Slots.SeismicScanCount
@@ -207,7 +211,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 		picked = append(picked, idx)
 	}
 
-	minTier := seismicMinTierGuarantee(inst.Internal.Grade)
+	minTier := seismicMinTierGuarantee(internalDevice(inst, ItemSeismic).Grade)
 	if minTier == 0 {
 		return
 	}

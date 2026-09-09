@@ -231,10 +231,14 @@ func (s *Session) Insurance(now int64) (Snapshot, error) {
 	})
 }
 
-func (s *Session) BuySystemPermit(now int64, systemID string) (Snapshot, error) {
-	return s.intent(now, func(st *sim.State) error {
-		return sim.BuySystemPermit(st, s.actor.content(), systemID)
-	})
+func (s *Session) Jump(now int64, systemID string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { _, err := sim.Jump(st, s.actor.content(), systemID, now); return err })
+}
+func (s *Session) CertifyRating(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { return sim.CertifyRating(st, s.actor.content()) })
+}
+func (s *Session) FerryShip(now int64, shipID, to string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { return sim.FerryShip(st, s.actor.content(), shipID, to) })
 }
 
 func (s *Session) BuyDestinationPermit(now int64, destinationID string) (Snapshot, error) {

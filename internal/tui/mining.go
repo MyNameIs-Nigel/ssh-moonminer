@@ -128,6 +128,9 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	hullPct := sim.HullPct(st, g.content)
 
 	leftLines := []string{title}
+	if w := g.content.WorldByIndex(st.WorldIdx); w != nil && w.InstabilityPerSecond > 0 {
+		leftLines = append(leftLines, theme.Red.Render(fmt.Sprintf("BELT STABILITY %.0f%% · COLLAPSE IN %.0fs", run.BeltStability*100, run.BeltStability/w.InstabilityPerSecond)))
+	}
 	if sim.FuelMinerRecoveryMul(st, g.content) > 0 {
 		if run.FuelAsteroid {
 			leftLines = append(leftLines, theme.Green.Render("FUEL SCAN: RICH VEIN — FUEL MINER RECOVERING DRILL BURN"))

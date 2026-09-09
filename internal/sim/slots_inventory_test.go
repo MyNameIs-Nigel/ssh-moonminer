@@ -192,15 +192,13 @@ func TestInstallSlotDeviceFromInventoryRejectsWrongKindAndOverPower(t *testing.T
 	}
 }
 
-// TestInstallSlotDeviceFromInventoryReequipsJumpDrive ensures a stored Jump
-// Drive remains usable: it is now the permanent Eridani Drift route key.
-func TestInstallSlotDeviceFromInventoryReequipsJumpDrive(t *testing.T) {
+// Legacy route devices are removed at the save boundary (TestV7RatingMigrationAndClone).
+func TestRetiredRouteDeviceCannotBeInstalled(t *testing.T) {
 	c := testContent(t)
-	s := sim.New(c, 1, 1000)
-	s.Inventory = []*sim.SlotDevice{{ItemID: sim.ItemJumpDrive, Grade: 0}}
-
-	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotJumpDrive, 0, 0); err != nil {
-		t.Fatalf("re-equip stored Jump Drive: %v", err)
+	s := sim.New(c, 1, 0)
+	s.Inventory = []*sim.SlotDevice{{ItemID: "jump_drive"}}
+	if err := sim.InstallSlotDeviceFromInventory(s, c, "skiff", sim.SlotUtility, 0, 0); err != sim.ErrItemLocked {
+		t.Fatalf("retired device install = %v", err)
 	}
 }
 

@@ -211,6 +211,27 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 	case ovSignalLost:
 		// Dismissed by any input, mouse included — the game is mouse-everywhere.
 		return g.dismissSignalLost()
+	case ovJump:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "jump:cancel" {
+			return g.updateJumpConfirm("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "jump:confirm" {
+			return g.updateJumpConfirm("enter")
+		}
+	case ovCertify:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "certify:cancel" {
+			return g.updateCertify("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "certify:confirm" {
+			return g.updateCertify("enter")
+		}
+	case ovFerry:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "ferry:cancel" {
+			return g.updateFerry("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "ferry:confirm" {
+			return g.updateFerry("enter")
+		}
 	case ovPermit:
 		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "permit:buy" {
 			return g.confirmPermitPurchase()

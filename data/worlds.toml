@@ -3,14 +3,20 @@ id = "sol"
 name = "SOL"
 links = ["eridani"]
 starts_unlocked = true
-transfer_fee = 0
+required_rating = -1
+signature = "The light of home."
+pressure = "Learn. Safe, thin, always recoverable."
 
 [[systems]]
 id = "eridani"
 name = "ERIDANI DRIFT"
-links = ["sol"]
+links = ["sol", "kepler"]
 starts_unlocked = true
-required_item_id = "jump_drive"
+required_rating = 0
+salvage_advance = 900
+signature = "Every signal has teeth."
+pressure = "Fight. Arm yourself before the drift arms against you."
+hostile = true
 
 [[destinations]]
 id = "ceres_claims"
@@ -95,7 +101,7 @@ rarity_label = "RARE-HEAVY"
 desc = "The first drift ring. Signals begin far out and end in gunfire."
 art = "ringed"
 starts_unlocked = true
-required_fuel_capacity = 120
+required_fuel_capacity = 0
 permit_fee = 0
 drill_time_mul = 1.4
 pirate_start_distance = 170
@@ -143,3 +149,98 @@ drill_time_mul = 2.0
 pirate_start_distance = 220
 pirates_always_attack = true
 pirate_attack_mul = 3.5
+
+[[systems]]
+id = "kepler"
+name = "KEPLER REACH"
+links = ["eridani", "redline"]
+required_rating = 1
+salvage_advance = 900
+signature = "Beyond the last beacon, count your fuel."
+pressure = "Plan. Long routes, few docks, rich returns."
+
+[[systems]]
+id = "redline"
+name = "REDLINE EXPANSE"
+links = ["kepler"]
+required_rating = 2
+salvage_advance = 900
+signature = "The rocks are coming apart. So is your margin."
+pressure = "Everything, faster. Unstable belts and hunters on a hard clock."
+hostile = true
+
+[[destinations]]
+id = "wayfarer"
+system_id = "kepler"
+name = "WAYFARER"
+sub = "BEACON FIELD"
+ring = "DENSE"
+pirate_label = "MODERATE"
+pirate_mul = 1.05
+rarity_bias = 0.4
+travel_fuel = 32
+rarity_label = "RICH"
+desc = "Long burns between rich deposits. Plan the fuel for the whole expedition."
+art = "ringed"
+starts_unlocked = true
+required_fuel_capacity = 0
+pirate_start_distance = 150
+pirates_always_attack = false
+instability_per_second = 0
+
+[[destinations]]
+id = "longreach"
+system_id = "kepler"
+name = "LONGREACH"
+sub = "OUTER RESERVOIR"
+ring = "DENSE"
+pirate_label = "MODERATE"
+pirate_mul = 1.2
+rarity_bias = 0.65
+travel_fuel = 65
+rarity_label = "RICH"
+desc = "Long burns between rich deposits. Plan the fuel for the whole expedition."
+art = "ringed"
+starts_unlocked = true
+required_fuel_capacity = 180
+pirate_start_distance = 170
+pirates_always_attack = false
+instability_per_second = 0
+
+[[destinations]]
+id = "ember"
+system_id = "redline"
+name = "EMBER"
+sub = "FRACTURE FIELD"
+ring = "DENSE"
+pirate_label = "EXTREME"
+pirate_mul = 1.8
+rarity_bias = 0.65
+travel_fuel = 36
+rarity_label = "RICH"
+desc = "Unstable ore fractures while you drill. Leave before the field collapses."
+art = "ringed"
+starts_unlocked = true
+required_fuel_capacity = 0
+pirate_start_distance = 65
+pirates_always_attack = true
+instability_per_second = 0.002
+
+[[destinations]]
+id = "rupture"
+system_id = "redline"
+name = "RUPTURE"
+sub = "COLLAPSE RING"
+ring = "DENSE"
+pirate_label = "EXTREME"
+pirate_mul = 2.3
+rarity_bias = 0.85
+travel_fuel = 75
+rarity_label = "RICH"
+desc = "Unstable ore fractures while you drill. Leave before the field collapses."
+art = "ringed"
+starts_unlocked = true
+required_fuel_capacity = 200
+pirate_start_distance = 50
+pirates_always_attack = true
+instability_per_second = 0.004

@@ -13,7 +13,7 @@ import (
 func (g *Game) keySummary(k string) []tea.Cmd {
 	if g.lastOutcome != nil && g.lastOutcome.Kind == sim.OutcomeShipLost {
 		// No belt to return to — the ship, its cargo, and its upgrades are
-		// gone and the pilot has already respawned at the Sol dock.
+		// gone and the pilot has already respawned at the local dock.
 		switch k {
 		case "enter", " ", "q":
 			snap, _ := g.sess.Dock(g.now)
@@ -89,7 +89,7 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 		"",
 		theme.Red.Render("LOST: ") + theme.TxtStyle.Render("active ship, installed upgrades, unsold cargo"),
 		theme.Red.Render(fmt.Sprintf("CARGO LOST: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.CargoValueLost)),
-		theme.Green.Render("KEPT: ") + theme.TxtStyle.Render("banked credits, route permits, settings"),
+		theme.Green.Render("KEPT: ") + theme.TxtStyle.Render("banked credits, jump rating, permits, settings"),
 		theme.Gold.Render(fmt.Sprintf("BALANCE: %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits)),
 		"",
 		theme.TxtStyle.Render(fmt.Sprintf("RECOVERY HULL: %s — HULL %d/%d  FUEL %.0f/%.0f",

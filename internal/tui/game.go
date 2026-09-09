@@ -35,6 +35,7 @@ const (
 	scrLog
 	scrShipyard
 	scrDeath
+	scrJump
 )
 
 type overlay int
@@ -50,6 +51,9 @@ const (
 	ovSlotRemove
 	ovPermit
 	ovSignalLost
+	ovJump
+	ovCertify
+	ovFerry
 )
 
 type (
@@ -83,9 +87,15 @@ type Game struct {
 	tweaksSel  int
 	devSel     int
 
-	worldSel  int
-	rockSel   int
-	logScroll int
+	jumpFlash      bool
+	jumpTarget     string
+	jumpBeat       int
+	jumpGeneration uint64
+	jumpResult     *sim.JumpResult
+	ferrySel       int
+	worldSel       int
+	rockSel        int
+	logScroll      int
 
 	// Shipyard screen navigation state (internal/tui/shipyard.go).
 	shipyardPane      int
@@ -241,6 +251,20 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, g.consumeRunOutcome()...)
 		cmds = append(cmds, tickCmd())
+	case jumpTickMsg:
+		if g.scr == scrJump && m.generation == g.jumpGeneration && g.jumpBeat > 0 {
+			g.jumpBeat--
+			if g.jumpBeat > 0 {
+				cmds = append(cmds, jumpTickCmd(g.jumpGeneration))
+			} else {
+				g.jumpFlash = true
+				cmds = append(cmds, jumpFlashCmd(g.jumpGeneration))
+			}
+		}
+	case jumpFlashDoneMsg:
+		if g.scr == scrJump && m.generation == g.jumpGeneration {
+			g.jumpFlash = false
+		}
 	case deathTickMsg:
 		if g.scr == scrDeath && g.deathFrame < g.deathFlickerFrames {
 			g.deathFrame++
@@ -340,6 +364,12 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		return g.updateSlotPickerOverlay(m.String())
 	case ovSlotRemove:
 		return g.updateSlotRemoveOverlay(m.String())
+	case ovJump:
+		return g.updateJumpConfirm(m.String())
+	case ovCertify:
+		return g.updateCertify(m.String())
+	case ovFerry:
+		return g.updateFerry(m.String())
 	case ovPermit:
 		return g.updatePermitOverlay(m.String())
 	}
@@ -348,6 +378,9 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 
 func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 	k := m.String()
+	if g.scr == scrJump {
+		return g.keyJump(k)
+	}
 	// The death screen bypasses overlay compositing entirely (see View()),
 	// so an overlay opened here would be invisible and unclosable — never
 	// let these global bindings open one while g.scr == scrDeath.
@@ -467,6 +500,8 @@ func (g *Game) View() tea.View {
 	} else {
 		var frame string
 		switch {
+		case g.scr == scrJump:
+			frame = g.renderJump()
 		case g.scr == scrDeath:
 			frame = g.renderDeath()
 		case g.combatIntroActive:

@@ -67,11 +67,11 @@ func TestVersionFourChaffMigratesToArmedEMPLauncher(t *testing.T) {
 	}
 }
 
-func TestVersionSixMigratesJumpDriveAndMassDriver(t *testing.T) {
+func TestVersionSixMigratesRatingAndMassDriver(t *testing.T) {
 	c := testContent(t)
 	s := sim.New(c, 45, 1000)
 	s.Version = 6
-	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemJumpDrive, Grade: 2}
+	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: "jump_drive", Grade: 2}
 	s.Ships["skiff"].Weapon = []*sim.SlotDevice{{ItemID: "mass_driver", Grade: 3}}
 	s.Inventory = []*sim.SlotDevice{{ItemID: "mass_driver", Grade: 1}}
 
@@ -84,9 +84,10 @@ func TestVersionSixMigratesJumpDriveAndMassDriver(t *testing.T) {
 		t.Fatal(err)
 	}
 	ship := got.Ships["skiff"]
-	if ship.Internal != nil || ship.JumpDrive == nil || ship.JumpDrive.ItemID != sim.ItemJumpDrive {
-		t.Fatalf("legacy jump drive migration = internal %+v jump %+v", ship.Internal, ship.JumpDrive)
+	if ship.Internal != nil || got.JumpClass != 0 {
+		t.Fatal("legacy drive did not become Class E")
 	}
+
 	if d := ship.Weapon[0]; d.ItemID != sim.ItemMissileLauncher || d.Missiles != sim.MissileCapacity(c, d.Grade) {
 		t.Fatalf("legacy fitted mass driver migration = %+v", d)
 	}

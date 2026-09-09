@@ -23,6 +23,12 @@ func (g *Game) renderOverlay() string {
 		return g.renderSlotPickerOverlay()
 	case ovSlotRemove:
 		return g.renderSlotRemoveOverlay()
+	case ovJump:
+		return g.renderJumpConfirm()
+	case ovCertify:
+		return g.renderCertify()
+	case ovFerry:
+		return g.renderFerry()
 	case ovPermit:
 		return g.renderPermitOverlay()
 	case ovKicked:

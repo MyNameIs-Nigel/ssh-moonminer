@@ -2,7 +2,9 @@ package sim
 
 import (
 	"cmp"
+	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
@@ -208,6 +210,9 @@ func BuyShipTrack(s *State, c *content.Content, shipID string, t Track) error {
 	inst := s.Ships[shipID]
 	if inst == nil {
 		return ErrInvalidShip
+	}
+	if inst.SystemID != s.SystemID {
+		return ErrShipRemote
 	}
 	model := c.ShipByID(inst.ModelID)
 	if model == nil {
@@ -513,7 +518,8 @@ func freshShipInstance(c *content.Content, modelID string) *ShipInstance {
 		return nil
 	}
 	inst := &ShipInstance{
-		ModelID: modelID,
+		ModelID:            modelID,
+		AdditionalInternal: make([]*SlotDevice, model.InternalSlots-1),
 		Grades: TrackGrades{
 			Thrusters: model.ThrustersStart,
 			Hull:      model.HullStart,
@@ -540,7 +546,15 @@ func grantStarterShip(s *State, c *content.Content) {
 	if s.ShipsUnlocked == nil {
 		s.ShipsUnlocked = make(map[string]bool)
 	}
+	if old := s.Ships[content.StarterShipID]; old != nil && old.SystemID != s.SystemID {
+		id := "skiff@" + old.SystemID
+		for i := 2; s.Ships[id] != nil; i++ {
+			id = fmt.Sprintf("skiff@%s-%d", old.SystemID, i)
+		}
+		s.Ships[id] = old
+	}
 	s.Ships[content.StarterShipID] = freshShipInstance(c, content.StarterShipID)
+	s.Ships[content.StarterShipID].SystemID = s.SystemID
 	s.ShipsUnlocked[content.StarterShipID] = true
 	s.ActiveShipID = content.StarterShipID
 }
@@ -553,7 +567,7 @@ func ShipAcquirePrice(s *State, c *content.Content, modelID string) int {
 	if model == nil {
 		return 0
 	}
-	if s.ShipsUnlocked != nil && s.ShipsUnlocked[modelID] {
+	if !model.NoBuyback && s.ShipsUnlocked != nil && s.ShipsUnlocked[modelID] {
 		return roundTo10(float64(model.Price) * c.Fleet.BuybackPricePct)
 	}
 	return model.Price
@@ -565,8 +579,9 @@ func roundTo10(v float64) int {
 
 // IsBuyback reports whether modelID would currently price as a buyback
 // (previously owned, not currently owned) rather than a first purchase.
-func IsBuyback(s *State, modelID string) bool {
-	return !OwnsShip(s, modelID) && s.ShipsUnlocked != nil && s.ShipsUnlocked[modelID]
+func IsBuyback(s *State, c *content.Content, modelID string) bool {
+	model := c.ShipByID(modelID)
+	return model != nil && !model.NoBuyback && ShipSoldHere(s, c, modelID) && !OwnsShip(s, modelID) && s.ShipsUnlocked != nil && s.ShipsUnlocked[modelID]
 }
 
 // activateShip makes modelID (already present in s.Ships) active without any
@@ -584,12 +599,20 @@ func AcquireShip(s *State, c *content.Content, modelID string) error {
 	if !s.IsDocked() {
 		return ErrInBelt
 	}
+	if modelID == content.StarterShipID && localShipCount(s) == 0 {
+		grantStarterShip(s, c)
+		syncActiveConditionMirror(s, c)
+		return nil
+	}
 	if OwnsShip(s, modelID) {
 		return ErrAlreadyOwned
 	}
 	model := c.ShipByID(modelID)
 	if model == nil {
 		return ErrInvalidShip
+	}
+	if !ShipSoldHere(s, c, modelID) {
+		return ErrNotEligible
 	}
 	price := ShipAcquirePrice(s, c, modelID)
 	if s.Credits < price {
@@ -605,6 +628,7 @@ func AcquireShip(s *State, c *content.Content, modelID string) error {
 		s.ShipsUnlocked = make(map[string]bool)
 	}
 	s.Ships[modelID] = freshShipInstance(c, modelID)
+	s.Ships[modelID].SystemID = s.SystemID
 	s.ShipsUnlocked[modelID] = true
 	if price > 0 {
 		s.Settings.InsuranceUsed = false
@@ -624,9 +648,8 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 	if modelID == s.ActiveShipID {
 		return nil
 	}
-	if system := c.SystemByID(s.SystemID); system != nil && system.RequiredItemID != "" &&
-		!ShipHasSlotItem(s, modelID, system.RequiredItemID) {
-		return ErrRouteKeyRequired
+	if s.Ships[modelID].SystemID != s.SystemID {
+		return ErrShipRemote
 	}
 	if s.CargoUnits > CargoCapacityUnitsFor(s, c, modelID) {
 		return ErrCargoDoesNotFit
@@ -643,6 +666,10 @@ func SwitchActiveShip(s *State, c *content.Content, modelID string) error {
 // since it's always free to reacquire), a fresh starter ship is granted
 // immediately so the pilot is never left shipless.
 func respawnActiveShip(s *State, c *content.Content) {
+	if s.ShipsLostAt == nil {
+		s.ShipsLostAt = map[string]string{}
+	}
+	s.ShipsLostAt[s.ActiveShipID] = s.SystemID
 	delete(s.Ships, s.ActiveShipID)
 	s.Stats.ShipsLost++
 	next := recoveryShipID(s, c)
@@ -654,7 +681,6 @@ func respawnActiveShip(s *State, c *content.Content) {
 	}
 	activateShip(s, c, cmp.Or(next, s.ActiveShipID))
 	s.WorldIdx = -1
-	s.SystemID = "sol"
 	s.Belt = nil
 	s.Scan = nil
 }
@@ -663,7 +689,7 @@ func respawnActiveShip(s *State, c *content.Content) {
 // if one survives, otherwise the best remaining hull. It never services the
 // chosen backup as part of selection.
 func recoveryShipID(s *State, c *content.Content) string {
-	if OwnsShip(s, content.StarterShipID) {
+	if OwnsShip(s, content.StarterShipID) && s.Ships[content.StarterShipID].SystemID == s.SystemID {
 		return content.StarterShipID
 	}
 	return bestRemainingShipID(s, c)
@@ -674,8 +700,13 @@ func bestRemainingShipID(s *State, c *content.Content) string {
 		return ""
 	}
 	ids := make([]string, 0, len(s.Ships))
-	for id := range s.Ships {
-		ids = append(ids, id)
+	for id, inst := range s.Ships {
+		if inst.SystemID == s.SystemID {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return ""
 	}
 	sort.Slice(ids, func(i, j int) bool {
 		mi, mj := c.ShipByID(ids[i]), c.ShipByID(ids[j])
@@ -692,4 +723,49 @@ func bestRemainingShipID(s *State, c *content.Content) string {
 		return ids[i] < ids[j]
 	})
 	return ids[0]
+}
+
+func localShipCount(s *State) int {
+	n := 0
+	for _, ship := range s.Ships {
+		if ship.SystemID == s.SystemID {
+			n++
+		}
+	}
+	return n
+}
+func ShipSoldHere(s *State, c *content.Content, id string) bool {
+	model := c.ShipByID(id)
+	if model == nil {
+		return false
+	}
+	return id == content.StarterShipID || slices.Contains(model.SoldIn, s.SystemID) || !model.NoBuyback && s.ShipsUnlocked[id] && s.ShipsLostAt[id] == s.SystemID
+}
+func localMinTravelFuel(s *State, c *content.Content) int {
+	n := int(^uint(0) >> 1)
+	for i, w := range c.Worlds {
+		if w.SystemID == s.SystemID && RouteLockReason(s, c, i) == "" {
+			n = min(n, w.TravelFuel)
+		}
+	}
+	return n
+}
+
+// HangarIDs includes catalog hulls and locally issued rescue Skiffs without
+// hiding or relocating a Skiff already parked elsewhere.
+func HangarIDs(s *State, c *content.Content) []string {
+	ids := []string{}
+	seen := map[string]bool{}
+	for _, m := range c.Ships {
+		ids = append(ids, m.ID)
+		seen[m.ID] = true
+	}
+	extra := []string{}
+	for id := range s.Ships {
+		if !seen[id] {
+			extra = append(extra, id)
+		}
+	}
+	sort.Strings(extra)
+	return append(ids, extra...)
 }

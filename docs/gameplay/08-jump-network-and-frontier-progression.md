@@ -10,6 +10,8 @@ and the system-level `transfer_fee` model in gameplay/03.
 Like gameplay/05 and gameplay/07, this doc owns both sim and TUI work — the
 jump sequence and the sim's transit resolution are too coupled to spec apart.
 
+**Implemented on beta in 2.0.0.** See the [implementation and test audit](../tests/04-beta-progression-audit.md) for resolved decisions, recovery balance, and verification coverage.
+
 ## Goal
 
 Turn crossing a system boundary from a menu selection into the game's second
@@ -472,37 +474,37 @@ the same shape, as do ratings D and C.
 
 ## Acceptance criteria
 
-- [ ] Jump Rating survives ship death, cannot be sold, stored, or moved; no
-  code path writes it outside `CertifyRating`.
-- [ ] v7→v8 migration grants Class E to every pilot holding a Jump Drive or an
-  Eridani permit, refunds removed devices, and stamps every `ShipInstance`
+- [x] Jump Rating survives ship death, cannot be sold, stored, or moved; no
+  gameplay action writes it outside `CertifyRating` (initialization and save migration are exceptions).
+- [x] v7→v8 migration grants Class E to every pilot holding a Jump Drive or an
+  Eridani permit, refunds only additional devices after the first grant, and stamps every `ShipInstance`
   with a `SystemID` — round-tripped in a store test against real v7 blobs.
-- [ ] `SlotJumpDrive`, `ItemJumpDrive` and `ErrRouteKeyRequired` are absent
+- [x] `SlotJumpDrive`, `ItemJumpDrive` and `ErrRouteKeyRequired` are absent
   from the codebase; the Shipyard renders no JUMP DRIVE row.
-- [ ] A gate refuses in both directions without the rating (table test over
+- [x] A gate refuses in both directions without the rating (table test over
   every gate × every class).
-- [ ] Jump fuel is charged on top of destination travel fuel and scales with
+- [x] Jump fuel is charged on top of destination travel fuel and scales with
   installed device mass — a table test with a light and a heavy loadout on the
   same hull.
-- [ ] Transit stress is deterministic; the drift roll is seeded from the sim
+- [x] Transit stress is deterministic; the drift roll is seeded from the sim
   RNG and replays identically (determinism test, per project convention 3).
-- [ ] Hull floors at 1 across an exhaustive drift-outcome table.
-- [ ] The confirm overlay's projected hull/fuel match the post-jump state
-  exactly, and the sub-20% warning fires exactly at
+- [x] Hull floors at 1 across an exhaustive drift-outcome table.
+- [x] The confirm overlay's projected hull/fuel are labelled before drift and match
+  a no-drift post-jump state exactly; the arrival card matches the actual result, and the sub-20% warning fires exactly at
   `fleet.event_hull_gate_pct`.
-- [ ] The jump sequence is skippable by any key and fully bypassed under
+- [x] The jump sequence is skippable by any key and fully bypassed under
   `ReducedMotion`; golden renders for departure, arrival, and drift-failure
   frames at 80×24 and 144×48.
-- [ ] Remote hulls render greyed with their location and cannot be activated;
+- [x] Remote hulls render greyed with their location and cannot be activated;
   ferry rejects unrated paths, unvisited destinations, and the active ship
   before credits change.
-- [ ] A pilot with no local hull is always offered the free Skiff at their
+- [x] A pilot with no local hull is always offered the free Skiff at their
   current dock.
-- [ ] Frontier hulls are purchasable only in their home system; VESPER has no
+- [x] Frontier hulls are purchasable only in their home system; VESPER has no
   buyback entry at any dock.
-- [ ] Invariants 1–7 pass against the shipped numbers.
+- [x] Invariants 1–7 pass against the shipped numbers.
 
-## Open decisions (need product sign-off before implementation)
+## Beta decisions (recommendations adopted for 2.0.0)
 
 1. **`State.Inventory` is account-wide and free to re-equip from any hull.**
    Under located ships that is a leak: a device stored at Sol can be equipped

@@ -29,7 +29,6 @@ const (
 	rowUtility
 	rowWeapon
 	rowInternal
-	rowJumpDrive
 )
 
 type shipyardRow struct {
@@ -46,8 +45,6 @@ func (row shipyardRow) slotKind() sim.SlotKind {
 		return sim.SlotUtility
 	case rowWeapon:
 		return sim.SlotWeapon
-	case rowJumpDrive:
-		return sim.SlotJumpDrive
 	default:
 		return sim.SlotInternal
 	}
@@ -68,24 +65,25 @@ func shipyardRows(model *content.ShipModel) []shipyardRow {
 	for i := 0; i < model.WeaponSlots; i++ {
 		rows = append(rows, shipyardRow{kind: rowWeapon, index: i})
 	}
-	rows = append(rows, shipyardRow{kind: rowInternal})
-	rows = append(rows, shipyardRow{kind: rowJumpDrive})
+	for i := 0; i < model.InternalSlots; i++ {
+		rows = append(rows, shipyardRow{kind: rowInternal, index: i})
+	}
 	return rows
 }
 
 func (g *Game) shipyardSelectedModel() *content.ShipModel {
-	if len(g.content.Ships) == 0 {
+	if len(g.hangarModels()) == 0 {
 		return nil
 	}
-	if g.shipyardHangarSel < 0 || g.shipyardHangarSel >= len(g.content.Ships) {
+	if g.shipyardHangarSel < 0 || g.shipyardHangarSel >= len(g.hangarModels()) {
 		g.shipyardHangarSel = 0
 	}
-	return &g.content.Ships[g.shipyardHangarSel]
+	return &g.hangarModels()[g.shipyardHangarSel]
 }
 
 func (g *Game) keyShipyard(k string) []tea.Cmd {
 	st := g.snap.State
-	n := len(g.content.Ships)
+	n := len(g.hangarModels())
 	if n == 0 {
 		return nil
 	}
@@ -149,12 +147,9 @@ func (g *Game) shipyardSlotTarget(inst *sim.ShipInstance, row shipyardRow) (sim.
 		}
 	case rowInternal:
 		if inst != nil {
-			current = inst.Internal
+			current = sim.InternalDevices(inst)[row.index]
 		}
-	case rowJumpDrive:
-		if inst != nil {
-			current = inst.JumpDrive
-		}
+
 	}
 	items := sim.SlotItemsFor(kind)
 	if len(items) == 0 {
@@ -191,6 +186,10 @@ func (g *Game) shipyardActivate() []tea.Cmd {
 	st := g.snap.State
 	model := g.shipyardSelectedModel()
 	if model == nil {
+		return nil
+	}
+	if inst := st.Ships[model.ID]; inst != nil && inst.SystemID != st.SystemID {
+		g.setFlash("LOCKED — SHIP IS AT " + g.content.SystemByID(inst.SystemID).Name + " · [H] FERRY ON CHART")
 		return nil
 	}
 	if g.shipyardPane == shipyardPaneHangar {
@@ -266,9 +265,7 @@ func slotDeviceAt(inst *sim.ShipInstance, row shipyardRow) *sim.SlotDevice {
 			return inst.Weapon[row.index]
 		}
 	case rowInternal:
-		return inst.Internal
-	case rowJumpDrive:
-		return inst.JumpDrive
+		return sim.InternalDevices(inst)[row.index]
 	}
 	return nil
 }
@@ -358,9 +355,9 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 		line string
 		id   int
 	}
-	lines := make([]string, 0, len(g.content.Ships)+4)
-	hits := make([]hangarHit, 0, len(g.content.Ships))
-	for i, model := range g.content.Ships {
+	lines := make([]string, 0, len(g.hangarModels())+4)
+	hits := make([]hangarHit, 0, len(g.hangarModels()))
+	for i, model := range g.hangarModels() {
 		sel := i == g.shipyardHangarSel
 		marker := "  "
 		if sel {
@@ -372,9 +369,11 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 		case model.ID == st.ActiveShipID:
 			suffix = theme.Green.Render("ACTIVE")
 			style = theme.OptionHC(theme.HueViolet, sel && g.shipyardPane == shipyardPaneHangar, st.Settings.HighContrast)
+		case sim.OwnsShip(st, model.ID) && st.Ships[model.ID].SystemID != st.SystemID:
+			suffix = "AT " + g.content.SystemByID(st.Ships[model.ID].SystemID).Name
 		case sim.OwnsShip(st, model.ID):
 			style = theme.OptionHC(theme.HueViolet, sel && g.shipyardPane == shipyardPaneHangar, st.Settings.HighContrast)
-		case sim.IsBuyback(st, model.ID):
+		case sim.IsBuyback(st, g.content, model.ID):
 			suffix = theme.Amber.Render(fmt.Sprintf("LOST·%d", sim.ShipAcquirePrice(st, g.content, model.ID)))
 			if sel {
 				style = theme.Bright
@@ -383,6 +382,9 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 			}
 		default:
 			suffix = theme.DimStyle.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), model.Price))
+			if !sim.ShipSoldHere(st, g.content, model.ID) {
+				suffix = "BUY AT " + g.content.SystemByID(model.SoldIn[0]).Name
+			}
 			if sel {
 				style = theme.Bright
 			}
@@ -400,10 +402,10 @@ func (g *Game) renderShipyardHangar(st *sim.State, innerW, bodyH int) (string, s
 	if model != nil && !sim.OwnsShip(st, model.ID) {
 		price := sim.ShipAcquirePrice(st, g.content, model.ID)
 		label := "BUY"
-		if sim.IsBuyback(st, model.ID) {
+		if sim.IsBuyback(st, g.content, model.ID) {
 			label = "BUY BACK"
 		}
-		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), price), st.Credits >= price, theme.HueViolet)
+		acquireBtn = theme.Button("ENTER", label, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), price), st.Credits >= price && sim.ShipSoldHere(st, g.content, model.ID), theme.HueViolet)
 		lines = append(lines, "", theme.Violet.Render("◇ ACQUIRE"), acquireBtn)
 		acquireRow = len(lines) - 1
 	}
@@ -438,7 +440,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		}, "\n")
 		price := sim.ShipAcquirePrice(st, g.content, model.ID)
 		label := "BUY"
-		if sim.IsBuyback(st, model.ID) {
+		if sim.IsBuyback(st, g.content, model.ID) {
 			label = "BUY BACK"
 		}
 		statusPlain := shipyardReflowPlain([]string{
@@ -521,30 +523,13 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		}
 	}
 	lines = append(lines, theme.DimStyle.Render("INTERNAL"))
-	{
-		var single []*sim.SlotDevice
-		if inst.Internal != nil {
-			single = []*sim.SlotDevice{inst.Internal}
-		} else {
-			single = []*sim.SlotDevice{nil}
-		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_internal", st.Settings.ASCIISafe))
+	for i := 0; i < model.InternalSlots; i++ {
+		line := g.renderSlotRow(st, sim.InternalDevices(inst), i, rowIdx, theme.Glyph("slot_internal", st.Settings.ASCIISafe))
 		lines = append(lines, line)
 		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
 		rowIdx++
 	}
-	lines = append(lines, theme.DimStyle.Render("JUMP DRIVE"))
-	{
-		var single []*sim.SlotDevice
-		if inst.JumpDrive != nil {
-			single = []*sim.SlotDevice{inst.JumpDrive}
-		} else {
-			single = []*sim.SlotDevice{nil}
-		}
-		line := g.renderSlotRow(st, single, 0, rowIdx, theme.Glyph("slot_jumpdrive", st.Settings.ASCIISafe))
-		lines = append(lines, line)
-		hits = append(hits, loadoutHit{len(lines) - 1, line, rowIdx})
-	}
+
 	sel := g.shipyardRowSel
 	if g.shipyardPane != shipyardPaneLoadout {
 		sel = 0
@@ -593,7 +578,7 @@ func (g *Game) renderShipyardLoadout(st *sim.State, model *content.ShipModel, lo
 		fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits),
 	}, statusInnerW)
 	if model.ID != st.ActiveShipID {
-		statusPlain = append(statusPlain, "", "Not active — select in HANGAR to switch/fly.")
+		statusPlain = append(statusPlain, "", "AT "+g.content.SystemByID(inst.SystemID).Name+" — use [H] ferry on chart for remote hulls.")
 	}
 	statusLines := make([]string, 0, len(statusPlain)+1)
 	for _, line := range statusPlain {
@@ -661,4 +646,17 @@ func (g *Game) renderSlotRow(st *sim.State, devices []*sim.SlotDevice, index, ro
 	}
 	line := fmt.Sprintf("%s%s %-14s %s %s%s", prefix, tag, name, gradeDots(d.Grade, sim.MaxGrade), sim.GradeLetter(d.Grade), powerGlyph)
 	return style.Render(line)
+}
+
+func (g *Game) hangarModels() []content.ShipModel {
+	models := []content.ShipModel{}
+	for _, id := range sim.HangarIDs(&g.snap.State, g.content) {
+		m := g.content.ShipByID(id)
+		if m != nil {
+			copy := *m
+			copy.ID = id
+			models = append(models, copy)
+		}
+	}
+	return models
 }

@@ -64,6 +64,8 @@ func (g *Game) helpEntries() []helpTextLine {
 			{"SHIPYARD", theme.Bright},
 			{"Tab switch HANGAR/LOADOUT focus", plain},
 			{"↑/↓ select ship, track, or slot", plain},
+			{"Remote hulls stay parked. H on the chart opens the hauler ferry.", plain},
+			{"Lantern: two internal slots. Vesper: self-repair, no shield or buyback.", plain},
 			{"Enter buy ship/track or open the item picker for a slot", plain},
 			{"X or Backspace remove — then choose store or sell for 95%", plain},
 			{"Esc or Q return to star chart", plain},
@@ -109,6 +111,10 @@ func (g *Game) helpEntries() []helpTextLine {
 	default:
 		screen = []helpTextLine{
 			{"STAR CHART", theme.Bright},
+			{"J certification: credits plus frontier work unlock the next rating", plain},
+			{"Enter on a remote destination opens a separate dock-to-dock jump", plain},
+			{"H hauler ferry: bring a parked hull to your current system", plain},
+			{"Jump countdown: any key skips; reduced motion shows arrival immediately", plain},
 			{"↑/↓ select destination", plain},
 			{"Enter depart to asteroid belt", plain},
 			{"C sell cargo + bounty vouchers · F refuel · R repair hull", plain},

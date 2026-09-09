@@ -14,9 +14,10 @@ import (
 func cloneFixture() *sim.State {
 	d := func() *sim.SlotDevice { return &sim.SlotDevice{ItemID: sim.ItemFuelTank, Fuel: 7} }
 	return &sim.State{
-		Ships:        map[string]*sim.ShipInstance{"skiff": {ModelID: "skiff", Utility: []*sim.SlotDevice{d(), nil}, Weapon: []*sim.SlotDevice{d()}, Internal: d(), JumpDrive: d()}},
+		Ships:        map[string]*sim.ShipInstance{"skiff": {ModelID: "skiff", Utility: []*sim.SlotDevice{d(), nil}, Weapon: []*sim.SlotDevice{d()}, Internal: d(), AdditionalInternal: []*sim.SlotDevice{d()}}},
 		ActiveShipID: "skiff", ShipsUnlocked: map[string]bool{"skiff": true},
-		SystemPermits: map[string]bool{"sol": true}, DestinationPermits: map[string]bool{"vesta": true},
+		Frontier:     map[string]*sim.FrontierRecord{"sol": {Visited: true, RunsByDestination: map[string]int{"vesta": 1}}},
+		CargoOrigins: map[string]int{"sol": 7}, ShipsLostAt: map[string]string{"mule": "sol"}, HotArrivals: map[string]bool{"sol": true}, CrossedGates: map[string]bool{"sol:eridani": true}, LastJump: &sim.JumpResult{HullAfter: 5}, DestinationPermits: map[string]bool{"vesta": true},
 		Belt: []sim.Asteroid{{ID: 1}}, Inventory: []*sim.SlotDevice{d()},
 		RunLog:           []sim.RunRecord{{Events: []string{"event"}}},
 		DisconnectNotice: &sim.RunRecord{Events: []string{"notice"}},
@@ -34,12 +35,18 @@ func TestClonePreservesValuesAndIsolatesAllReferences(t *testing.T) {
 	}
 	ship := copy.Ships["skiff"]
 	ship.Hull++
-	for _, d := range []*sim.SlotDevice{ship.Utility[0], ship.Weapon[0], ship.Internal, ship.JumpDrive, copy.Inventory[0]} {
+	for _, d := range []*sim.SlotDevice{ship.Utility[0], ship.Weapon[0], ship.Internal, ship.AdditionalInternal[0], copy.Inventory[0]} {
 		d.Fuel++
 	}
 	copy.Ships["new"] = &sim.ShipInstance{}
 	copy.ShipsUnlocked["skiff"] = false
-	copy.SystemPermits["sol"] = false
+	copy.Frontier["sol"].Visited = false
+	copy.Frontier["sol"].RunsByDestination["vesta"]++
+	copy.CargoOrigins["sol"]++
+	copy.ShipsLostAt["mule"] = "eridani"
+	copy.HotArrivals["sol"] = false
+	copy.CrossedGates["sol:eridani"] = false
+	copy.LastJump.HullAfter++
 	copy.DestinationPermits["vesta"] = false
 	copy.Belt[0].ID++
 	copy.RunLog[0].Events[0] = "changed"

@@ -263,7 +263,7 @@ func responsiveRenderVariants() []responsiveRenderVariant {
 			departResponsiveTestGame(t, g)
 			return g
 		}},
-		{name: "shipyard-owned", anchors: []string{"HANGAR", "STATUS", "JUMP DRIVE"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "shipyard-owned", anchors: []string{"HANGAR", "STATUS", "INTERNAL"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.scr = scrShipyard
 			return g

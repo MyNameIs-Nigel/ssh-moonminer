@@ -59,8 +59,6 @@ func pickerRowLabel(row shipyardRow) string {
 		return fmt.Sprintf("UTILITY %d", row.index+1)
 	case rowWeapon:
 		return fmt.Sprintf("WEAPON %d", row.index+1)
-	case rowJumpDrive:
-		return "JUMP DRIVE"
 	default:
 		return "INTERNAL"
 	}
@@ -126,7 +124,7 @@ func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKin
 		entries = append(entries, pickerEntry{
 			itemID:        id,
 			grade:         grade,
-			locked:        sim.SlotItemLocked(id),
+			locked:        sim.SlotItemLocked(id) || inst != nil && (inst.SystemID != st.SystemID || g.content.ShipByID(inst.ModelID).NoShield && id == sim.ItemShield),
 			price:         price,
 			afford:        st.Credits >= price,
 			saleAfford:    current != nil && st.Credits+sim.SlotItemSellValue(g.content, current.ItemID, current.Grade) >= price,
@@ -144,6 +142,7 @@ func (g *Game) pickerBuildEntries(st *sim.State, shipID string, kind sim.SlotKin
 			itemID:        d.ItemID,
 			grade:         d.Grade,
 			fromInv:       true,
+			locked:        sim.SlotItemLocked(d.ItemID) || inst != nil && (inst.SystemID != st.SystemID || g.content.ShipByID(inst.ModelID).NoShield && d.ItemID == sim.ItemShield),
 			invIndex:      idx,
 			powerFit:      powerWithout+power <= capacity,
 			uniqueBlocked: uniqueBlocked,
@@ -162,6 +161,8 @@ func pickerHasOtherItem(inst *sim.ShipInstance, kind sim.SlotKind, index int, it
 		devices = inst.Utility
 	case sim.SlotWeapon:
 		devices = inst.Weapon
+	case sim.SlotInternal:
+		devices = sim.InternalDevices(inst)
 	default:
 		return false
 	}

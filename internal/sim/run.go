@@ -103,6 +103,7 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		pirateStartDistance = w.PirateStartDistance
 	}
 	s.Run = &ActiveRun{
+		BeltStability:        1,
 		AsteroidID:           asteroidID,
 		Phase:                PhaseMining,
 		PirateDistance:       pirateStartDistance,
@@ -111,9 +112,13 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartFuel:            s.Fuel,
 		StartedAt:            now,
 	}
-	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
+	if s.HotArrivals[s.SystemID] {
+		s.Run.PirateDistance *= c.Jump.HotArrivalETAMul
+		delete(s.HotArrivals, s.SystemID)
+	}
+	if inst := ActiveShip(s); inst != nil && internalDevice(inst, ItemJammer) != nil && inst.JammerCharges > 0 {
 		inst.JammerCharges--
-		s.Run.JammerRemaining = JammerDurationSeconds(c, inst.Internal.Grade)
+		s.Run.JammerRemaining = JammerDurationSeconds(c, internalDevice(inst, ItemJammer).Grade)
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
@@ -238,6 +243,7 @@ func AcceptTribute(s *State, c *content.Content, now int64) error {
 	}
 	storedUnitsLost := cargoUnitsForValueLoss(s.CargoUnits, s.CargoValue, fromStored)
 	runUnitsLost := cargoUnitsForValueLoss(run.HeldUnits, run.CargoValue, fromRun)
+	reduceCargoOrigins(s, fromStored)
 	s.CargoValue -= fromStored
 	s.CargoUnits = math.Max(0, s.CargoUnits-storedUnitsLost)
 	run.CargoValue -= fromRun
@@ -389,6 +395,13 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 }
 
 func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt float64) {
+	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.InstabilityPerSecond > 0 {
+		run.BeltStability = math.Max(0, run.BeltStability-dt*w.InstabilityPerSecond)
+		if run.BeltStability == 0 && !s.DevGodMode {
+			setActiveHull(s, c, 0)
+			return
+		}
+	}
 	if run.EMPActive {
 		run.EMPRemaining -= dt
 		if run.EMPRemaining <= 0 {
@@ -705,10 +718,15 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	case OutcomeShipLost:
 		lost = s.CargoValue + run.CargoValue
 		s.CargoValue = 0
+		s.CargoOrigins = nil
 		s.CargoUnits = 0
 	default:
 		recovered = run.CargoValue
 		s.CargoValue += recovered
+		if s.CargoOrigins == nil {
+			s.CargoOrigins = map[string]int{}
+		}
+		s.CargoOrigins[s.SystemID] += recovered
 		s.CargoUnits += run.HeldUnits
 	}
 
@@ -750,13 +768,14 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 
 	meta := outcomeMeta[kind]
 	rec := RunRecord{
-		When: now, World: worldName, Asteroid: astName, Tier: astTier,
+		SystemID: s.SystemID, DestinationID: c.WorldByIndex(s.WorldIdx).ID, When: now, World: worldName, Asteroid: astName, Tier: astTier,
 		Outcome: string(kind), CargoValueRecovered: recovered, CargoValueLost: lost, CargoValueJettisoned: run.TributeDemand,
 		HullDelta: hullDelta, FuelDelta: fuelDelta, Depleted: depleted, Events: events,
 		PirateDestroyed: run.PirateDestroyed, BountyEarned: run.BountyEarned,
 	}
 	appendRunLog(s, rec)
-	updateStatsOnOutcome(s, kind, astTier)
+	updateStatsOnOutcome(s, kind, astTier, run.ExtractedUnits)
+	recordFrontierOutcome(s, c, rec, kind, run.ExtractedUnits)
 
 	if kind == OutcomeShipLost {
 		respawnActiveShip(s, c)
@@ -797,7 +816,7 @@ func appendRunLog(s *State, rec RunRecord) {
 	}
 }
 
-func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int) {
+func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int, extracted float64) {
 	s.Stats.RunsTotal++
 	switch kind {
 	case OutcomeDeparted:
@@ -809,7 +828,7 @@ func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int) {
 	case OutcomeEscapedUnderFire:
 		s.Stats.RunsEscapedUnderFire++
 	}
-	if tier == 3 {
+	if tier == 3 && extracted > 0 {
 		s.Stats.LegendariesMined++
 	}
 }

@@ -233,9 +233,11 @@ jammer_duration_seconds = [3.0, 5.0, 8.0, 12.0, 15.0, 25.0]
 heat_sink_base_price = 1000
 # Adds 25/50/75/100/125/150 to the shared 100-point combat heat capacitor.
 heat_sink_capacity_per_grade = 25.0
-jump_drive_base_price = 25000
+legacy_drive_base_price = 25000
 
 [[ships]]
+sold_in = ["sol", "eridani"]
+internal_slots = 1
 id = "skiff"
 name = "SKIFF"
 brand = "independent"
@@ -258,6 +260,8 @@ scanner_start = 0
 scanner_cap = 2
 
 [[ships]]
+sold_in = ["sol", "eridani"]
+internal_slots = 1
 id = "cicada"
 name = "CICADA"
 brand = "federation"
@@ -280,6 +284,8 @@ scanner_start = 2
 scanner_cap = 5
 
 [[ships]]
+sold_in = ["sol", "eridani"]
+internal_slots = 1
 id = "warden"
 name = "WARDEN"
 brand = "alliance"
@@ -302,6 +308,8 @@ scanner_start = 1
 scanner_cap = 2
 
 [[ships]]
+sold_in = ["sol", "eridani"]
+internal_slots = 1
 id = "mule"
 name = "MULE"
 brand = "independent"
@@ -322,3 +330,155 @@ power_gen_start = 2
 power_gen_cap = 4
 scanner_start = 0
 scanner_cap = 2
+
+[jump]
+reference_mass = 220.0
+mass_exponent = 0.8
+scanner_drift_reduction = 0.10
+hull_floor = 1
+countdown_seconds = 3
+hard_translation_min = 0.10
+hard_translation_max = 0.20
+fuel_bloom_min = 0.25
+fuel_bloom_max = 0.40
+hot_arrival_eta_mul = 0.45
+hard_translation_weight = 4.0
+fuel_bloom_weight = 3.0
+hot_arrival_weight = 3.0
+
+[ferry]
+markup = 3.0
+
+[[gates]]
+from = "sol"
+to = "eridani"
+required_rating = 0
+jump_fuel_base = 55
+hull_stress_pct = 0.04
+drift_chance = 0.1
+misalignment_weight = 0
+
+[[gates]]
+from = "eridani"
+to = "kepler"
+required_rating = 1
+jump_fuel_base = 85
+hull_stress_pct = 0.07
+drift_chance = 0.18
+misalignment_weight = 0
+
+[[gates]]
+from = "kepler"
+to = "redline"
+required_rating = 2
+jump_fuel_base = 130
+hull_stress_pct = 0.11
+drift_chance = 0.28
+misalignment_weight = 0.5
+
+[[ratings]]
+class = 0
+name = "CLASS E"
+opens = "eridani"
+certify_in = "sol"
+price = 25000
+req_cargo_sold_system = "sol"
+req_cargo_sold_value = 40000
+req_runs_destination = "ceres_claims"
+req_runs_count = 1
+
+[[ratings]]
+class = 1
+name = "CLASS D"
+opens = "kepler"
+certify_in = "eridani"
+price = 120000
+req_runs_destination = "sable_halo"
+req_runs_count = 3
+req_pirates_destroyed = 2
+
+[[ratings]]
+class = 2
+name = "CLASS C"
+opens = "redline"
+certify_in = "kepler"
+price = 450000
+req_cargo_sold_system = "kepler"
+req_cargo_sold_value = 150000
+req_pirates_destroyed = 5
+req_legendaries_mined = 1
+
+[[ships]]
+id = "lantern"
+name = "LANTERN"
+brand = "frontier"
+class = "miner"
+sold_in = ["kepler"]
+price = 140000
+tier_mul = 4.5
+base_mass = 150
+base_cargo = 3000
+utility_slots = 3
+weapon_slots = 0
+internal_slots = 2
+thrusters_start = 2
+thrusters_cap = 4
+hull_start = 0
+hull_cap = 1
+fuel_eff_start = 3
+fuel_eff_cap = 4
+power_gen_start = 2
+power_gen_cap = 3
+scanner_start = 2
+scanner_cap = 4
+
+[[ships]]
+id = "halberd"
+name = "HALBERD"
+brand = "frontier"
+class = "fighter"
+sold_in = ["kepler"]
+price = 210000
+tier_mul = 4.5
+base_mass = 300
+base_cargo = 2600
+utility_slots = 2
+weapon_slots = 2
+internal_slots = 1
+thrusters_start = 1
+thrusters_cap = 3
+hull_start = 2
+hull_cap = 4
+fuel_eff_start = 0
+fuel_eff_cap = 1
+power_gen_start = 3
+power_gen_cap = 5
+scanner_start = 1
+scanner_cap = 3
+
+[[ships]]
+id = "vesper"
+name = "VESPER"
+brand = "frontier"
+class = "freighter"
+sold_in = ["redline"]
+price = 600000
+tier_mul = 4.5
+base_mass = 340
+base_cargo = 5000
+utility_slots = 4
+weapon_slots = 2
+internal_slots = 1
+no_buyback = true
+no_shield = true
+dock_repair_pct = 0.08
+thrusters_start = 1
+thrusters_cap = 3
+hull_start = 2
+hull_cap = 4
+fuel_eff_start = 1
+fuel_eff_cap = 3
+power_gen_start = 3
+power_gen_cap = 4
+scanner_start = 1
+scanner_cap = 3

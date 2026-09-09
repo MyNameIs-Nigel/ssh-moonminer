@@ -15,7 +15,8 @@ locked planets/systems, disposable ships, cargo holds, pirate demands/attacks,
 random ship events, cosmetics, and late-game stations. The current deployed
 prototype still has persistent pilots, arcade-router proxied identity
 (ssh-farm pattern), and SQLite saves.
-Ships as `v1.0.0 (alpha)` — hardly polished, but stable. Docker image, Litestream/S3
+Beta branch: `v2.0.0 (beta)` adds pilot Jump Ratings, four systems, located fleets,
+hauler ferries, and frontier hulls. See [the progression audit](docs/tests/04-beta-progression-audit.md). Docker image, Litestream/S3
 durability, and CI/CD (`ci.yml`/`release.yml`, same shape as ssh-farm's) all deploy for
 real to `play.ssharcade.dev` on every push to `main`.
 

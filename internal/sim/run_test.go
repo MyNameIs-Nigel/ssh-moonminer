@@ -357,7 +357,7 @@ func TestShipLostFallsBackToBestRemainingOwnedShip(t *testing.T) {
 	if s.ActiveShipID != "skiff" {
 		t.Fatalf("expected fallback to the still-owned skiff, got %s", s.ActiveShipID)
 	}
-	if !sim.IsBuyback(s, "cicada") {
+	if !sim.IsBuyback(s, c, "cicada") {
 		t.Fatal("expected cicada to now price as a buyback")
 	}
 }
