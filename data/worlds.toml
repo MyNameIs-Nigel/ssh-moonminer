@@ -32,7 +32,7 @@ rarity_label = "RICH"
 desc = "Crowded, lucrative, lawless. Raiders everywhere."
 art = "sphere"
 starts_unlocked = false
-required_fuel_capacity = 140
+required_fuel_capacity = 100
 permit_fee = 7000
 
 [[destinations]]
