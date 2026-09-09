@@ -85,3 +85,13 @@ sets them explicitly. A broken IAM policy passes every drill here.
 
 - `../ssh-farm` — fleet SSH server, identity, store, actor model (primary reference)
 - `../ssh-arcadelobby` — router bridge protocol and games registry
+
+
+## Licence
+
+MIT — see [`LICENSE`](LICENSE).
+
+[`NOTICE`](NOTICE) covers third-party software redistributed inside the
+published container image (currently Litestream, Apache-2.0). Update it if the
+image ever gains another bundled binary — Apache-2.0 requires that attribution
+to travel with the artifact, not merely with the source.
