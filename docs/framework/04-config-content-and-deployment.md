@@ -24,8 +24,8 @@ now superseded fleet-wide.
 | `../ssh-idlefarmer/data/embed.go` | `//go:embed` pattern |
 | `../ssh-arcadelobby/docs/06-fleet-data-durability.md` | **canonical** — the Litestream+S3 pattern every fleet game implements; bucket layout, IAM policy shape, container pattern, drill requirements |
 | `../ssh-farm/internal/config/config.go` | the concrete env-var/validation shape to mirror, including `ProxyKeysPath`/`FARM_PROXY_KEYS_PATH` (rename to `MOONMINER_*`) |
-| `../ssh-farm/Dockerfile` | **the reference implementation of doc 06** for a fleet game: `alpine:3.22` runtime (not distroless — the entrypoint needs a shell), litestream + `mc` copied in as static binaries, non-root uid 65532, `HOME=/tmp` (mc needs a writable config dir the nonroot user otherwise lacks) |
-| `../ssh-farm/entrypoint.sh` | **copy this shape nearly verbatim**, renaming `FARM_*`→`MOONMINER_*` — host-key restore/backup via `mc`, `litestream restore`/`replicate`, the dev-mode skip when `LITESTREAM_REPLICA_URL` is unset. Includes two real bugs already found and fixed here: a bare `>` redirect creates a 0-byte file before `mc` runs (fooling the "key already exists" check on a genuinely empty bucket — write to a `.tmp` path and only promote it if `mc` produced non-empty content), and `mc` silently no-ops every call without a writable `$HOME`. |
+| `../ssh-farm/Dockerfile` | **the reference implementation of doc 06** for a fleet game: `alpine:3.22` runtime (not distroless — the entrypoint needs a shell), litestream copied in as a static binary, non-root uid 65532. The `mc` stage and its `HOME=/tmp` requirement were removed on 2026-09-08 with the static AWS credential |
+| `../ssh-farm/entrypoint.sh` | **copy this shape nearly verbatim**, renaming `FARM_*`→`MOONMINER_*` — host-key seeding from a read-only host mount, `litestream restore`/`replicate`, the dev-mode skip when `LITESTREAM_REPLICA_URL` is unset. The temp-path-then-promote pattern survives the move off `mc` and still matters for the same reason: a partially written key at the destination satisfies the app's "key already exists" check and skips generation, crashing the server with "ssh: no key found". |
 | `../ssh-farm/docker-compose.yml` | the game's own **standalone** dev compose (ports, volume-as-cache framing, hardening block) — separate from the fleet compose (below) |
 
 ## Deliverables
@@ -63,7 +63,7 @@ now superseded fleet-wide.
 Plus the durability env vars `entrypoint.sh` reads directly (not through
 `internal/config` — they're shell/litestream/mc concerns, not app config; see
 Docker section): `LITESTREAM_REPLICA_URL`, `LITESTREAM_S3_REGION`,
-`MOONMINER_HOST_KEY_MC_PATH`, `MC_HOST_s3`. All optional and unset in dev.
+`MOONMINER_HOST_KEY_SOURCE`. All optional and unset in dev. (`MOONMINER_HOST_KEY_MC_PATH` and `MC_HOST_s3` were removed on 2026-09-08.)
 
 Validation mirrors idlefarmer: port range, positive rates, sanitizable
 default slot, autosave ≥ 1s, policy enum. `Load()` returns
@@ -88,18 +88,20 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   `go build -trimpath -ldflags="-s -w"`. Mirror `../ssh-farm/Dockerfile`'s
   build stage, including its `restore-check`-style pattern if a
   durability-drill CLI is added later (tests/02, post-MVP for this game).
-- **Litestream + mc stages**: pull `litestream/litestream:0.5.12` and
-  `minio/mc:RELEASE.2025-08-13T08-35-41Z` (pin exact versions, same as farm)
+- **Litestream stage**: pull `litestream/litestream:0.5.12` (pin the exact
+  version, same as farm). There is no `mc` stage any more
   as separate `FROM ... AS` stages purely to copy their static binaries into
   the runtime stage — no compilation of either.
 - **Run stage**: `alpine:3.22`, **not distroless** — per the canonical fleet
-  doc, the entrypoint needs a real shell (`sh`) to run `mc`/`litestream`
+  doc, the entrypoint needs a real shell (`sh`) to run `litestream`
   before handing off to the game binary. `apk add ca-certificates`, create a
-  non-root `nonroot:nonroot` (uid/gid 65532), copy in `litestream`, `mc`, the
+  non-root `nonroot:nonroot` (uid/gid 65532), copy in `litestream`, the
   game binary, and `entrypoint.sh` (`chmod 755`). Keep the rest of the
   hardening: `read_only: true` rootfs (enforced in compose, not the
   Dockerfile), `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`.
-  `ENV HOME=/tmp` — `mc` writes its config there even with every alias coming
+  `ENV HOME=/tmp` — no longer required now that `mc` is gone, but retained
+  because a read-only rootfs with no writable HOME is a footgun for any tool
+  added later. It used to be mandatory: `mc` wrote its config there even with every alias coming
   from an `MC_HOST_*` env var, and the nonroot user has no writable
   `/home/nonroot`.
 - **`entrypoint.sh`** (mirror `../ssh-farm/entrypoint.sh` renaming
@@ -107,8 +109,8 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   1. Dev-mode escape hatch: if `LITESTREAM_REPLICA_URL` is unset, log it
      loudly and `exec /app/ssh-moonminer` directly — local dev and CI must
      never require AWS/MinIO credentials.
-  2. If `MOONMINER_HOST_KEY_MC_PATH` is set and no local host key exists yet,
-     restore it from the bucket via `mc cat ... >"$PATH.tmp"`, promoting the
+  2. If `MOONMINER_HOST_KEY_SOURCE` is set and no local host key exists yet,
+     copy it from that read-only host mount to `"$PATH.tmp"`, promoting the
      temp file only if it's non-empty (the empty-bucket-first-boot 0-byte-file
      gotcha farm hit for real), then `chmod 600`.
   3. `litestream restore -if-db-not-exists -if-replica-exists "$DB_PATH"`
