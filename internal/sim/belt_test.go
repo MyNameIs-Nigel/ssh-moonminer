@@ -29,3 +29,26 @@ func TestSeismicSensorsRespectScannerRange(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerateBeltAlwaysHasAScannableContact prevents an unlucky distance roll
+// from leaving a pilot with no reachable target and therefore no way to start
+// the mining loop.
+func TestGenerateBeltAlwaysHasAScannableContact(t *testing.T) {
+	c := testContent(t)
+	for worldIdx := range c.Worlds {
+		for seed := uint64(1); seed <= 100; seed++ {
+			s := sim.New(c, seed, 1000)
+			belt := sim.GenerateBelt(s, c, worldIdx)
+			found := false
+			for i := range belt {
+				if !sim.IsOutOfRange(s, c, &belt[i]) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("world %d seed %d has no asteroid within the %.1fkm scanner lock", worldIdx, seed, sim.ScannerLockKm(s, c))
+			}
+		}
+	}
+}

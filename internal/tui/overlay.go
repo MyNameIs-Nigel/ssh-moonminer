@@ -45,16 +45,18 @@ func (g *Game) renderOverlay() string {
 		if pg >= len(onboardPages) {
 			pg = len(onboardPages) - 1
 		}
-		panelW, panelH := g.layoutOverlaySize(70, 6)
+		panelW, _ := g.layoutOverlaySize(70, 6)
 		hint := "Press any key for more."
 		if pg == len(onboardPages)-1 {
 			hint = "Press any key to start."
 		}
-		body := strings.Join(reflowOverlayLines([]string{
+		lines := reflowOverlayLines([]string{
 			onboardPages[pg],
 			"",
 			theme.DimStyle.Render(hint),
-		}, panelW-4), "\n")
+		}, panelW-4)
+		_, panelH := g.layoutOverlaySize(70, len(lines)+2)
+		body := strings.Join(lines, "\n")
 		return theme.Panel("ONBOARDING", panelW, panelH, body, theme.Accent(theme.HueGold))
 	default:
 		return ""

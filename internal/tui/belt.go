@@ -382,18 +382,11 @@ func (g *Game) beltFooterLines(st *sim.State) (lines []string, hits []beltFooter
 			theme.DimStyle.Render("[Q] DOCK"),
 		}, nil
 	case rock.Scanned:
-		fuelAmount := sim.FuelAmount(st, g.content)
-		fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
-		if float64(rock.FuelCost) > fuelAmount {
-			fuelStr = theme.Red.Render(fuelStr)
-		} else {
-			fuelStr = theme.White.Render(fuelStr)
-		}
 		lockBtn := theme.Button("ENTER", "LOCK & FLY", "", sim.RemainingCargoCapacity(st, g.content) > 0, theme.HueGold)
 		lines := []string{
 			"",
-			fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
-				theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
+			fmt.Sprintf("TARGET LOCK: %s  VALUE %s",
+				theme.Gold.Render(rock.Name), theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
 			lockBtn,
 		}
 		hits := []beltFooterHit{{footerIdx: 2, label: lockBtn, id: "btn:lock", data: nil}}

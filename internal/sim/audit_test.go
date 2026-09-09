@@ -111,7 +111,7 @@ func TestLockScannerRangeBoundary(t *testing.T) {
 			c := testContent(t)
 			s := sim.New(c, 1, 0)
 			s.WorldIdx = 1
-			s.Belt = []sim.Asteroid{{ID: 1, Distance: sim.ScannerLockKm(s, c) + extra, Scanned: true, Volume: 100, DrillSec: 10, FuelCost: 1}}
+			s.Belt = []sim.Asteroid{{ID: 1, Distance: sim.ScannerLockKm(s, c) + extra, Scanned: true, Volume: 100, DrillSec: 10}}
 			before := s.Clone()
 			err := sim.Lock(s, c, 1, 0)
 			if extra == 0 {
@@ -127,6 +127,23 @@ func TestLockScannerRangeBoundary(t *testing.T) {
 				t.Fatal("rejected lock mutated state")
 			}
 		})
+	}
+}
+
+func TestLockDoesNotConsumeFuel(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 0)
+	s.WorldIdx = 1
+	s.Belt = []sim.Asteroid{{
+		ID: 1, Distance: sim.ScannerLockKm(s, c), Scanned: true,
+		Volume: 100, DrillSec: 10,
+	}}
+	s.Fuel = 0
+	if err := sim.Lock(s, c, 1, 0); err != nil {
+		t.Fatalf("Lock at zero fuel = %v, want success", err)
+	}
+	if s.Fuel != 0 {
+		t.Fatalf("Lock fuel = %.1f, want 0", s.Fuel)
 	}
 }
 

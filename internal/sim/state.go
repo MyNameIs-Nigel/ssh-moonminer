@@ -149,7 +149,6 @@ type Asteroid struct {
 	Volume   int     `json:"volume"`
 	DrillSec float64 `json:"drill_sec"`
 	Value    int     `json:"value"`
-	FuelCost int     `json:"fuel_cost"`
 	Risk     int     `json:"risk"`
 	Dots     int     `json:"dots"`
 	Size     string  `json:"size"`

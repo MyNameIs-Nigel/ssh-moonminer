@@ -176,8 +176,8 @@ recap:
 ### Onboarding tie-in
 
 For `Created` pilots (fresh save), the shell shows the onboarding overlay
-(tui/01) over the chart. This task provides its 3 pages of copy: (1) the
-fiction + goal, (2) the loop diagram in words, (3) the control cheatsheet.
+(tui/01) over the chart. This task provides the onboarding copy: the fiction
+and goal, the loop in words, control cheatsheet, and pirate/death warning.
 
 ## Acceptance criteria
 

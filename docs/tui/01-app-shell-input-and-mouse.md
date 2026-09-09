@@ -153,10 +153,12 @@ idlefarmer's `teaHandler`).
 Shared overlay system rendering a bordered box over a dimmed screen: help
 (static keymap text per screen), kicked-notice ("boarded from another
 terminal…" — shown on the actor's kick message, any key exits), onboarding
-(3 short pages for `Created` pilots), tweaks (owned by tui/04, hosted
-here). Overlays capture all input while open. Their intrinsic minima,
-frame-relative centering, clamp/reflow/scroll behavior, and hitbox rules are
-defined by tui/06.
+(short pages for `Created` pilots), tweaks (owned by tui/04, hosted
+here). Overlays capture all input while open. Onboarding's panel height must
+be computed from its reflowed page body and its prompt, so every page
+remain visible at every supported frame size; it must not use a fixed
+single-line body height. Their intrinsic minima, frame-relative centering,
+clamp/reflow/scroll behavior, and hitbox rules are defined by tui/06.
 
 ## Acceptance criteria
 

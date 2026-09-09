@@ -367,7 +367,11 @@ reduces scan time by `0.80^g`; S grade scans strictly under 2km immediately.
 A stock ship
 (Scanner grade E, 4km lock) cannot see roughly the far half of a belt
 (`distance_max` is 10km); grade B (8 or 10km, ship-dependent cap) opens
-essentially the whole belt.
+essentially the whole belt. Belt generation always places at least one
+asteroid within the active ship's Scanner lock, including for an E-grade
+starter scanner, so arriving at a belt never leaves a pilot without a manual
+scan target. This guarantee affects reachability only, not tier, value, or
+the scanner's out-of-range gate for the other contacts.
 
 ### Distance-biased rarity
 

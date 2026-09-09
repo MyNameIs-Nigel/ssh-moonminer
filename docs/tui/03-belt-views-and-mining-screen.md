@@ -46,9 +46,9 @@ space, but do not use the Chart or Mining top-level split.
   comes from Settings, tui/04):
 
   1. **DATA TILES** — scannable rows: `▸ KR-4711  ◆ UNCOMMON  80u
-     ≈74s  ◈ 6,325  ⛽12  ETA ?  ●●●○○`. Columns: designation, tier
+     ≈74s  ◈ 6,325  ETA ?  ●●●○○`. Columns: designation, tier
      glyph+label (tier-colored), cargo units, rough mine time, dock value
-     estimate, approach fuel, rough pirate ETA/risk confidence, threat dots
+     estimate, rough pirate ETA/risk confidence, threat dots
      (blue→amber→red by count). Selected row highlighted.
   2. **ORE SCAN** — each rock drawn as its `Size` blob (sm/md/lg
      block-character shapes from the prototype: `▟▓▙ / ▜▓▛` etc.) placed at
@@ -60,18 +60,17 @@ space, but do not use the Chart or Mining top-level split.
      gets a `┼` crosshair + callout line with designation. A sweep line
      rotating one step per UI tick (1 Hz is fine; it's ambience, not data).
 
-  All three views select from the **same ordered list** (sorted by fuel
-  cost, per gameplay/01): ↑/↓/←/→ cycle selection; click a row/blob/blip to
+  All three views select from the **same ordered list** (sorted by distance,
+  per gameplay/01): ↑/↓/←/→ cycle selection; click a row/blob/blip to
   select; click again or Enter/Space to lock. Wheel cycles selection in any
   view.
 - **Target Lock panel (bottom strip, always visible):** full detail of the
   selected rock — designation, tier, units, estimated mine time, public dock
-  value, cargo hold impact, flight fuel cost vs current fuel (red if
-  insufficient), rough pirate ETA/risk with dots — plus
+  value, cargo hold impact, rough pirate ETA/risk with dots — plus
   `[ENTER] LOCK & FLY  [S] SCAN  [V] VIEW  [Q] DOCK`.
 - `S` scans the selected contact. Empty-belt behavior remains owned by the
   shipped belt/sim flow; this screen does not expose a free `R` rescan action.
-- Lock failure (fuel) → red flash, stay on belt.
+- Lock failure (unscanned, out of range, or full cargo) → red flash, stay on belt.
 
 ### Mining Site screen (real time)
 

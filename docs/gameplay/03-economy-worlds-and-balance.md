@@ -173,9 +173,6 @@ mine_sec_max = 210.0
 mine_sec_per_unit = 0.9
 value_per_unit = 38
 value_step = 25
-fuel_cost_min = 3
-fuel_cost_max = 24
-fuel_cost_tier_bonus = 5
 risk_min = 8
 risk_max = 96
 risk_base = 14
@@ -238,8 +235,8 @@ build_stage_count = 4
    Local by at least 2x.
 3. A first fuel-tank upgrade is reachable from a small number of successful
    starter cargo sales; a first superior ship requires materially more risk.
-4. No generated starter belt can have every asteroid's in-belt fuel cost above
-   the starter skiff's reachable reserve.
+4. No generated starter belt can have every asteroid outside the starter
+   Scanner lock.
 5. Station refuel discounts and sale bonuses are local: owning a station in
    Eridani changes Eridani prices and does not change Sol prices.
 6. Death never removes credits, permits, cosmetics, or stations.

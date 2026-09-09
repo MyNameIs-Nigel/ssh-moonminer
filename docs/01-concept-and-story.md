@@ -44,7 +44,7 @@ LOST`.
    reasons, buy fuel/repairs/ships/upgrades/cosmetics, sell cargo, and fund
    local station construction. Most destinations are locked at first.
 2. **Asteroid Belt** — a scanner shows procedurally generated contacts. Each
-   rock trades off resource value, mining duration, cargo load, flight fuel,
+   rock trades off resource value, mining duration, cargo load,
    and pirate attention. Estimates are intentionally rough.
 3. **Mining Site** — the long real-time screen. The asteroid is mined into the
    cargo hold while the pirate radar closes. The player must manually leave:

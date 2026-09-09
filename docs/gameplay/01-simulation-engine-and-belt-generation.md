@@ -166,7 +166,6 @@ type Asteroid struct {
     Units    int     // mineable cargo units, 20..260, multiples of 5
     MineSec  float64 // 45..210, one decimal; full depletion time before upgrades/events
     Value    int     // base credits if all units are sold at public dock
-    FuelCost int     // in-belt approach fuel to reach it, 3..24 by default
     Risk     int     // 8..96, pirate ETA/event pressure input
     Dots     int     // 1..5 threat pips (derived: ceil(Risk/20))
     Size     string  // "sm" | "md" | "lg" (render hint)
@@ -189,18 +188,17 @@ depending destination; make values balance constants):
    mine_sec_min, mine_sec_max))`. Default target: common starter rocks take
    around 45–75 seconds; rare late-game rocks can take several minutes.
 4. **Value**: `round(units * value_per_unit * tierMult * destination.value_mul / value_step) * value_step`.
-5. **Fuel cost**: `round(clamp(destination.travel_fuel + uniform(-4,10) + tier*5,
-   fuel_cost_min, fuel_cost_max))`.
-6. **Risk**: `round(clamp(system.pirate_mul * destination.pirate_mul *
+5. **Risk**: `round(clamp(system.pirate_mul * destination.pirate_mul *
    (risk_base + tier*risk_per_tier) + uniform(0, risk_noise), risk_min, risk_max))`.
-7. **Dots**: `clamp(ceil(risk/20), 1, 5)`.
-8. **Size**: `lg` if units > 170, `md` if units > 70, else `sm`.
-9. **Name**: prefix from `{AX,KR,VL,ND,TH,ZE,QU,RX,OB,MX}` + `-` +
+6. **Dots**: `clamp(ceil(risk/20), 1, 5)`.
+7. **Size**: `lg` if units > 170, `md` if units > 70, else `sm`.
+8. **Name**: prefix from `{AX,KR,VL,ND,TH,ZE,QU,RX,OB,MX}` + `-` +
    integer 1000–9999.
-10. **Position**: `x = round(uniform(10,84))`, `y = round(uniform(12,80))`.
+9. **Position**: `x = round(uniform(10,84))`, `y = round(uniform(12,80))`.
 
-Sort ascending by fuel cost. Increment `BeltCount` (RNG stream advances so a
-rescan differs).
+If no generated contact lies within the active ship's Scanner lock, move the
+nearest contact to the lock boundary. Sort ascending by distance. Increment
+`BeltCount` (RNG stream advances so a rescan differs).
 
 ### Chart-level actions (this task)
 

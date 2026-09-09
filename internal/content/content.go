@@ -113,10 +113,6 @@ type BeltConfig struct {
 	ValueStep        int      `toml:"value_step"`
 	DistanceMin      float64  `toml:"distance_min"`
 	DistanceMax      float64  `toml:"distance_max"`
-	FuelPerKm        float64  `toml:"fuel_per_km"`
-	FuelCostMin      int      `toml:"fuel_cost_min"`
-	FuelCostMax      int      `toml:"fuel_cost_max"`
-	FuelCostTierBon  int      `toml:"fuel_cost_tier_bonus"`
 	ScanFuelCost     float64  `toml:"scan_fuel_cost"`
 	ScanSecPerKm     float64  `toml:"scan_sec_per_km"`
 	RiskMin          int      `toml:"risk_min"`

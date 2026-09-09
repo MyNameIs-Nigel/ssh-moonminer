@@ -119,7 +119,7 @@ the UI should say so and purchase should ask whether to activate it.
 
 **Priority:** P0 — avoidable loss and pirate exposure  
 **Current behavior:** `Lock` does not check remaining cargo space. If the hold
-is already full, it deducts the asteroid flight fuel and starts a run whose
+is already full, it starts a run whose
 depletion condition is already true. `Depart` likewise allows travel to a belt
 with no available cargo space.
 

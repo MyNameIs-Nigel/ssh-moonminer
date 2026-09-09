@@ -94,10 +94,6 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if RemainingCargoCapacity(s, c) <= 0 {
 		return ErrCargoFull
 	}
-	if s.Fuel < float64(ast.FuelCost) {
-		return ErrInsufficientFuel
-	}
-	ConsumeFuel(s, c, float64(ast.FuelCost))
 	pirateStartDistance := 100.0
 	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateStartDistance > 0 {
 		pirateStartDistance = w.PirateStartDistance
@@ -133,10 +129,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	return nil
 }
 
-// Scan begins a sensor scan on the given asteroid. Distance determines both
-// the scan's duration (content.Belt.ScanSecPerKm per km) and, indirectly via
-// GenerateBelt, its flight fuel cost — but the scan itself only costs the
-// flat content.Belt.ScanFuelCost. Completion is driven by TickScan.
+// Scan begins a sensor scan on the given asteroid. Distance determines the
+// scan's duration (content.Belt.ScanSecPerKm per km); the scan costs the flat
+// content.Belt.ScanFuelCost. Completion is driven by TickScan.
 func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {

@@ -62,7 +62,8 @@ only.
 10,000 belts per world with fixed seeds:
 
 - Field ranges: every generated value within gameplay/01 bounds (units step,
-  mine seconds, in-belt fuel cost, risk 8–96, dots 1–5, coords in range).
+  mine seconds, risk 8–96, dots 1–5, coords in range, and at least one
+  contact within the active Scanner lock).
 - Tier mix: observed tier frequencies within ±2% absolute of the analytic
   weights per world (e.g. Io legendary ≈ 0.08+0.05·0.4 = 10%; Titan ≈ 20%).
 - Ordering: belts sorted by distance; IDs unique; names match

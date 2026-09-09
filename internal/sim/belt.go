@@ -71,7 +71,6 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 		drill := round1(clamp(float64(vol)/bc.DrillSecPerVol, bc.DrillSecMin, bc.DrillSecMax) * drillMul)
 		tierMult := c.Tiers.Mults[tier]
 		value := int(math.Round(float64(vol)*bc.ValuePerVolume*tierMult/float64(bc.ValueStep))) * bc.ValueStep
-		fuelCost := int(math.Round(clamp(distance*bc.FuelPerKm+float64(tier*bc.FuelCostTierBon), float64(bc.FuelCostMin), float64(bc.FuelCostMax))))
 		risk := int(math.Round(clamp(w.PirateMul*float64(bc.RiskBase+tier*bc.RiskPerTier)+rng.Float64()*16, float64(bc.RiskMin), float64(bc.RiskMax))))
 		dots := clampInt(int(math.Ceil(float64(risk)/20)), 1, 5)
 		size := "sm"
@@ -87,10 +86,28 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 
 		rocks[i] = Asteroid{
 			ID: i + 1, Name: name, Tier: tier, Volume: vol,
-			DrillSec: drill, Value: value, FuelCost: fuelCost,
+			DrillSec: drill, Value: value,
 			Risk: risk, Dots: dots, Size: size, X: x, Y: y,
 			Distance: distance,
 		}
+	}
+	// A belt must always offer at least one manual scan target. Preserve the
+	// generated contact's other properties and move only the nearest contact
+	// when every distance roll fell beyond the active Scanner's lock.
+	lockKm := ScannerLockKm(s, c)
+	nearest := 0
+	inRange := false
+	for i := range rocks {
+		if rocks[i].Distance <= lockKm {
+			inRange = true
+			break
+		}
+		if rocks[i].Distance < rocks[nearest].Distance {
+			nearest = i
+		}
+	}
+	if !inRange && len(rocks) > 0 {
+		rocks[nearest].Distance = lockKm
 	}
 	sort.Slice(rocks, func(i, j int) bool { return rocks[i].Distance < rocks[j].Distance })
 	s.BeltCount++

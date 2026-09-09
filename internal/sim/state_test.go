@@ -137,9 +137,6 @@ func TestBeltRanges(t *testing.T) {
 		if a.Volume < bc.VolumeMin || a.Volume > bc.VolumeMax {
 			t.Fatalf("volume out of range: %d", a.Volume)
 		}
-		if a.FuelCost < bc.FuelCostMin || a.FuelCost > bc.FuelCostMax {
-			t.Fatalf("fuel cost out of range: %d", a.FuelCost)
-		}
 		if a.Risk < bc.RiskMin || a.Risk > bc.RiskMax {
 			t.Fatalf("risk out of range: %d", a.Risk)
 		}

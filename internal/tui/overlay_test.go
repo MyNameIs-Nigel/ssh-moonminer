@@ -92,6 +92,21 @@ func TestCompositeViewPreservesBackgroundBesideOverlay(t *testing.T) {
 	}
 }
 
+func TestOnboardingOverlayShowsEveryReflowedLineAtMinimumViewport(t *testing.T) {
+	g := newResponsiveTestGame(t, minWidth, minHeight)
+	g.overlay = ovOnboard
+	panelW, _ := g.layoutOverlaySize(70, 6)
+	for pg, page := range onboardPages {
+		g.onboardPg = pg
+		out := ansi.Strip(g.View().Content)
+		for _, line := range reflowOverlayLines([]string{page}, panelW-4) {
+			if text := ansi.Strip(line); text != "" && !strings.Contains(out, text) {
+				t.Fatalf("page %d clipped onboarding text %q at %dx%d", pg, text, minWidth, minHeight)
+			}
+		}
+	}
+}
+
 func TestReflowOverlayLinesPreservesStyle(t *testing.T) {
 	long := strings.Repeat("warning ", 8)
 	styled := theme.Red.Render(long)
