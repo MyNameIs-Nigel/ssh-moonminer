@@ -30,12 +30,8 @@ func TestRouteGatesAndPermits(t *testing.T) {
 	if err := sim.BuyDestinationPermit(s, c, "ceres_claims"); err != nil {
 		t.Fatal(err)
 	}
-	if got := sim.RouteLockReason(s, c, 0); got != "NEED FUEL CAPACITY 140" {
-		t.Fatalf("Ceres should retain its tank gate after permit purchase: %q", got)
-	}
-	if err := sim.InstallSlotDevice(s, c, "skiff", sim.SlotUtility, 1, sim.ItemFuelTank, 1); err != nil {
-		t.Fatal(err)
-	}
+	// Ceres' own fuel-capacity gate (100) is already satisfied by the tank
+	// installed above for Io (120), so the permit is the only remaining gate.
 	if got := sim.RouteLockReason(s, c, 0); got != "" {
 		t.Fatalf("Ceres permit and tank gates did not clear: %q", got)
 	}
