@@ -83,6 +83,24 @@ func TestChartMarksOnlyCurrentSystemWithSolidDiamond(t *testing.T) {
 	}
 }
 
+func TestChartShowsRemoteStatusOnSystemsInsteadOfWorlds(t *testing.T) {
+	g := newChartGame(t, 80, 24)
+	g.snap.State.JumpClass = 0
+	g.snap.State.SystemID = "eridani"
+	g.snap.State.Ships[g.snap.State.ActiveShipID].SystemID = "eridani"
+	out := ansi.Strip(g.renderChart())
+	for _, want := range []string{"SOL — NOT IN SYSTEM", "KEPLER REACH — LOCKED", "REDLINE EXPANSE — LOCKED"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("chart missing system status %q:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"LOCK NOT IN SYSTEM", "CERES  INNER BELT  NOT IN SYSTEM", "VESTA  MID BELT  NOT IN SYSTEM"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("chart should not show per-world remote status %q:\n%s", unwanted, out)
+		}
+	}
+}
+
 func TestPirateRadarShowsJammerCountdownBeforeETA(t *testing.T) {
 	g := newChartGame(t, 80, 24)
 	run := &sim.ActiveRun{JammerRemaining: 7.6, PirateETAMin: 4, PirateETAMax: 8}

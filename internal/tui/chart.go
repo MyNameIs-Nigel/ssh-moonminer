@@ -128,10 +128,18 @@ func (g *Game) renderChart() string {
 	for _, system := range g.content.Systems {
 		currentSystem := system.ID == st.SystemID
 		systemGlyph := theme.Glyph("diamond", st.Settings.ASCIISafe)
-		systemHeader := theme.Violet.Render(systemGlyph + " " + system.Name)
+		systemLabel := systemGlyph + " " + system.Name
 		if currentSystem {
 			systemGlyph = theme.Glyph("diamond_filled", st.Settings.ASCIISafe)
-			systemHeader = theme.Bright.Bold(true).Render(systemGlyph + " " + system.Name)
+			systemLabel = systemGlyph + " " + system.Name
+		} else if sim.JumpLockReason(&st, g.content, system.ID) != "" {
+			systemLabel += " — " + theme.Red.Render("LOCKED")
+		} else {
+			systemLabel += " — " + theme.Red.Render("NOT IN SYSTEM")
+		}
+		systemHeader := theme.Violet.Render(systemLabel)
+		if currentSystem {
+			systemHeader = theme.Bright.Bold(true).Render(systemLabel)
 		}
 		leftLines = append(leftLines, systemHeader)
 		for i, w := range g.content.Worlds {
@@ -143,19 +151,25 @@ func (g *Game) renderChart() string {
 			if sel {
 				marker = "▸ "
 			}
-			lock := sim.RouteLockReason(&st, g.content, i)
-			fuel := fmt.Sprintf("%s %d", theme.Glyph("fuel", st.Settings.ASCIISafe), w.TravelFuel)
-			if sim.RemainingCargoCapacity(&st, g.content) <= 0 {
-				fuel = theme.Red.Render("HOLD FULL — SELL CARGO")
-			} else if lock != "" {
-				fuel = theme.Red.Render("LOCK " + lock)
-			} else if !sim.CanDepart(&st, g.content, i) {
-				fuel = theme.Red.Render(fuel)
-			} else {
-				fuel = theme.Amber.Render(fuel)
+			status := ""
+			if currentSystem {
+				lock := sim.RouteLockReason(&st, g.content, i)
+				status = fmt.Sprintf("%s %d", theme.Glyph("fuel", st.Settings.ASCIISafe), w.TravelFuel)
+				if sim.RemainingCargoCapacity(&st, g.content) <= 0 {
+					status = theme.Red.Render("HOLD FULL — SELL CARGO")
+				} else if lock != "" {
+					status = theme.Red.Render(lock)
+				} else if !sim.CanDepart(&st, g.content, i) {
+					status = theme.Red.Render(status)
+				} else {
+					status = theme.Amber.Render(status)
+				}
 			}
 			namePart := fmt.Sprintf("%s%s  %s", marker, w.Name, w.Sub)
-			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast || currentSystem).Render(namePart) + "  " + fuel
+			line := theme.OptionHC(theme.HueCyan, sel, st.Settings.HighContrast || currentSystem).Render(namePart)
+			if status != "" {
+				line += "  " + status
+			}
 			line = ansi.Truncate(line, leftW-2, "…")
 			leftLines = append(leftLines, line)
 			worldHits = append(worldHits, chartWorldHit{len(leftLines) - 1, line, i})

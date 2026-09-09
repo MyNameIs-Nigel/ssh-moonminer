@@ -234,7 +234,7 @@ func responsiveRenderVariants() []responsiveRenderVariant {
 	base := func(t testing.TB, w, h int) *Game { return newResponsiveTestGame(t, w, h) }
 	variants := []responsiveRenderVariant{
 		{name: "chart-docked", anchors: []string{"STAR CHART", "PORT SERVICES", "SHIPYARD"}, build: base},
-		{name: "chart-locked-route", anchors: []string{"CERES", "LOCK"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "chart-locked-route", anchors: []string{"ERIDANI DRIFT", "LOCKED"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.worldSel = 0
 			return g
