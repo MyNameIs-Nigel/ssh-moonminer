@@ -48,22 +48,30 @@ func (g *Game) renderChartServices(x, width, height int) string {
 	hullPct := sim.HullPct(st, g.content)
 	refuelCost, repairCost := sim.RefuelCost(st, g.content), sim.RepairCost(st, g.content)
 
-	// Both gauge rows share the same label column and fill endpoint. The second
-	// row continues the gauge without repeating the label.
-	gauge := func(row int, label string, bar string) {
-		prefix := label + " "
-		details[row] = prefix + bar
-		details[row+1] = strings.Repeat(" ", lipgloss.Width(prefix)) + bar
-	}
+	// Reserve the widest label in terminal cells so both gauges use the
+	// smaller available span, regardless of the fuel glyph's display width.
 	fuelLabel := theme.Glyph("fuel", ascii)
-	gauge(0, fuelLabel, theme.FuelBar(fuelPct, detailW-lipgloss.Width(fuelLabel)-1))
-	gauge(3, "HULL", theme.HullBar(hullPct, detailW-5))
-	details[2] = theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f", fuel, tank)) + " " + theme.Gold.Render(fmt.Sprintf("%s %d", credit, refuelCost))
-	details[5] = theme.HullStyle(hullPct).Render(fmt.Sprintf("%.0f%%", hullPct)) + " " + theme.Gold.Render(fmt.Sprintf("%s %d", credit, repairCost))
+	barStart := max(lipgloss.Width(fuelLabel), lipgloss.Width("HULL")) + 1
+	barWidth := detailW - barStart
+	gauge := func(row int, label, bar, points string, cost int) {
+		details[row] = label + strings.Repeat(" ", barStart-lipgloss.Width(label)) + bar
+		points = strings.Repeat(" ", barStart) + points
+		price := theme.Gold.Render(fmt.Sprintf("%s %d", credit, cost))
+		if lipgloss.Width(points)+1+lipgloss.Width(price) <= detailW {
+			details[row+1] = chartServiceValueRow(points, price, detailW)
+		} else {
+			details[row+1] = points
+			details[row+2] = chartServiceValueRow("", price, detailW)
+		}
+	}
+	gauge(0, fuelLabel, theme.FuelBar(fuelPct, barWidth),
+		theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%.0f/%.0f", fuel, tank)), refuelCost)
+	gauge(3, "HULL", theme.HullBar(hullPct, barWidth),
+		theme.HullStyle(hullPct).Render(fmt.Sprintf("%d/%d", sim.ActiveShip(st).Hull, sim.MaxHull(st, g.content))), repairCost)
 	details[6] = fmt.Sprintf("CARGO %.0f/%.0f", st.CargoUnits, sim.CargoCapacityUnits(st, g.content))
-	details[7] = theme.Gold.Render(fmt.Sprintf("SALE %s %d", credit, st.CargoValue))
+	details[7] = chartServiceValueRow("SALE", theme.Gold.Render(fmt.Sprintf("%s %d", credit, st.CargoValue)), detailW)
 	if st.BountyVouchers > 0 {
-		details[8] = theme.Amber.Render(fmt.Sprintf("BOUNTY %s %d", credit, st.BountyVouchers))
+		details[8] = chartServiceValueRow("BOUNTY", theme.Amber.Render(fmt.Sprintf("%s %d", credit, st.BountyVouchers)), detailW)
 	}
 	if sim.InsuranceEligible(st, g.content) {
 		details[10] = theme.Amber.Render("[I] INSURANCE")
@@ -121,4 +129,9 @@ func (g *Game) renderChartServices(x, width, height int) string {
 	lines[height-1] = strings.Repeat(" ", offset) + footer
 	g.addHit(x+offset, panelBodyY(height-1), lipgloss.Width(ferry), 1, "svc:ferry", nil)
 	return strings.Join(lines, "\n")
+}
+
+// chartServiceValueRow keeps the amount flush with the gauge's right edge.
+func chartServiceValueRow(label, amount string, width int) string {
+	return label + strings.Repeat(" ", max(0, width-lipgloss.Width(label)-lipgloss.Width(amount))) + amount
 }

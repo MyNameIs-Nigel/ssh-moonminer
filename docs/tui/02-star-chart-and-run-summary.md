@@ -122,12 +122,18 @@ Labels are centered; ASCII-safe mode uses ASCII button borders. The entire
 rectangle, including border and padding, is clickable through existing actions.
 Disabled styling and dock restrictions retain their existing semantics.
 
-Fuel and hull occupy three-row bands beside their buttons: two rows of gauge
-fill, then current/capacity fuel or hull percentage and the service price.
-The fuel glyph or HULL label immediately precedes the gauge, which expands to
-a one-column gutter before the button. Fuel percentage is omitted. Cargo
-capacity, sale value, and optional bounty vouchers sit beside Sell Cargo;
-the stable button label still sells both cargo and vouchers. Conditional
+Fuel and hull retain three-row bands beside their buttons, but each gauge is
+one terminal row tall to avoid font/line-spacing gaps. Both labels share a
+column sized to the wider display-cell label (HULL or the fuel glyph), plus
+one space. Both bars therefore start and end together, using the smaller of
+the two available gauge widths. The next row shows current/max fuel or hull
+points, left-aligned exactly at the gauge start; percentages remain in the HUD.
+Service credit amounts align to the gauge's right edge. If points and price
+cannot fit on that row with a separating space, put the complete price on the
+band's third row, still right-aligned, rather than clipping either value.
+Cargo capacity, sale value, and optional bounty vouchers sit beside Sell Cargo;
+SALE and BOUNTY labels stay left while their credit amounts align to that same
+right edge. The stable button label still sells both cargo and vouchers. Conditional
 insurance occupies the space below these details. Port Services omits shield
 status (the global HUD retains it) and the old bigger-rocks tip.
 

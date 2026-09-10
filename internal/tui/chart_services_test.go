@@ -15,6 +15,7 @@ import (
 	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/store"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/hitbox"
+	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 )
 
 // Find controls through their rendered label, not the renderer's coordinates.
@@ -49,6 +50,7 @@ func TestChartServiceRectanglesAndGauges(t *testing.T) {
 				assertPhysicalBounds(t, out, size[0], size[1])
 				rows := strings.Split(out, "\n")
 				var previous hitbox.Box
+				var firstGauge string
 				for i, c := range controls {
 					b := chartControl(t, g, c.label, c.id)
 					if b.W != 20 || b.H != 3 {
@@ -80,15 +82,28 @@ func TestChartServiceRectanglesAndGauges(t *testing.T) {
 						t.Fatalf("button border %q, want %q", top, want)
 					}
 					if i < 2 {
-						// A full starting gauge reaches to the gutter on both rows.
-						for y := b.Y; y < b.Y+2; y++ {
-							tail := ansi.Strip(ansi.Cut(rows[y+g.contentY()], b.X+g.contentX()-2, b.X+g.contentX()))
-							if tail != "█ " {
-								t.Fatalf("gauge does not fill to gutter: %q", tail)
+						leftW, _ := chartPaneWidths(g.contentWidth())
+						start := g.contentX() + leftW + 1
+						end := b.X + g.contentX() - 1
+						gauge := ansi.Strip(ansi.Cut(rows[b.Y+g.contentY()], start, end))
+						idx := strings.Index(gauge, "█")
+						if idx < 0 {
+							t.Fatal("gauge missing")
+						}
+						gauge = strings.Repeat(" ", ansi.StringWidth(gauge[:idx])) + gauge[idx:]
+						if i == 0 {
+							firstGauge = gauge
+						} else if gauge != firstGauge {
+							t.Fatalf("gauge spans differ: %q versus %q", firstGauge, gauge)
+						}
+						for y := b.Y + 1; y < b.Y+3; y++ {
+							detail := ansi.Strip(ansi.Cut(rows[y+g.contentY()], start, end))
+							if strings.Contains(detail, "█") {
+								t.Fatal("gauge must occupy only one row")
 							}
-							if _, ok := g.hitAt(b.X-2+g.contentX(), y+g.contentY()); ok {
-								t.Fatal("gauge is clickable")
-							}
+						}
+						if _, ok := g.hitAt(end-1, b.Y+g.contentY()); ok {
+							t.Fatal("gauge is clickable")
 						}
 					}
 					previous = b
@@ -145,7 +160,7 @@ func TestChartServiceDetails(t *testing.T) {
 			st.BountyVouchers = 7654321
 		}
 		out := ansi.Strip(g.renderChart())
-		for _, want := range []string{fmt.Sprintf("0/%.0f", sim.TankSize(st, g.content)), "50%", "[C] SELL CARGO"} {
+		for _, want := range []string{fmt.Sprintf("0/%.0f", sim.TankSize(st, g.content)), fmt.Sprintf("%d/%d", st.Ships[st.ActiveShipID].Hull, sim.MaxHull(st, g.content)), "[C] SELL CARGO"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("missing %q:\n%s", want, out)
 			}
@@ -261,5 +276,78 @@ func TestChartServicePurchasesByMouseAndKey(t *testing.T) {
 				t.Fatalf("services did not settle correctly: credits=%d expected=%d fuel=%v hull=%v cargo=%d vouchers=%d", st.Credits, expected, sim.FuelAmount(st, g.content), sim.HullPct(st, g.content), st.CargoValue, st.BountyVouchers)
 			}
 		})
+	}
+}
+
+// Inspect cell positions in the rendered service pane, including the narrow
+// layout where complete prices need the otherwise-unused third band row.
+func TestChartServicePointsAndCreditAlignment(t *testing.T) {
+	for _, size := range [][2]int{{80, 24}, {108, 32}, {144, 48}, {180, 60}} {
+		for _, ascii := range []bool{false, true} {
+			for _, expensive := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%dx%d/ascii=%v/expensive=%v", size[0], size[1], ascii, expensive), func(t *testing.T) {
+					g := newChartGame(t, size[0], size[1])
+					st := &g.snap.State
+					st.Settings.ASCIISafe = ascii
+					st.Ships[st.ActiveShipID].BaseFuel = 25
+					st.Ships[st.ActiveShipID].Hull = sim.MaxHull(st, g.content) / 2
+					st.CargoValue = 1234567
+					st.BountyVouchers = 7654321
+					if expensive {
+						g.content.Port.RefuelPerPoint = 12345
+					}
+					out := g.View().Content
+					assertPhysicalBounds(t, out, size[0], size[1])
+					rows := strings.Split(out, "\n")
+					leftW, _ := chartPaneWidths(g.contentWidth())
+					start := g.contentX() + leftW + 1
+					b := chartControl(t, g, "[F] REFUEL", "svc:refuel")
+					end := g.contentX() + b.X - 1
+					detail := func(row int) string { return ansi.Strip(ansi.Cut(rows[g.contentY()+b.Y+row], start, end)) }
+					fuelLabel := theme.Glyph("fuel", ascii)
+					barOffset := max(ansi.StringWidth(fuelLabel), 4) + 1
+					for _, tc := range []struct {
+						row    int
+						points string
+						cost   int
+					}{
+						{0, fmt.Sprintf("%.0f/%.0f", sim.FuelAmount(st, g.content), sim.TankSize(st, g.content)), sim.RefuelCost(st, g.content)},
+						{3, fmt.Sprintf("%d/%d", st.Ships[st.ActiveShipID].Hull, sim.MaxHull(st, g.content)), sim.RepairCost(st, g.content)},
+					} {
+						gauge := detail(tc.row)
+						idx := strings.Index(gauge, "█")
+						if idx < 0 || ansi.StringWidth(gauge[:idx]) != barOffset {
+							t.Fatalf("wrong gauge start: %q", gauge)
+						}
+						pointsRow := detail(tc.row + 1)
+						if !strings.HasPrefix(pointsRow, strings.Repeat(" ", barOffset)+tc.points) {
+							t.Fatalf("points not below gauge: %q", pointsRow)
+						}
+						if strings.Contains(pointsRow, "%") {
+							t.Fatalf("redundant percentage: %q", pointsRow)
+						}
+						price := fmt.Sprintf("%s %d", theme.Glyph("credit", ascii), tc.cost)
+						row := tc.row + 1
+						if barOffset+ansi.StringWidth(tc.points)+1+ansi.StringWidth(price) > end-start {
+							row++
+						}
+						if !strings.HasSuffix(detail(row), price) {
+							t.Fatalf("price must be complete and right aligned: %q want %q", detail(row), price)
+						}
+					}
+					for _, tc := range []struct {
+						row   int
+						label string
+						value int
+					}{{7, "SALE", 1234567}, {8, "BOUNTY", 7654321}} {
+						got := detail(tc.row)
+						price := fmt.Sprintf("%s %d", theme.Glyph("credit", ascii), tc.value)
+						if !strings.HasPrefix(got, tc.label) || !strings.HasSuffix(got, price) {
+							t.Fatalf("sale alignment incorrect: %q", got)
+						}
+					}
+				})
+			}
+		}
 	}
 }
