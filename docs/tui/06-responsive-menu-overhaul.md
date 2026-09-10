@@ -135,6 +135,13 @@ order breaks the equal remainder; at 144 it is 72/72. Existing route and
 service actions remain unchanged. Additional height expands descriptions and
 list breathing room; it does not reveal actions unavailable at 80×24.
 
+Port Services reserves 15 rows for five equal 20×3 bordered buttons aligned
+against the right interior edge, with gauges and details to their left, and
+two bottom rows for jump rating/certification and ferry/remote-jump controls.
+Fuel and hull gauges each fill two rows of their three-row band. Additional
+height becomes space before the progression footer; controls never scroll
+out of view. See [02-star-chart-and-run-summary.md](02-star-chart-and-run-summary.md#port-services-refresh-september-2026).
+
 ### Shipyard
 
 | Region | Minimum width | Weight |

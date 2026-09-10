@@ -239,7 +239,7 @@ func responsiveRenderVariants() []responsiveRenderVariant {
 			g.worldSel = 0
 			return g
 		}},
-		{name: "chart-unaffordable-services", anchors: []string{"REFUEL", "REPAIR — FULL"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "chart-unaffordable-services", anchors: []string{"REFUEL", "[R] REPAIR"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.snap.State.Credits = 0
 			g.snap.State.Hull = 5

@@ -70,7 +70,7 @@ func TestChartHitboxAlignment(t *testing.T) {
 	out := g.View().Content
 	assertHitboxAtText(t, g, out, c.Worlds[0].Name, "world:0")
 	assertHitboxAtText(t, g, out, "REFUEL", "svc:refuel")
-	assertHitboxAtText(t, g, out, "REPAIR — FULL", "svc:repair")
+	assertHitboxAtText(t, g, out, "[R] REPAIR", "svc:repair")
 }
 
 func TestMiningHitboxAlignment(t *testing.T) {

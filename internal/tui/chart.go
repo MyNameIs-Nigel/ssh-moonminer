@@ -110,15 +110,10 @@ func (g *Game) renderScreen() string {
 func (g *Game) renderChart() string {
 	st := g.snap.State
 	leftW, rightW := chartPaneWidths(g.contentWidth())
-	rightX := leftW + 1
 	panelH := g.bodyHeight()
 	panelBodyH := panelH - 2
 	accent := theme.Accent(theme.HueCyan)
-	rating := "UNCERTIFIED"
-	if st.JumpClass >= 0 {
-		rating = "CLASS " + sim.GradeLetter(st.JumpClass)
-	}
-	leftLines := []string{"JUMP RATING — " + rating + "  [J] CERTIFY", "[H] HAULER FERRY · ENTER REMOTE WORLD TO JUMP"}
+	var leftLines []string
 	type chartWorldHit struct {
 		row  int
 		line string
@@ -195,84 +190,8 @@ func (g *Game) renderChart() string {
 	}
 	leftBody := strings.Join(leftBodyLines, "\n")
 
-	refuelCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RefuelCost(&st, g.content))
-	repairCost := fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sim.RepairCost(&st, g.content))
-	fuelAmount := sim.FuelAmount(&st, g.content)
-	fuelPct := fuelAmount / sim.TankSize(&st, g.content) * 100
-	hullPct := sim.HullPct(&st, g.content)
-	fuelLabel := theme.Glyph("fuel", st.Settings.ASCIISafe) + " " + theme.FuelBar(fuelPct, 20) + theme.FuelStyle(fuelPct).Render(fmt.Sprintf(" %.0f/%.0f  %.0f%%", fuelAmount, sim.TankSize(&st, g.content), fuelPct))
-	hullLabel := "HULL " + theme.HullBar(hullPct, 20) + theme.HullStyle(hullPct).Render(fmt.Sprintf(" %.0f%%", hullPct))
-	shieldLabel := g.renderShieldStatus(&st, 8)
-
-	// Port services only exist at dock. When the chart is showing to a pilot
-	// who is still at a belt, the buttons render disabled rather than offering
-	// five keys that all error (framework/05).
 	docked := st.IsDocked()
-
-	type chartServiceHit struct {
-		row  int
-		line string
-		id   string
-		data any
-	}
-	var serviceHits []chartServiceHit
-	rightLines := []string{fuelLabel}
-	refuelBtn := theme.Button("F", "REFUEL", refuelCost, docked && sim.RefuelCost(&st, g.content) > 0 && st.Credits >= g.content.Port.RefuelPerPoint, theme.HueGreen)
-	rightLines = append(rightLines, refuelBtn)
-	serviceHits = append(serviceHits, chartServiceHit{1, refuelBtn, "svc:refuel", nil})
-
-	rightLines = append(rightLines, hullLabel)
-	repairBtn := theme.Button("R", "REPAIR — FULL", repairCost, docked && st.Credits >= sim.RepairCost(&st, g.content) && hullPct < 100, theme.HueGreen)
-	rightLines = append(rightLines, repairBtn)
-	serviceHits = append(serviceHits, chartServiceHit{3, repairBtn, "svc:repair", nil})
-
-	rightLines = append(rightLines, shieldLabel)
-	rightLines = append(rightLines, g.renderDockShieldService(&st))
-	cargoLabel := fmt.Sprintf("CARGO %.0f/%.0f  %s %d", st.CargoUnits, sim.CargoCapacityUnits(&st, g.content), theme.Glyph("credit", st.Settings.ASCIISafe), st.CargoValue)
-	rightLines = append(rightLines, cargoLabel)
-	if st.BountyVouchers > 0 {
-		rightLines = append(rightLines, theme.Amber.Render(fmt.Sprintf("BOUNTY VOUCHERS  %s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.BountyVouchers)))
-	}
-	sellLabel, sellTotal := "SELL CARGO", st.CargoValue
-	if st.BountyVouchers > 0 {
-		sellLabel = "SELL CARGO + BOUNTY"
-		sellTotal += st.BountyVouchers
-	}
-	sellBtn := theme.Button("C", sellLabel, fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), sellTotal), docked && sellTotal > 0, theme.HueGold)
-	rightLines = append(rightLines, sellBtn)
-	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, sellBtn, "svc:sell", nil})
-	if sim.InsuranceEligible(&st, g.content) {
-		insBtn := theme.Amber.Render("[I] INSURANCE ADVANCE")
-		rightLines = append(rightLines, insBtn)
-		serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, insBtn, "svc:insurance", nil})
-	}
-	shipyardBtn := theme.Button("S", "SHIPYARD", "", docked, theme.HueViolet)
-	rightLines = append(rightLines, shipyardBtn)
-	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, shipyardBtn, "btn:shipyard", nil})
-
-	logBtn := theme.Button("L", "SHIP'S LOG", "", true, theme.HueCyan)
-	rightLines = append(rightLines, logBtn)
-	serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, logBtn, "btn:log", nil})
-
-	if !docked {
-		returnBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
-		rightLines = append(rightLines, "", theme.Red.Render(theme.Glyph("diamond", st.Settings.ASCIISafe)+" IN BELT — RETURN TO BELT TO DOCK"), returnBtn)
-		serviceHits = append(serviceHits, chartServiceHit{len(rightLines) - 1, returnBtn, "btn:return-belt", nil})
-	}
-
-	footerHint := "Bigger rocks pay more but attract pirates."
-	if !docked {
-		footerHint = "Services open once the rig is docked."
-	}
-	rightFooter := g.chartFooterLines(footerHint, rightW-2, panelBodyH-len(rightLines))
-	rightBodyLines, rightScroll := panelViewportWithFooter(rightLines, rightFooter, panelBodyH, len(rightLines)-1)
-	for _, h := range serviceHits {
-		visRow := h.row - rightScroll
-		if visRow >= 0 && visRow < len(rightBodyLines)-len(rightFooter) {
-			g.hitPanelLine(visRow, rightX, h.line, h.id, h.data)
-		}
-	}
-	rightBody := strings.Join(rightBodyLines, "\n")
+	rightBody := g.renderChartServices(leftW+1, rightW-2, panelBodyH)
 
 	chartTitle := "STAR CHART"
 	if system := g.content.SystemByID(st.SystemID); system != nil {
@@ -299,6 +218,10 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 	if b, ok := g.hitAt(m.X, m.Y); ok {
 		// Buttons fire on single click.
 		switch b.ID {
+		case "svc:certify":
+			return g.keyChart("j")
+		case "svc:ferry":
+			return g.keyChart("h")
 		case "svc:refuel":
 			return g.keyChart("f")
 		case "svc:repair":

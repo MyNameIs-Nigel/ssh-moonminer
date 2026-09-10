@@ -47,13 +47,13 @@ func TestWrapChartTextPreservesWords(t *testing.T) {
 	}
 }
 
-func TestChartFootersShareTheBottomRow(t *testing.T) {
+func TestChartProgressionFooterSharesDescriptionBottomRow(t *testing.T) {
 	g := newChartGame(t, 80, 24)
 	g.worldSel = 1 // Vesta's description fits, making the footer easy to read.
 	lines := strings.Split(ansi.Strip(g.renderChart()), "\n")
 	footerRow := -1
 	for i, row := range lines {
-		if strings.Contains(row, "Close to port.") && strings.Contains(row, "Bigger rocks pay") {
+		if strings.Contains(row, "Close to port.") && strings.Contains(row, "[H] HAULER FERRY") {
 			footerRow = i
 			break
 		}

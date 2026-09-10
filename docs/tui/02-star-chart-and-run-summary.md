@@ -112,6 +112,40 @@ Shipyard, and Ship's Log.
   I insurance advance when eligible, S Shipyard, L Ship's Log, T Tweaks, and
   Q quit; every rendered row and button is click/wheel-able per tui/01.
 
+### Port Services refresh (September 2026)
+
+This supersedes the historical service sketch above. The equal chart/services
+split remains; the chart starts directly with system rows. Port Services uses
+five right-aligned, 20-column by three-row bordered buttons: `[F] REFUEL`,
+`[R] REPAIR`, `[C] SELL CARGO`, `[S] SHIPYARD`, and `[L] SHIP'S LOG`.
+Labels are centered; ASCII-safe mode uses ASCII button borders. The entire
+rectangle, including border and padding, is clickable through existing actions.
+Disabled styling and dock restrictions retain their existing semantics.
+
+Fuel and hull occupy three-row bands beside their buttons: two rows of gauge
+fill, then current/capacity fuel or hull percentage and the service price.
+The fuel glyph or HULL label immediately precedes the gauge, which expands to
+a one-column gutter before the button. Fuel percentage is omitted. Cargo
+capacity, sale value, and optional bounty vouchers sit beside Sell Cargo;
+the stable button label still sells both cargo and vouchers. Conditional
+insurance occupies the space below these details. Port Services omits shield
+status (the global HUD retains it) and the old bigger-rocks tip.
+
+The last two service-body rows contain `JUMP RATING: <rating> [J] CERTIFY`
+and `[H] HAULER FERRY · ENTER REMOTE: JUMP`, with clickable certification and
+ferry controls. They replace the jump text above the system list. Five button
+bands use 15 rows and this footer uses two, fitting 80×24 without hiding any
+service action. Extra height separates the service bands from the footer.
+Offline charts retain their warning and Return to Belt action in the lower-left
+service area; port actions remain gated, and the log remains available.
+
+Acceptance coverage checks geometry and full-rectangle hitboxes at 80×24,
+108×32, 144×48, and larger centered terminals, including ASCII mode; moved
+progression controls; unchanged keyboard/mouse actions; full/empty fuel,
+damaged/full hull, insufficient credits, bounty sales, insurance, and offline
+states. Update docs, then write and run tests against the old implementation,
+then change production code.
+
 ### Run Summary
 
 Rendered when the actor reports a resolved run (gameplay/02's `RunRecord`):
