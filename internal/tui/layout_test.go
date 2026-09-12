@@ -277,12 +277,12 @@ func TestPanelViewportWithFooterKeepsSelection(t *testing.T) {
 
 func TestLayoutPinnedColumnPinsBottomRows(t *testing.T) {
 	top := []string{"status-1", "status-2", "status-3", "status-4", "status-5"}
-	bottom := []string{"[B] BAIL"}
+	bottom := []string{"[Q] BAIL"}
 	lines, scroll := layoutPinnedColumn(top, bottom, 20, 4)
 	if scroll != 2 || len(lines) != 4 {
 		t.Fatalf("layout = %#v scroll=%d", lines, scroll)
 	}
-	if lines[len(lines)-1] != "[B] BAIL" {
+	if lines[len(lines)-1] != "[Q] BAIL" {
 		t.Fatalf("action not pinned: %#v", lines)
 	}
 }

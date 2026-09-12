@@ -15,7 +15,7 @@ func (g *Game) keySummary(k string) []tea.Cmd {
 		// No belt to return to — the ship, its cargo, and its upgrades are
 		// gone and the pilot has already respawned at the local dock.
 		switch k {
-		case "enter", " ", "q":
+		case "enter", "e", "q":
 			snap, _ := g.sess.Dock(g.now)
 			g.scr = scrChart
 			g.lastOutcome = nil
@@ -24,7 +24,7 @@ func (g *Game) keySummary(k string) []tea.Cmd {
 		return nil
 	}
 	switch k {
-	case "enter", " ":
+	case "enter", "e":
 		g.scr = scrBelt
 		g.lastOutcome = nil
 	case "q":
@@ -63,14 +63,14 @@ func (g *Game) renderSummary() string {
 		header = append(header, theme.Red.Render(fmt.Sprintf("PIRATE DESTROYED: %s — BOUNTY %s %d (voucher held)",
 			out.Record.PirateDestroyed, theme.Glyph("credit", st.Settings.ASCIISafe), out.Record.BountyEarned)))
 	}
-	continueBtn := theme.Button("ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
+	continueBtn := theme.Button("E/ENTER", "RETURN TO BELT", "", true, theme.HueCyan)
 	dockBtn := theme.Button("Q", "DOCK AT PORT", "", true, theme.HueGold)
 	footer := []string{"", continueBtn, dockBtn}
 	body := strings.Join(bottomAlignPanelLines(header, footer, panelBodyH), "\n")
 	content := theme.Panel("RUN SUMMARY", panelW, panelH, body, accent)
 	g.hitPanelLine(panelBodyH-2, 1, continueBtn, "btn:summary:continue", nil)
 	g.hitPanelLine(panelBodyH-1, 1, dockBtn, "btn:summary:dock", nil)
-	hint := "[ENTER] RETURN TO BELT · [Q] DOCK AT PORT"
+	hint := "[E/ENTER] RETURN TO BELT · [Q] DOCK AT PORT"
 	return content + "\n" + g.renderKeybar(hint)
 }
 
@@ -96,11 +96,11 @@ func (g *Game) renderShipLostSummary(out *sim.RunOutcome) string {
 			strings.ToUpper(st.ActiveShipID), sim.ShipHull(&st, st.ActiveShipID), sim.MaxHull(&st, g.content),
 			sim.FuelAmount(&st, g.content), sim.TankSize(&st, g.content))),
 	}
-	dockBtn := theme.Button("ENTER", "RESPAWN AT DOCK", "", true, theme.HueGold)
+	dockBtn := theme.Button("E/ENTER", "RESPAWN AT DOCK", "", true, theme.HueGold)
 	footer := []string{"", dockBtn}
 	body := strings.Join(bottomAlignPanelLines(header, footer, panelBodyH), "\n")
 	content := theme.Panel("RESPAWN — SHIP LOST", panelW, panelH, body, accent)
 	g.hitPanelLine(panelBodyH-1, 1, dockBtn, "btn:summary:dock", nil)
-	hint := "[ENTER] RESPAWN AT DOCK"
+	hint := "[E/ENTER] RESPAWN AT DOCK"
 	return content + "\n" + g.renderKeybar(hint)
 }

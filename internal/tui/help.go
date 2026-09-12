@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/mynameis-nigel/ssh-moonminer/internal/sim"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/tui/theme"
 	"github.com/mynameis-nigel/ssh-moonminer/internal/version"
 )
@@ -62,8 +63,8 @@ func (g *Game) helpEntries() []helpTextLine {
 	case scrShipyard:
 		screen = []helpTextLine{
 			{"SHIPYARD", theme.Bright},
-			{"Tab switch HANGAR/LOADOUT focus", plain},
-			{"↑/↓ select ship, track, or slot", plain},
+			{"A/D, ←/→, or Tab switch HANGAR/LOADOUT focus", plain},
+			{"W/S or ↑/↓ select ship, track, or slot", plain},
 			{"Remote hulls stay parked. H on the chart opens the hauler ferry.", plain},
 			{"Lantern: two internal slots. Vesper: self-repair, no shield or buyback.", plain},
 			{"Enter buy ship/track or open the item picker for a slot", plain},
@@ -73,21 +74,21 @@ func (g *Game) helpEntries() []helpTextLine {
 	case scrBelt:
 		screen = []helpTextLine{
 			{"ASTEROID BELT", theme.Bright},
-			{"↑/↓/←/→ cycle contacts", plain},
+			{"WASD or arrow keys cycle contacts", plain},
 			{"Enter lock target and fly", plain},
-			{"S scan selected asteroid", plain},
+			{"E scan selected asteroid", plain},
 			{"V cycle belt view mode", plain},
 			{"Q dock at port", plain},
 		}
 	case scrMining:
 		screen = []helpTextLine{
 			{"MINING", theme.Bright},
-			{"B or Esc BAIL while asteroid ore remains", plain},
-			{"Enter DEPART once the asteroid is depleted", plain},
-			{"Space or click a lit pressure point to fracture the asteroid", plain},
-			{"D drop cargo / R refuse if pirates demand tribute", plain},
+			{"Q BAIL while asteroid ore remains", plain},
+			{"Q DEPART once the asteroid is depleted", plain},
+			{"E/Space or click a lit pressure point to fracture the asteroid", plain},
+			{"X drop cargo / R refuse if pirates demand tribute", plain},
 			{"F fight (armed ships only) instead of dropping or running", plain},
-			{"In combat: autocannons fire continuously; F fires Pulse Lasers on the arc; G fires guided missiles; B/Enter starts escape", plain},
+			{"In combat: autocannons fire continuously; F fires Pulse Lasers on the arc; G fires guided missiles; Q starts escape", plain},
 			{"No input once escaping unarmed — the ship flees or dies", plain},
 			{"Cargo stays in the top nav; watch the right-hand pirate scanner", plain},
 		}
@@ -97,15 +98,22 @@ func (g *Game) helpEntries() []helpTextLine {
 			{"Any key returns to the dock respawn summary", plain},
 		}
 	case scrSummary:
-		screen = []helpTextLine{
-			{"RUN SUMMARY", theme.Bright},
-			{"Enter return to belt", plain},
-			{"Q dock at port", plain},
+		if g.lastOutcome != nil && g.lastOutcome.Kind == sim.OutcomeShipLost {
+			screen = []helpTextLine{
+				{"SHIP-LOST SUMMARY", theme.Bright},
+				{"E, Enter, or Q respawn at dock", plain},
+			}
+		} else {
+			screen = []helpTextLine{
+				{"RUN SUMMARY", theme.Bright},
+				{"E or Enter return to belt", plain},
+				{"Q dock at port", plain},
+			}
 		}
 	case scrLog:
 		screen = []helpTextLine{
 			{"SHIP'S LOG", theme.Bright},
-			{"↑/↓ scroll run history", plain},
+			{"W/S or ↑/↓ scroll run history", plain},
 			{"Esc, Q, or L back to chart", plain},
 		}
 	default:
@@ -115,12 +123,12 @@ func (g *Game) helpEntries() []helpTextLine {
 			{"Enter on a remote destination opens a separate dock-to-dock jump", plain},
 			{"H hauler ferry: bring a parked hull to your current system", plain},
 			{"Jump countdown: any key skips; reduced motion shows arrival immediately", plain},
-			{"↑/↓ select destination", plain},
+			{"W/S or ↑/↓ select destination", plain},
 			{"Enter depart to asteroid belt", plain},
 			{"C sell cargo + bounty vouchers · F refuel · R repair hull", plain},
 			{"I insurance (when eligible)", plain},
-			{"S shipyard · L ship's log", plain},
-			{"T tweaks · Q quit", plain},
+			{"E shipyard · X ship's log", plain},
+			{"Z tweaks · Q quit", plain},
 		}
 	}
 	return append(global, screen...)
@@ -179,7 +187,7 @@ func (g *Game) renderHelpOverlay() string {
 	if g.helpScroll < 0 {
 		g.helpScroll = 0
 	}
-	hint := theme.DimStyle.Render("↑/↓ scroll · ?, Esc, or Q close")
+	hint := theme.DimStyle.Render("W/S or ↑/↓ scroll · ?, Esc, or Q close")
 	if g.helpScrollMax() == 0 {
 		hint = theme.DimStyle.Render("?, Esc, or Q close")
 	}

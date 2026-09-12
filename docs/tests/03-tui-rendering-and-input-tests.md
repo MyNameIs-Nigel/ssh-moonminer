@@ -58,7 +58,7 @@ Drive `Update` with message sequences; assert model state + recorded calls:
   destination flashes the exact lock reason, Enter on affordable destination
   calls `Depart` and routes to belt.
 - Belt: arrows cycle 7 rocks in every view mode; `V` cycles views and the
-  selection index survives; Enter→`Lock`; `S`→`Scan` for the selected
+  selection index survives; Enter→`Lock`; `E`→`Scan` for the selected
   contact; `Q`→`Dock`.
 - Mining Site: `B`, Esc, or Enter while resources remain calls
   `BailOrDepart` and routes to escape; Enter after depletion calls the same

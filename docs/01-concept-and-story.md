@@ -149,7 +149,7 @@ Asteroid rarity tiers (the one place color breaks from blue monochrome):
 
 ## Controls (global contract)
 
-Arrow keys move selection; **Enter/Space** confirms; the **mouse works
+WASD or arrow keys move selection; **Enter/Space** confirms; the **mouse works
 everywhere the keyboard does** — clicking a list row selects it, clicking a
 selected row (or double-clicking) activates it, clicking `[F] REFUEL` style
 buttons triggers them, and the scroll wheel moves selection in lists.
@@ -161,14 +161,14 @@ actions:
 
 | Screen | Keys |
 | --- | --- |
-| Star Chart | ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · S shipyard · L log · J jump certification (gameplay/08) · I salvage advance (only while eligible) · T tweaks · Q quit |
-| Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · S scan selected contact · V cycle view mode · Q dock |
-| Mining | B/Esc/Enter bail while ore remains, depart once depleted · Space/click fracture a lit pressure point |
-| Tribute prompt | D accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |
-| Combat | F pulse laser · G guided missile · B/Esc/Enter start the escape burn — see gameplay/07 |
+| Star Chart | W/S or ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · E shipyard · X log · J jump certification (gameplay/08) · I salvage advance (only while eligible) · Z tweaks · Q quit |
+| Belt | WASD or arrow keys cycle contacts · Enter/Space lock & fly · E scan selected contact · V cycle view mode · Q dock |
+| Mining | Q bail while ore remains, depart once depleted · E/Space/click fracture a lit pressure point |
+| Tribute prompt | X accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |
+| Combat | F pulse laser · G guided missile · Q start the escape burn — see gameplay/07 |
 | Escape | no menu actions; ship is fleeing under current conditions |
-| Run Summary | Enter/Space continue into the same belt · Q dock |
-| Ship-lost recap | Enter/Space/Q — all dock; there is no belt to return to |
+| Run Summary | E/Enter continue into the same belt · Q dock |
+| Ship-lost recap | E/Enter/Q — all dock; there is no belt to return to |
 | Anywhere | ? help overlay · Ctrl+C disconnect |
 
 Note what the belt screen owns: `Q` is the **only** way to dock. The star chart

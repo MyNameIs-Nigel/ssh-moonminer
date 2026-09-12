@@ -103,7 +103,16 @@ func (g *Game) keyShipyard(k string) []tea.Cmd {
 	case "shift+tab":
 		g.shipyardPane = shipyardPaneHangar
 		return nil
-	case "up", "k":
+	case "left", "a":
+		g.shipyardPane = shipyardPaneHangar
+		return nil
+	case "right", "d":
+		if sim.OwnsShip(&st, g.shipyardSelectedModel().ID) {
+			g.shipyardPane = shipyardPaneLoadout
+			g.shipyardRowSel = 0
+		}
+		return nil
+	case "up", "w":
 		if g.shipyardPane == shipyardPaneHangar {
 			g.shipyardHangarSel = (g.shipyardHangarSel - 1 + n) % n
 			g.shipyardRowSel = 0
@@ -111,7 +120,7 @@ func (g *Game) keyShipyard(k string) []tea.Cmd {
 			rows := shipyardRows(g.shipyardSelectedModel())
 			g.shipyardRowSel = (g.shipyardRowSel - 1 + len(rows)) % len(rows)
 		}
-	case "down", "j":
+	case "down", "s":
 		if g.shipyardPane == shipyardPaneHangar {
 			g.shipyardHangarSel = (g.shipyardHangarSel + 1) % n
 			g.shipyardRowSel = 0
@@ -313,7 +322,7 @@ func (g *Game) renderShipyard() string {
 	if acquireFootnote != "" {
 		body = lipgloss.JoinVertical(lipgloss.Left, body, acquireFootnote)
 	}
-	hint := "↑/↓ SELECT · TAB PANE · ENTER BUY/PICK · X REMOVE · ESC/Q CHART"
+	hint := "WASD SELECT/PANE · ENTER BUY/PICK · X REMOVE · ESC/Q CHART"
 	return body + "\n" + g.renderKeybar(hint)
 }
 

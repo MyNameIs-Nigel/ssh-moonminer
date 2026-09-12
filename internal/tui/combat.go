@@ -106,7 +106,7 @@ func (g *Game) keyCombat(m tea.KeyPressMsg) []tea.Cmd {
 		}
 		snap, err := g.sess.FireMissile(g.now)
 		return g.refreshSnap(snap, err)
-	case "b", "esc", "enter":
+	case "q":
 		snap, err := g.sess.CombatEscape(g.now)
 		return g.refreshSnap(snap, err)
 	}
@@ -332,15 +332,15 @@ func (g *Game) renderCombat(st *sim.State, run *sim.ActiveRun) string {
 	scope := theme.Panel("TACTICAL SCOPE", rightW, panelH,
 		g.renderCombatScope(cs, scopeInnerW, scopeInnerH), theme.Accent(theme.HueAmber))
 
-	hint := "B BAIL"
+	hint := "Q BAIL"
 	if pulseArmed {
-		hint = "F PULSE · B BAIL"
+		hint = "F PULSE · Q BAIL"
 	}
 	if missileFitted {
 		if pulseArmed {
-			hint = "F PULSE · G MISSILE · B BAIL"
+			hint = "F PULSE · G MISSILE · Q BAIL"
 		} else {
-			hint = "G MISSILE · B BAIL"
+			hint = "G MISSILE · Q BAIL"
 		}
 	}
 	if cs.EscapeStarted {

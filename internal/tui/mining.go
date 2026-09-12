@@ -22,7 +22,7 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 	switch run.Phase {
 	case sim.PhaseMining:
 		switch k {
-		case "b", "esc", "enter":
+		case "q":
 			snap, err := g.sess.BailOrDepart(g.now)
 			return g.refreshSnap(snap, err)
 		}
@@ -35,7 +35,7 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 		}
 	case sim.PhaseTribute:
 		switch k {
-		case "d":
+		case "x":
 			snap, err := g.sess.AcceptTribute(g.now)
 			return g.refreshSnap(snap, err)
 		case "r", "esc":
@@ -59,7 +59,7 @@ func (g *Game) keyMining(m tea.KeyPressMsg) []tea.Cmd {
 
 // Bubble Tea identifies physical space-bar presses as "space". Keep the
 // literal-space form too because the shipyard mouse hitbox synthesizes it.
-func isSkillCheckKey(k string) bool { return k == "space" || k == " " }
+func isSkillCheckKey(k string) bool { return k == "e" || k == "space" || k == " " }
 
 func (g *Game) renderMining() string {
 	st := g.snap.State
@@ -167,7 +167,7 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 		remainingPct := clampF(100*(1-sc.Elapsed/sc.Window), 0, 100)
 		remainingSecs := math.Max(0, sc.Window-sc.Elapsed)
 		skillRow = len(leftLines)
-		label := "[SPACE] FRACTURE"
+		label := "[E/SPACE] FRACTURE"
 		if !st.Settings.ReducedMotion && g.tickCount%2 == 0 {
 			label = theme.Gold.Bold(true).Render(label)
 		} else {
@@ -182,15 +182,15 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 
 	var actionLine string
 	if depleted {
-		actionLine = theme.Button("ENTER", "DEPART", "", true, theme.HueGreen)
+		actionLine = theme.Button("Q", "DEPART", "", true, theme.HueGreen)
 	} else if cargoFull {
-		actionLine = theme.Amber.Render("HOLD FULL — [B] BAIL WITH CURRENT LOAD")
+		actionLine = theme.Amber.Render("HOLD FULL — [Q] BAIL WITH CURRENT LOAD")
 	} else if st.Settings.ReducedMotion {
-		actionLine = theme.Amber.Render("[B] BAIL !")
+		actionLine = theme.Amber.Render("[Q] BAIL !")
 	} else if g.tickCount%2 == 0 {
-		actionLine = theme.Amber.Render("[B] BAIL")
+		actionLine = theme.Amber.Render("[Q] BAIL")
 	} else {
-		actionLine = theme.Gold.Render("[B] BAIL")
+		actionLine = theme.Gold.Render("[Q] BAIL")
 	}
 	actionRow := len(leftLines)
 	leftLines = append(leftLines, actionLine)
@@ -199,15 +199,15 @@ func (g *Game) renderDrilling(st *sim.State, run *sim.ActiveRun, ast *sim.Astero
 	bodyH := g.bodyHeight()
 	viewport, activePoint := g.renderAsteroidViewport(st, run, rightW, bodyH)
 
-	hint := "B BAIL"
+	hint := "Q BAIL"
 	if depleted {
-		hint = "ENTER DEPART"
+		hint = "Q DEPART"
 	}
 	if cargoFull {
-		hint = "HOLD FULL — B BAIL"
+		hint = "HOLD FULL — Q BAIL"
 	}
 	if run.SkillCheck != nil {
-		hint = "SPACE FRACTURE PRESSURE POINT · " + hint
+		hint = "E/SPACE FRACTURE PRESSURE POINT · " + hint
 	}
 	if fuelPct <= 0 {
 		hint = theme.Red.Render("▼ TANKS DRY — DRILL PAUSED, DECIDE NOW")
@@ -499,21 +499,21 @@ func (g *Game) renderTribute(st *sim.State, run *sim.ActiveRun, name string, tie
 		theme.DimStyle.Render(fmt.Sprintf("decision timeout: %.0fs", remaining)),
 		"",
 	)
-	dropBtn := theme.Button("D", "DROP CARGO", "", true, theme.HueAmber)
+	dropBtn := theme.Button("X", "DROP CARGO", "", true, theme.HueAmber)
 	refuseBtn := theme.Button("R", "REFUSE / RUN", "", true, theme.HueRed)
 	pinned := []string{dropBtn, refuseBtn}
 	hits := []miningHit{
 		{pinned: true, row: 0, line: dropBtn, id: "btn:tribute:accept", data: nil},
 		{pinned: true, row: 1, line: refuseBtn, id: "btn:tribute:refuse", data: nil},
 	}
-	hint := "D DROP CARGO · R REFUSE / RUN"
+	hint := "X DROP CARGO · R REFUSE / RUN"
 	fightBtn := ""
 	if armed {
 		odds := int(math.Round(sim.EstimateOddsForRun(st, g.content, run) * 100))
 		fightBtn = theme.Button("F", fmt.Sprintf("FIGHT — EST. ODDS %d%%", odds), "", true, theme.HueRed)
 		pinned = append(pinned, fightBtn)
 		hits = append(hits, miningHit{pinned: true, row: 2, line: fightBtn, id: "btn:tribute:fight", data: nil})
-		hint = "D DROP CARGO · R REFUSE / RUN · F FIGHT"
+		hint = "X DROP CARGO · R REFUSE / RUN · F FIGHT"
 	}
 	_, rightW := g.miningColumnWidths()
 	bodyH := g.bodyHeight()

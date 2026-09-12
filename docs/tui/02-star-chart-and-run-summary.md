@@ -8,8 +8,8 @@
 > [05-shipyard-screen.md](05-shipyard-screen.md) and
 > [../gameplay/05-fleet-ships-and-shipyard-economy.md](../gameplay/05-fleet-ships-and-shipyard-economy.md).
 > Wherever this doc below describes the Shipyard as a sub-view/overlay
-> (the `[S] SHIPYARD` sketch row and the "Shipyard (sub-view or overlay)"
-> paragraph), tui/05 wins. The Star Chart still owns the `[S] SHIPYARD`
+> (the `[E] SHIPYARD` sketch row and the "Shipyard (sub-view or overlay)"
+> paragraph), tui/05 wins. The Star Chart still owns the `[E] SHIPYARD`
 > button that *navigates* there, plus everything else on this page
 > (port services, cosmetics, stations, run summary, death, ship's log).
 >
@@ -62,10 +62,10 @@ after death, and reflects.
 │   CERES CLAIMS      LOCK TANK I   │ CARGO ██░░░░░ 12/40   │
 │   IO SHADOW         LOCK ◈25,000  │ [F] REFUEL ◈135       │
 │ ◇ ERIDANI DRIFT     LOCK CUTTER   │ [H] REPAIR FULL       │
-│ KEPLER REACH        LOCK HAULER   │ [S] SHIPYARD          │
+│ KEPLER REACH        LOCK HAULER   │ [E] SHIPYARD          │
 │                                   │ [C] SELL CARGO        │
 │  "Thin, legal, and picked over.   │ [I] INSURANCE         │
-│   Good enough to buy a tank."     │ [L] SHIP'S LOG        │
+│   Good enough to buy a tank."     │ [X] SHIP'S LOG        │
 └ ↑↓ SELECT · ENTER DEPART · F REFUEL · R REPAIR · S SHIPYARD · Q ─ █ ┘
 ```
 
@@ -117,7 +117,7 @@ Shipyard, and Ship's Log.
 This supersedes the historical service sketch above. The equal chart/services
 split remains; the chart starts directly with system rows. Port Services uses
 five right-aligned, 20-column by three-row bordered buttons: `[F] REFUEL`,
-`[R] REPAIR`, `[C] SELL CARGO`, `[S] SHIPYARD`, and `[L] SHIP'S LOG`.
+`[R] REPAIR`, `[C] SELL CARGO`, `[E] SHIPYARD`, and `[X] SHIP'S LOG`.
 Labels are centered; ASCII-safe mode uses ASCII button borders. The entire
 rectangle, including border and padding, is clickable through existing actions.
 Disabled styling and dock restrictions retain their existing semantics.
@@ -169,7 +169,7 @@ the manifest/log viewport; it does not create a second column.
 - `ESCAPED UNDER FIRE` shows hull loss in red.
 - `SHIP LOST` should usually be preceded by the Death Screen below; the recap
   explains active ship, upgrades, and cargo lost.
-- `[ENTER] RETURN TO BELT · [Q] DOCK AT PORT` — if the ship survived. If death
+- `[E/ENTER] RETURN TO BELT · [Q] DOCK AT PORT` — if the ship survived. If death
   occurred, `[ENTER] RESPAWN AT SOL DOCK`.
 
 ### Death screen

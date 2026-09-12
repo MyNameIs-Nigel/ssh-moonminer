@@ -240,7 +240,7 @@ func (g *Game) updateSlotPickerOverlay(k string) []tea.Cmd {
 	case "esc", "q":
 		g.overlay = ovNone
 		return nil
-	case "left", "h", "right", "l":
+	case "left", "a", "right", "d":
 		// Grade-adjust only needs the row's slot kind (to know the catalog
 		// item count g.pickerSel indexes into), not the full entries build
 		// pickerContext does — skip that cost on what's likely the
@@ -255,7 +255,7 @@ func (g *Game) updateSlotPickerOverlay(k string) []tea.Cmd {
 			return nil
 		}
 		delta := -1
-		if k == "right" || k == "l" {
+		if k == "right" || k == "d" {
 			delta = 1
 		}
 		g.pickerCatalogGrade[g.pickerSel] = clampInt(g.pickerCatalogGrade[g.pickerSel]+delta, 0, sim.MaxGrade)
@@ -270,12 +270,12 @@ func (g *Game) updateSlotPickerOverlay(k string) []tea.Cmd {
 	total := len(entries)
 
 	switch k {
-	case "up", "k":
+	case "up", "w":
 		if total > 0 {
 			g.pickerSel = (g.pickerSel - 1 + total) % total
 			g.pickerClampScroll(total)
 		}
-	case "down", "j":
+	case "down", "s":
 		if total > 0 {
 			g.pickerSel = (g.pickerSel + 1) % total
 			g.pickerClampScroll(total)
@@ -357,7 +357,7 @@ func (g *Game) renderSlotPickerOverlay() string {
 	}
 	built := make([]pickerLine, 0, len(entries)+4)
 	for _, line := range []string{
-		theme.DimStyle.Render("←/→ grade · ↑/↓ item · ENTER install · ESC cancel"),
+		theme.DimStyle.Render("A/D·←/→ grade · W/S·↑/↓ item · Enter install"),
 		theme.DimStyle.Render("CATALOG"),
 	} {
 		built = append(built, pickerLine{text: line, entry: -1})
@@ -410,7 +410,7 @@ func (g *Game) renderSlotPickerOverlay() string {
 		built = append(built, pickerLine{text: line, entry: i})
 	}
 	if len(entries) > pickerVisible {
-		built = append(built, pickerLine{text: theme.DimStyle.Render(fmt.Sprintf("%d/%d — wheel/↑↓ to scroll", g.pickerSel+1, len(entries))), entry: -1})
+		built = append(built, pickerLine{text: theme.DimStyle.Render(fmt.Sprintf("%d/%d — wheel/W/S/↑↓ to scroll", g.pickerSel+1, len(entries))), entry: -1})
 	}
 	keepRow := 0
 	for i, pl := range built {
@@ -497,9 +497,9 @@ func (g *Game) updateSlotRemoveOverlay(k string) []tea.Cmd {
 			g.overlay = ovNone
 		}
 		return nil
-	case "up", "down", "left", "right", "h", "j", "k", "l", "tab":
+	case "up", "down", "left", "right", "w", "a", "s", "d", "tab":
 		g.removeConfirmSel = 1 - g.removeConfirmSel
-	case "s":
+	case "c":
 		g.removeConfirmSel = removeConfirmStore
 		return g.removeConfirm(model, row)
 	case "v":
@@ -592,7 +592,7 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	}
 	sellPct := g.content.Slots.SellValuePct * 100
 	credit := theme.Glyph("credit", st.Settings.ASCIISafe)
-	storeLine := storeStyle.Render(storeMarker + "[S] STORE — keep it, install free later")
+	storeLine := storeStyle.Render(storeMarker + "[C] STORE — keep it, install free later")
 	sellText := fmt.Sprintf("[V] SELL — %s %d (%.0f%% value)", credit, sellValue, sellPct)
 	if g.pendingSlotInstall != nil && !g.pendingSlotInstall.fromInv {
 		sellText = fmt.Sprintf("[V] SELL + BUY — net %s %d", credit, g.pendingSlotInstall.price-sellValue)
@@ -603,7 +603,7 @@ func (g *Game) renderSlotRemoveOverlay() string {
 	storeIdx := len(lines)
 	lines = append(lines, storeLine)
 	sellIdx := len(lines)
-	lines = append(lines, sellLine, "", theme.DimStyle.Render("↑/↓ choose · Enter confirm · Esc cancel"))
+	lines = append(lines, sellLine, "", theme.DimStyle.Render("W/S or ↑/↓ choose · Enter confirm · Esc cancel"))
 	for i := range lines {
 		lines[i] = clipFrameLine(lines[i], innerW)
 	}

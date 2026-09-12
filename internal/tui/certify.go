@@ -53,7 +53,7 @@ func (g *Game) updateCertify(k string) []tea.Cmd {
 }
 func (g *Game) renderFerry() string {
 	st := &g.snap.State
-	lines := []string{"HAULER — DELIVER TO " + g.content.SystemByID(st.SystemID).Name, "Select a parked hull with ↑/↓.", ""}
+	lines := []string{"HAULER — DELIVER TO " + g.content.SystemByID(st.SystemID).Name, "Select a parked hull with W/S or ↑/↓.", ""}
 	ids := g.ferryShips()
 	for i, id := range ids {
 		mark := "  "
@@ -92,10 +92,10 @@ func (g *Game) updateFerry(k string) []tea.Cmd {
 	if len(ids) == 0 {
 		return nil
 	}
-	if k == "up" {
+	if k == "up" || k == "w" {
 		g.ferrySel = (g.ferrySel + len(ids) - 1) % len(ids)
 	}
-	if k == "down" {
+	if k == "down" || k == "s" {
 		g.ferrySel = (g.ferrySel + 1) % len(ids)
 	}
 	g.ferrySel = min(g.ferrySel, len(ids)-1)

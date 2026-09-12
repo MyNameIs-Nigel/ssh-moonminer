@@ -142,9 +142,9 @@ func TestTweaksOverlayNavigation(t *testing.T) {
 	if g.tweaksSel != tweakHighContrast {
 		t.Fatalf("tweaksSel: got %d want high contrast row %d", g.tweaksSel, tweakHighContrast)
 	}
-	g.updateTweaksOverlay("t")
+	g.updateTweaksOverlay("z")
 	if g.overlay != ovNone {
-		t.Fatal("expected tweaks overlay closed with T")
+		t.Fatal("expected tweaks overlay closed with Z")
 	}
 	g.overlay = ovTweaks
 	g.updateTweaksOverlay("q")

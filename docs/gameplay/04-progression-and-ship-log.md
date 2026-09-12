@@ -163,7 +163,7 @@ upgrades, and cargo.
 ### Consumers (informative)
 
 tui/02 renders stats + log on a Ship's Log screen reachable from the chart
-(`L` key), plus shipyard/cosmetic/station panels. The Run Summary screen shows
+(`X` key), plus shipyard/cosmetic/station panels. The Run Summary screen shows
 the newest record. No TUI work in this task — but keep the structs
 render-friendly (exported, plain types).
 

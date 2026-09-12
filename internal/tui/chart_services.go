@@ -93,8 +93,8 @@ func (g *Game) renderChartServices(x, width, height int) string {
 		{"F", "REFUEL", "svc:refuel", docked && refuelCost > 0 && st.Credits >= g.content.Port.RefuelPerPoint, theme.HueGreen},
 		{"R", "REPAIR", "svc:repair", docked && st.Credits >= repairCost && hullPct < 100, theme.HueGreen},
 		{"C", "SELL CARGO", "svc:sell", docked && st.CargoValue+st.BountyVouchers > 0, theme.HueGold},
-		{"S", "SHIPYARD", "btn:shipyard", docked, theme.HueViolet},
-		{"L", "SHIP'S LOG", "btn:log", true, theme.HueCyan},
+		{"E", "SHIPYARD", "btn:shipyard", docked, theme.HueViolet},
+		{"X", "SHIP'S LOG", "btn:log", true, theme.HueCyan},
 	}
 	lines := make([]string, height)
 	for i, svc := range services {

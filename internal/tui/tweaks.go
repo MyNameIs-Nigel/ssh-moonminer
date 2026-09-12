@@ -175,7 +175,7 @@ func (g *Game) renderTweaksOverlay() string {
 	panelW, panelH := g.layoutOverlaySize(tweaksPanelW, tweaksPanelH)
 	panelBodyH := panelH - 2
 	innerW := panelW - 4
-	lines := []string{theme.LabelStyle(hc).Render("Arrow keys change values · T, Q, or Esc close")}
+	lines := []string{theme.LabelStyle(hc).Render("WASD or arrow keys change values · Z, Q, or Esc close")}
 	if g.devMode {
 		lines = append(lines, theme.DimStyle.Render("Pirate speed only. Rewards unchanged."))
 	}
@@ -226,15 +226,15 @@ func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx, panelW, panelH
 
 func (g *Game) updateTweaksOverlay(k string) []tea.Cmd {
 	switch k {
-	case "esc", "t", "q", "?":
+	case "esc", "z", "q", "?":
 		g.overlay = ovNone
-	case "up", "k":
+	case "up", "w":
 		g.moveTweakSelection(-1)
-	case "down", "j":
+	case "down", "s":
 		g.moveTweakSelection(1)
-	case "left", "h":
+	case "left", "a":
 		return g.cycleTweak(-1)
-	case "right", "l", "enter", " ":
+	case "right", "d", "enter", " ":
 		return g.cycleTweak(1)
 	}
 	return nil
@@ -244,9 +244,9 @@ func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 	switch k {
 	case "esc", "q", "?":
 		g.overlay = ovNone
-	case "up", "k":
+	case "up", "w":
 		g.helpScrollBy(-1)
-	case "down", "j":
+	case "down", "s":
 		g.helpScrollBy(1)
 	}
 	return nil

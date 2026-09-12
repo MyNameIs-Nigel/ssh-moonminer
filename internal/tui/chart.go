@@ -28,15 +28,15 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 			g.scr = scrBelt
 			g.rockSel = 0
 			return nil
-		case "f", "r", "c", "i", "s", "j", "h":
+		case "f", "r", "c", "i", "e", "j", "h":
 			g.setFlash("STILL IN BELT — RETURN TO BELT, THEN [Q] DOCK")
 			return nil
 		}
 	}
 	switch k {
-	case "up", "k":
+	case "up", "w":
 		g.worldSel = (g.worldSel - 1 + n) % n
-	case "down":
+	case "down", "s":
 		g.worldSel = (g.worldSel + 1) % n
 	case "j":
 		g.overlay = ovCertify
@@ -66,17 +66,17 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 	case "c":
 		snap, err := g.sess.SellCargo(g.now)
 		return g.refreshSnap(snap, err)
-	case "s":
+	case "e":
 		g.scr = scrShipyard
 		g.shipyardPane = 0
-	case "l":
+	case "x":
 		g.scr = scrLog
 	case "i":
 		if sim.InsuranceEligible(&st, g.content) {
 			snap, err := g.sess.Insurance(g.now)
 			return g.refreshSnap(snap, err)
 		}
-	case "t":
+	case "z":
 		if g.overlay == ovTweaks {
 			g.overlay = ovNone
 		} else {
@@ -205,9 +205,9 @@ func (g *Game) renderChart() string {
 		theme.Panel(chartTitle, leftW, panelH, leftBody, accent),
 		theme.Panel(servicesTitle, rightW, panelH, rightBody, accent),
 	)
-	hint := "↑/↓ SELECT · ENTER FLY · C SELL · S YARD · L LOG · T TWEAKS · ? HELP · Q QUIT"
+	hint := "W/S SELECT · ENTER FLY · C SELL · E YARD · X LOG · Z TWEAKS · ? HELP · Q QUIT"
 	if !docked {
-		hint = "ENTER RETURN TO BELT · L LOG · T TWEAKS · ? HELP · Q QUIT"
+		hint = "ENTER RETURN TO BELT · X LOG · Z TWEAKS · ? HELP · Q QUIT"
 	}
 	return body + "\n" + g.renderKeybar(hint)
 }
@@ -231,25 +231,25 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 		case "svc:sell":
 			return g.keyChart("c")
 		case "btn:shipyard":
-			return g.keyChart("s")
+			return g.keyChart("e")
 		case "btn:acquire":
 			return g.keyShipyard("enter")
 		case "btn:shipyard:remove":
 			return g.keyShipyard("x")
 		case "btn:log":
-			return g.keyChart("l")
+			return g.keyChart("x")
 		case "btn:return-belt":
 			return g.keyChart("enter")
 		case "btn:scan":
-			return g.keyBelt("s")
+			return g.keyBelt("e")
 		case "btn:lock":
 			return g.keyBelt("enter")
 		case "btn:bail":
-			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
+			return g.keyMining(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		case "btn:skillcheck":
 			return g.keyMining(tea.KeyPressMsg{Code: ' ', Text: " "})
 		case "btn:tribute:accept":
-			return g.keyMining(tea.KeyPressMsg{Code: 'd', Text: "d"})
+			return g.keyMining(tea.KeyPressMsg{Code: 'x', Text: "x"})
 		case "btn:tribute:refuse":
 			return g.keyMining(tea.KeyPressMsg{Code: 'r', Text: "r"})
 		case "btn:tribute:fight":
@@ -259,7 +259,7 @@ func (g *Game) updateClick(m tea.MouseClickMsg) []tea.Cmd {
 		case "btn:combat:missile":
 			return g.keyMining(tea.KeyPressMsg{Code: 'g', Text: "g"})
 		case "btn:combat:escape":
-			return g.keyMining(tea.KeyPressMsg{Code: 'b', Text: "b"})
+			return g.keyMining(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		case "btn:summary:continue":
 			return g.keySummary("enter")
 		case "btn:summary:dock":

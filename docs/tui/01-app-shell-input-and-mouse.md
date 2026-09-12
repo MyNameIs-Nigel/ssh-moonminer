@@ -132,7 +132,7 @@ idlefarmer's `teaHandler`).
   - Click on a button-styled element (`[F] REFUEL…`) → trigger immediately.
   - Wheel up/down over a list → move selection; over scrollable text
     (help) → scroll.
-  - Mining Site screen: clicking `[B] BAIL` or green `[ENTER] DEPART` activates
+  - Mining Site screen: clicking `[Q] BAIL` or green `[Q] DEPART` activates
     the same escape action as the keyboard; tribute buttons and station/port
     buttons are ordinary button-styled elements.
 - Mouse must never be the *only* path: every action keeps a key binding

@@ -39,7 +39,7 @@ func chartControl(t *testing.T, g *Game, label, id string) hitbox.Box {
 func TestChartServiceRectanglesAndGauges(t *testing.T) {
 	controls := []struct{ label, id string }{
 		{"[F] REFUEL", "svc:refuel"}, {"[R] REPAIR", "svc:repair"},
-		{"[C] SELL CARGO", "svc:sell"}, {"[S] SHIPYARD", "btn:shipyard"}, {"[L] SHIP'S LOG", "btn:log"},
+		{"[C] SELL CARGO", "svc:sell"}, {"[E] SHIPYARD", "btn:shipyard"}, {"[X] SHIP'S LOG", "btn:log"},
 	}
 	for _, size := range [][2]int{{80, 24}, {108, 32}, {144, 48}, {180, 60}} {
 		for _, ascii := range []bool{false, true} {
@@ -189,8 +189,8 @@ func TestChartNavigationClicksAndKeys(t *testing.T) {
 		screen         screen
 		overlay        overlay
 	}{
-		{"s", "[S] SHIPYARD", "btn:shipyard", scrShipyard, ovNone},
-		{"l", "[L] SHIP'S LOG", "btn:log", scrLog, ovNone},
+		{"e", "[E] SHIPYARD", "btn:shipyard", scrShipyard, ovNone},
+		{"x", "[X] SHIP'S LOG", "btn:log", scrLog, ovNone},
 		{"j", "[J] CERTIFY", "svc:certify", scrChart, ovCertify},
 		{"h", "[H] HAULER FERRY", "svc:ferry", scrChart, ovFerry},
 	} {

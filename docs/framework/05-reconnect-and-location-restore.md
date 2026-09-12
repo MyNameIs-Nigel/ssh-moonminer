@@ -41,7 +41,7 @@ Verified against `main` @ `c24bd28` (v1.6.1), 2026-08-15.
    `BuySystemPermit`/`BuyDestinationPermit` (`internal/sim/economy.go`),
    `AcquireShip`, `SwitchActiveShip`, `BuyShipTrack` (`internal/sim/ships.go`),
    and every slot install/store/sell/replace (`internal/sim/slots.go`). On the
-   chart screen those are `F`, `R`, `C`, `I` and the whole `S` shipyard: all of
+   chart screen those are `F`, `R`, `C`, `I` and the whole `E` shipyard: all of
    them flash "must be docked to use port services" at a pilot who is staring
    at the dock.
 4. `sim.Dock` — the only thing that sets `WorldIdx = -1` outside ship loss — is

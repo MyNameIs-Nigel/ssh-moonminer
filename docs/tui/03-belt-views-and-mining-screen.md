@@ -67,7 +67,7 @@ space, but do not use the Chart or Mining top-level split.
 - **Target Lock panel (bottom strip, always visible):** full detail of the
   selected rock — designation, tier, units, estimated mine time, public dock
   value, cargo hold impact, rough pirate ETA/risk with dots — plus
-  `[ENTER] LOCK & FLY  [S] SCAN  [V] VIEW  [Q] DOCK`.
+  `[ENTER] LOCK & FLY  [E] SCAN  [V] VIEW  [Q] DOCK`.
 - `S` scans the selected contact. Empty-belt behavior remains owned by the
   shipped belt/sim flow; this screen does not expose a free `R` rescan action.
 - Lock failure (unscanned, out of range, or full cargo) → red flash, stay on belt.
@@ -88,8 +88,8 @@ HULL           █████████████████░░░░�
 FUEL           ████████████░░░░░░░░░░  54%
 CURRENT CUT VALUE  ◈ 2,975 of ◈ 5,100 (not sold)
 ⚙ PRESSURE POINT ACTIVE
-  ███████████░░░░░░  2.1s  [SPACE] FRACTURE
-[B] BAIL
+  ███████████░░░░░░  2.1s  [E/SPACE] FRACTURE
+[Q] BAIL
                                       ╭──                    ──╮
                                       │ PIRATE ETA ~34-58s       │
                                       │ · · · ● · · · ·          │
@@ -126,12 +126,12 @@ CURRENT CUT VALUE  ◈ 2,975 of ◈ 5,100 (not sold)
   active-run ore. A Fuel Miner additionally reveals a clear `RICH VEIN` or
   `NO FUEL VEIN` readout; ships without the module see neither label.
 - The main action button:
-  - while asteroid ore remains: `[B] BAIL` in flashing yellow/amber;
-  - when the cargo hold fills first: a steady `HOLD FULL — [B] BAIL WITH
+  - while asteroid ore remains: `[Q] BAIL` in flashing yellow/amber;
+  - when the cargo hold fills first: a steady `HOLD FULL — [Q] BAIL WITH
     CURRENT LOAD`, while resource-left stays non-zero;
   - when the asteroid itself is depleted: `[ENTER] DEPART` in green;
   - if reduced motion is on, replace flashing with a steady amber `!`.
-- `B` / `Esc` / `Enter` / click BAIL starts escape before depletion.
+- `Q` / click BAIL starts escape before depletion and departs after depletion.
   `Enter` / click DEPART starts escape after depletion. Both call gameplay/02
   `BailOrDepart`.
 - No overdrive in the revamped loop. The pressure comes from time, cargo load,
@@ -148,7 +148,7 @@ a modal panel:
 ◇ PIRATE TRANSMISSION
 "Drop ◈ 4,250 from this rock or we open your hull."
 
-[D] DROP CARGO      [R] REFUSE / RUN
+[X] DROP CARGO      [R] REFUSE / RUN
 decision timeout: 12s
 ```
 

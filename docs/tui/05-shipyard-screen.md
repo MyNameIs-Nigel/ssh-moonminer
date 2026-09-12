@@ -26,7 +26,7 @@ meters must remain usable from the 80×24 minimum through the 144×48 cap.
 | `internal/tui/chart.go` (current `scrShipyard` branch) | the track-grade circle rendering (`●`/`○`) and button styling to carry forward |
 | `internal/tui/theme/theme.go` (`Panel`, `Button`, `Dots`, `Option`/`OptionHC`, `Hue*`) | reuse, don't reinvent — the "cyber-futuristic" feel comes from a new **layout and color accent**, not new primitives |
 | `internal/tui/hitbox` | mouse hit-testing, same pattern as every other screen |
-| [../01-concept-and-story.md](../01-concept-and-story.md) "Controls" table | this doc updates the Star Chart row (`S` opens Shipyard, replacing the in-place `U`) |
+| [../01-concept-and-story.md](../01-concept-and-story.md) "Controls" table | this doc updates the Star Chart row (`E` opens Shipyard, replacing the in-place `U`) |
 
 ## Deliverables
 
@@ -40,7 +40,7 @@ meters must remain usable from the 80×24 minimum through the 144×48 cap.
   meters (power, mass, credits, per-track price) on one screen — reuse
   existing hues first, only add what's missing
 - Updates `internal/tui/chart.go`'s Port Services panel: drop the inline
-  upgrade-track list, keep a single `[S] SHIPYARD` button that now navigates
+  upgrade-track list, keep a single `[E] SHIPYARD` button that now navigates
   to the standalone screen instead of toggling `g.scr`'s render branch in
   place
 
@@ -48,7 +48,7 @@ meters must remain usable from the 80×24 minimum through the 144×48 cap.
 
 ### Entry/exit
 
-- From the Star Chart, `S` (mouse: click `[S] SHIPYARD`) navigates to
+- From the Star Chart, `E` (mouse: click `[E] SHIPYARD`) navigates to
   `scrShipyard`. `Esc`/`Q` returns to the Star Chart. Docked-only, same as
   today — the button doesn't render while in a belt or mid-run (it can't be,
   since the chart itself isn't reachable then).
@@ -129,11 +129,12 @@ split — that's the point of giving it its own screen.
   an unowned model buys it when affordable; `Enter` on a buyback-eligible row
   buys it back at 25% price. Purchases start fully serviced but do not switch
   the active ship.
-- In LOADOUT: `↑/↓` selects a track or slot row; `Enter`/`→` on a track row
+- `A`/`D`, `←`/`→`, or `Tab` switches HANGAR/LOADOUT focus.
+- In LOADOUT: `W`/`S` or `↑`/`↓` selects a track or slot row; `Enter` on a track row
   buys the next grade (present-but-disabled at cap, rendered `MAXED`);
   `Enter` on a slot row opens an item picker overlay scoped to that slot kind
   (Utility/Weapon/Internal/Jump Drive): every catalog item with an adjustable grade
-  cursor (`←/→` changes grade, showing that grade's price/power live), plus
+  cursor (`A`/`D` or `←`/`→` changes grade, showing that grade's price/power live), plus
   a separate "in storage" section listing any device previously removed via
   `[X] REMOVE`'s **Store** choice (free to re-equip — already paid for).
   Unaffordable or power-exceeding combinations render visibly disabled
@@ -143,7 +144,7 @@ split — that's the point of giving it its own screen.
    explicitly stored or sold before the selected replacement is equipped.
    Direct install calls reject occupied slots as an additional safeguard.
 - `[X] REMOVE`/`Backspace` on an occupied slot opens a small confirm overlay
-  with two choices: **Store** (moves the device into the pilot's
+  with two choices: `[C]` **Store** (moves the device into the pilot's
   account-wide inventory, free to re-equip on any owned ship later via the
   item picker above — no refund, no loss either) or **Sell** (refunds 95% of
   the device's current buy price in credits, gone for good). This replaced
@@ -219,7 +220,7 @@ one screen that feels like a showroom rather than an instrument panel:
 - [ ] Exact 24/32/24 minima and 3/4/3 weighted flex pass tui/06's boundary
   matrix; STATUS cannot become the active keyboard pane.
 - [ ] `01-concept-and-story.md`'s Controls table and `chart.go`'s keybar hint
-  both updated to `S` (not `U`) for Shipyard.
+  both updated to `E` (not `U`) for Shipyard.
 
 ## Out of scope / handoffs
 

@@ -131,7 +131,7 @@ func (g *Game) renderDevOverlay() string {
 	innerW := panelW - 4
 	lines := []string{
 		theme.LabelStyle(hc).Render("DEV ONLY · not present in production"),
-		theme.LabelStyle(hc).Render("Arrow keys change values · Ctrl+D or Esc closes"),
+		theme.LabelStyle(hc).Render("WASD or arrow keys change values · Ctrl+D or Esc closes"),
 		"",
 	}
 	devLineIdx := 3
@@ -175,13 +175,13 @@ func (g *Game) updateDevOverlay(k string) []tea.Cmd {
 	switch k {
 	case "esc", "ctrl+d":
 		g.overlay = ovNone
-	case "up", "k":
+	case "up", "w":
 		g.devSel = (g.devSel - 1 + devRowCount) % devRowCount
-	case "down", "j":
+	case "down", "s":
 		g.devSel = (g.devSel + 1) % devRowCount
-	case "left", "h":
+	case "left", "a":
 		return g.devDelta(-1)
-	case "right", "l":
+	case "right", "d":
 		return g.devDelta(1)
 	case "enter", " ":
 		return g.devActivate()
