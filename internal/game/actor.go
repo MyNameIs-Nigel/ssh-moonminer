@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
@@ -20,9 +21,11 @@ type actor struct {
 	stop chan struct{}
 	done chan struct{}
 
-	state   *sim.State
-	dirty   bool
-	session *Session
+	state    *sim.State
+	dirty    bool
+	session  *Session
+	revision uint64
+	finalErr error // read only after done closes
 }
 
 func newActor(m *Manager, key saveKey, state *sim.State) *actor {
@@ -64,7 +67,7 @@ func (a *actor) run() {
 	// timer, and an in-flight scan never completed.
 	ticking := false
 	for {
-		want := a.state.WorldIdx >= 0 || a.state.Run != nil || a.state.Scan != nil
+		want := a.session != nil && (a.state.WorldIdx >= 0 || a.state.Run != nil || a.state.Scan != nil)
 		if want != ticking {
 			if want {
 				mineTick.Reset(tickDur)
@@ -85,7 +88,7 @@ func (a *actor) run() {
 				sim.EmergencyResolve(a.state, a.mgr.content, time.Now().Unix())
 				a.dirty = true
 			}
-			a.persist("final flush")
+			a.finalErr = a.persist("final flush")
 			return
 		}
 	}
@@ -109,8 +112,8 @@ func (a *actor) tick() {
 		sim.TickBelt(a.state, a.mgr.content, dt)
 	}
 	a.dirty = true
-	snap := sim.Snapshot{State: *a.state.Clone()}
 	if a.session != nil {
+		snap := a.snapshot()
 		// Store an ending outcome before the snapshot is delivered so its TUI
 		// handler can enter the summary in the same update cycle.
 		if ended && out != nil {
@@ -123,23 +126,34 @@ func (a *actor) tick() {
 	}
 }
 
-func (a *actor) persist(reason string) {
+func (a *actor) persist(reason string) error {
 	if !a.dirty {
-		return
+		return nil
+	}
+	if a.session == nil && a.state.Run != nil {
+		return fmt.Errorf("persist %s: emergency run did not resolve", reason)
 	}
 	payload, err := a.state.Encode()
 	if err != nil {
 		a.mgr.logger.Error("encode failed", "error", err)
-		return
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	now := time.Now().Unix()
 	if err := a.mgr.store.SaveState(ctx, a.key.fingerprint, a.key.slot, payload, a.state.Version, now); err != nil {
 		a.mgr.logger.Error("persist failed", "reason", reason, "error", err)
-		return
+		return err
 	}
 	a.dirty = false
+	return nil
 }
 
 func (a *actor) content() *content.Content { return a.mgr.content }
+
+// snapshot is called only on the actor goroutine. Delivery may be reordered
+// by Bubble Tea, so each copy carries a monotonically increasing revision.
+func (a *actor) snapshot() sim.Snapshot {
+	a.revision++
+	return sim.Snapshot{Revision: a.revision, State: *a.state.Clone()}
+}

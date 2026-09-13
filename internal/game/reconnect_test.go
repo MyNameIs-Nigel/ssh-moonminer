@@ -26,7 +26,13 @@ func testManager(t *testing.T) *Manager {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewManager(st, c, logger, time.Hour, PolicyTakeover)
+	m := NewManager(st, c, logger, time.Hour, PolicyTakeover)
+	t.Cleanup(func() {
+		if err := m.Shutdown(context.Background()); err != nil {
+			t.Errorf("cleanup shutdown: %v", err)
+		}
+	})
+	return m
 }
 
 var testID = identity.SessionIdentity{Fingerprint: "SHA256:test", Slot: "default"}
@@ -36,6 +42,9 @@ func mustAttach(t *testing.T, m *Manager, now int64) AttachResult {
 	res, err := m.Attach(context.Background(), testID, "ssh-ed25519 AAAA test", now, func(string) {})
 	if err != nil {
 		t.Fatalf("attach: %v", err)
+	}
+	if res.Created {
+		res.Session.actor.do(func() { res.Session.actor.state.Seed = 42 })
 	}
 	return res
 }
@@ -270,7 +279,7 @@ func TestFrequentRequestsDoNotStarveTheTick(t *testing.T) {
 	}
 	target := scannableRock(t, m, res.Session, 1)
 	if target.Scanned {
-		t.Skip("this belt roll came pre-scanned; no in-flight scan to starve")
+		t.Fatal("fixed scan fixture must start unscanned")
 	}
 	if _, err := res.Session.Scan(1000, target.ID); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -285,6 +294,15 @@ func TestFrequentRequestsDoNotStarveTheTick(t *testing.T) {
 			t.Fatal(err)
 		}
 		if cur.State.Scan == nil {
+			found := false
+			for _, rock := range cur.State.Belt {
+				if rock.ID == target.ID && rock.Scanned {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("scan disappeared without revealing its target")
+			}
 			return
 		}
 		time.Sleep(5 * time.Millisecond)

@@ -88,18 +88,18 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	if !ast.Scanned {
 		return ErrNotScanned
 	}
+	if IsOutOfRange(s, c, ast) {
+		return ErrOutOfRange
+	}
 	if RemainingCargoCapacity(s, c) <= 0 {
 		return ErrCargoFull
 	}
-	if s.Fuel < float64(ast.FuelCost) {
-		return ErrInsufficientFuel
-	}
-	ConsumeFuel(s, c, float64(ast.FuelCost))
 	pirateStartDistance := 100.0
 	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.PirateStartDistance > 0 {
 		pirateStartDistance = w.PirateStartDistance
 	}
 	s.Run = &ActiveRun{
+		BeltStability:        1,
 		AsteroidID:           asteroidID,
 		Phase:                PhaseMining,
 		PirateDistance:       pirateStartDistance,
@@ -108,9 +108,13 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 		StartFuel:            s.Fuel,
 		StartedAt:            now,
 	}
-	if inst := ActiveShip(s); inst != nil && inst.Internal != nil && inst.Internal.ItemID == ItemJammer && inst.JammerCharges > 0 {
+	if s.HotArrivals[s.SystemID] {
+		s.Run.PirateDistance *= c.Jump.HotArrivalETAMul
+		delete(s.HotArrivals, s.SystemID)
+	}
+	if inst := ActiveShip(s); inst != nil && internalDevice(inst, ItemJammer) != nil && inst.JammerCharges > 0 {
 		inst.JammerCharges--
-		s.Run.JammerRemaining = JammerDurationSeconds(c, inst.Internal.Grade)
+		s.Run.JammerRemaining = JammerDurationSeconds(c, internalDevice(inst, ItemJammer).Grade)
 	}
 	s.Run.PirateBearing = runRNG(s, s.Run, 7000).Float64()
 	s.Run.PirateID = rollPirateID(s, c, s.Run, ast)
@@ -125,10 +129,9 @@ func Lock(s *State, c *content.Content, asteroidID int, now int64) error {
 	return nil
 }
 
-// Scan begins a sensor scan on the given asteroid. Distance determines both
-// the scan's duration (content.Belt.ScanSecPerKm per km) and, indirectly via
-// GenerateBelt, its flight fuel cost — but the scan itself only costs the
-// flat content.Belt.ScanFuelCost. Completion is driven by TickScan.
+// Scan begins a sensor scan on the given asteroid. Distance determines the
+// scan's duration (content.Belt.ScanSecPerKm per km); the scan costs the flat
+// content.Belt.ScanFuelCost. Completion is driven by TickScan.
 func Scan(s *State, c *content.Content, asteroidID int, now int64) error {
 	syncActiveConditionFromLegacy(s, c)
 	if s.WorldIdx < 0 {
@@ -187,9 +190,8 @@ func TickScan(s *State, dt float64) {
 // while resources remain on the asteroid and the green DEPART action once
 // it is depleted; the sim doesn't distinguish the two calls, only the
 // resulting intent. Safe to call with state.Run == nil (a no-op) because
-// disconnect races a just-finished run. It is also a no-op once the run has
-// already left the mining phase (tribute/escaping), matching "no menu
-// actions are accepted" once fleeing has begun.
+// disconnect races a just-finished run. It is also rejected once the run has left the mining phase, matching
+// "no menu actions are accepted" once fleeing has begun.
 func BailOrDepart(s *State, c *content.Content, now int64) error {
 	run := s.Run
 	if run == nil {
@@ -236,6 +238,7 @@ func AcceptTribute(s *State, c *content.Content, now int64) error {
 	}
 	storedUnitsLost := cargoUnitsForValueLoss(s.CargoUnits, s.CargoValue, fromStored)
 	runUnitsLost := cargoUnitsForValueLoss(run.HeldUnits, run.CargoValue, fromRun)
+	reduceCargoOrigins(s, fromStored)
 	s.CargoValue -= fromStored
 	s.CargoUnits = math.Max(0, s.CargoUnits-storedUnitsLost)
 	run.CargoValue -= fromRun
@@ -387,6 +390,13 @@ func TickRun(s *State, c *content.Content, dt float64, now int64) (*RunOutcome, 
 }
 
 func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt float64) {
+	if w := c.WorldByIndex(s.WorldIdx); w != nil && w.InstabilityPerSecond > 0 {
+		run.BeltStability = math.Max(0, run.BeltStability-dt*w.InstabilityPerSecond)
+		if run.BeltStability == 0 && !s.DevGodMode {
+			setActiveHull(s, c, 0)
+			return
+		}
+	}
 	if run.EMPActive {
 		run.EMPRemaining -= dt
 		if run.EMPRemaining <= 0 {
@@ -396,8 +406,7 @@ func tickMining(s *State, c *content.Content, run *ActiveRun, ast *Asteroid, dt 
 	}
 	outage := run.ActiveEvent != nil && run.ActiveEvent.Kind == EventPowerOutage
 	if !outage {
-		// Mining stops at the ship's cargo capacity exactly like depletion —
-		// RunDepleted treats "hold full" and "rock exhausted" the same way.
+		// Mining pauses when the hold fills; only exhausted rock enables DEPART.
 		extractionRemaining := math.Max(0, float64(ast.Volume)-run.ExtractedUnits)
 		holdRemaining := math.Max(0, RemainingCargoCapacity(s, c)-run.HeldUnits)
 		remaining := math.Min(extractionRemaining, holdRemaining)
@@ -456,8 +465,7 @@ func RunDepleted(s *State, c *content.Content, ast *Asteroid, run *ActiveRun) bo
 	if ast == nil {
 		return true
 	}
-	normalizeRunAccounting(run)
-	return run.ExtractedUnits >= float64(ast.Volume)
+	return RunExtractedUnits(run) >= float64(ast.Volume)
 }
 
 // RunCargoFull reports whether the current run has filled all cargo space
@@ -467,8 +475,7 @@ func RunCargoFull(s *State, c *content.Content, run *ActiveRun) bool {
 	if run == nil {
 		return false
 	}
-	normalizeRunAccounting(run)
-	return run.HeldUnits >= RemainingCargoCapacity(s, c)
+	return RunHeldUnits(run) >= RemainingCargoCapacity(s, c)
 }
 
 // updatePirateETA recomputes the fuzzed pirate arrival estimate shown on the
@@ -545,7 +552,7 @@ func EmergencyResolve(s *State, c *content.Content, now int64) *RunOutcome {
 		return nil
 	}
 	out := resolveAbandonedRun(s, c, now)
-	if s.Run != nil {
+	if s.Run != nil || out == nil {
 		// Nothing resolved (an early bail/refuse error left the run standing);
 		// there is no outcome to report to the next session.
 		return out
@@ -599,20 +606,19 @@ func resolveAbandonedRun(s *State, c *content.Content, now int64) *RunOutcome {
 	if run == nil {
 		return nil
 	}
-	remaining := run.EscapeSecondsRequired - run.EscapeSecondsElapsed
-	if remaining < 0 {
-		remaining = 0
-	}
-	out, ended := TickRun(s, c, remaining+1, now)
-	if !ended {
-		// Escape requirement kept growing (e.g. fuel-out penalty loop); force
-		// the timer closed rather than loop forever.
-		if s.Run != nil {
-			s.Run.EscapeSecondsRequired = s.Run.EscapeSecondsElapsed
-			out, _ = TickRun(s, c, 0, now)
+	// Use the same simulation step as the live actor. A single giant tick
+	// changes combat aim, event expiry, and fuel-out damage; forcing the timer
+	// closed also fails because tickEscapeBurn recomputes it on every tick.
+	// This is a CPU safety budget, not a gameplay timeout. If invalid content
+	// or state exhausts it, retain the run instead of manufacturing a safe escape.
+	const maxEmergencyTicks = 10000
+	dt := 1.0 / float64(c.Mining.TickHz)
+	for i := 0; i < maxEmergencyTicks && s.Run != nil; i++ {
+		if out, ended := TickRun(s, c, dt, now); ended {
+			return out
 		}
 	}
-	return out
+	return nil
 }
 
 // TickInterval returns the mining tick duration from content.
@@ -707,10 +713,15 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 	case OutcomeShipLost:
 		lost = s.CargoValue + run.CargoValue
 		s.CargoValue = 0
+		s.CargoOrigins = nil
 		s.CargoUnits = 0
 	default:
 		recovered = run.CargoValue
 		s.CargoValue += recovered
+		if s.CargoOrigins == nil {
+			s.CargoOrigins = map[string]int{}
+		}
+		s.CargoOrigins[s.SystemID] += recovered
 		s.CargoUnits += run.HeldUnits
 	}
 
@@ -752,13 +763,14 @@ func resolveRun(s *State, c *content.Content, kind OutcomeKind, now int64) *RunO
 
 	meta := outcomeMeta[kind]
 	rec := RunRecord{
-		When: now, World: worldName, Asteroid: astName, Tier: astTier,
+		SystemID: s.SystemID, DestinationID: c.WorldByIndex(s.WorldIdx).ID, When: now, World: worldName, Asteroid: astName, Tier: astTier,
 		Outcome: string(kind), CargoValueRecovered: recovered, CargoValueLost: lost, CargoValueJettisoned: run.TributeDemand,
 		HullDelta: hullDelta, FuelDelta: fuelDelta, Depleted: depleted, Events: events,
 		PirateDestroyed: run.PirateDestroyed, BountyEarned: run.BountyEarned,
 	}
 	appendRunLog(s, rec)
-	updateStatsOnOutcome(s, kind, astTier)
+	updateStatsOnOutcome(s, kind, astTier, run.ExtractedUnits)
+	recordFrontierOutcome(s, c, rec, kind, run.ExtractedUnits)
 
 	if kind == OutcomeShipLost {
 		respawnActiveShip(s, c)
@@ -799,7 +811,7 @@ func appendRunLog(s *State, rec RunRecord) {
 	}
 }
 
-func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int) {
+func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int, extracted float64) {
 	s.Stats.RunsTotal++
 	switch kind {
 	case OutcomeDeparted:
@@ -811,7 +823,7 @@ func updateStatsOnOutcome(s *State, kind OutcomeKind, tier int) {
 	case OutcomeEscapedUnderFire:
 		s.Stats.RunsEscapedUnderFire++
 	}
-	if tier == 3 {
+	if tier == 3 && extracted > 0 {
 		s.Stats.LegendariesMined++
 	}
 }

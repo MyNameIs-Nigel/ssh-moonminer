@@ -28,7 +28,7 @@ func TestHelpOverlayShowsVersionAndScreen(t *testing.T) {
 	if !strings.Contains(out, "ASTEROID BELT") {
 		t.Fatalf("help overlay missing screen name, got:\n%s", out)
 	}
-	if !strings.Contains(out, "S scan") && !strings.Contains(out, "S scan selected") {
+	if !strings.Contains(out, "E scan") && !strings.Contains(out, "E scan selected") {
 		// belt help mentions scan
 		if !strings.Contains(strings.ToLower(out), "scan") {
 			t.Fatalf("belt help should mention scan, got:\n%s", out)

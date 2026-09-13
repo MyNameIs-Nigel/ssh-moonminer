@@ -4,7 +4,11 @@ package content
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
+	"reflect"
+	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -13,13 +17,16 @@ import (
 
 // System is one large travel region on the star chart.
 type System struct {
+	SalvageAdvance    int      `toml:"salvage_advance"`
 	ID                string   `toml:"id"`
 	Name              string   `toml:"name"`
 	Links             []string `toml:"links"`
 	StartsUnlocked    bool     `toml:"starts_unlocked"`
-	TransferFee       int      `toml:"transfer_fee"`
+	RequiredRating    int      `toml:"required_rating"`
+	Signature         string   `toml:"signature"`
+	Pressure          string   `toml:"pressure"`
+	Hostile           bool     `toml:"hostile"`
 	RequiredShipClass string   `toml:"required_ship_class"`
-	RequiredItemID    string   `toml:"required_item_id"`
 }
 
 // World is one mineable destination on the star chart. The retained Go name
@@ -46,6 +53,7 @@ type World struct {
 	PirateStartDistance  float64 `toml:"pirate_start_distance"`
 	PiratesAlwaysAttack  bool    `toml:"pirates_always_attack"`
 	PirateAttackMul      float64 `toml:"pirate_attack_mul"`
+	InstabilityPerSecond float64 `toml:"instability_per_second"`
 }
 
 // Pirate is one named roster entry — docs/gameplay/07-pirate-combat-and-
@@ -105,10 +113,6 @@ type BeltConfig struct {
 	ValueStep        int      `toml:"value_step"`
 	DistanceMin      float64  `toml:"distance_min"`
 	DistanceMax      float64  `toml:"distance_max"`
-	FuelPerKm        float64  `toml:"fuel_per_km"`
-	FuelCostMin      int      `toml:"fuel_cost_min"`
-	FuelCostMax      int      `toml:"fuel_cost_max"`
-	FuelCostTierBon  int      `toml:"fuel_cost_tier_bonus"`
 	ScanFuelCost     float64  `toml:"scan_fuel_cost"`
 	ScanSecPerKm     float64  `toml:"scan_sec_per_km"`
 	RiskMin          int      `toml:"risk_min"`
@@ -226,8 +230,7 @@ const StarterShipID = "skiff"
 // ShipModel is one purchasable hull design (gameplay/05's "4 starter
 // ships"). Track *Start/*Cap fields are grades 0..5 (E..S) — the range this
 // specific hull can ever install for that track. UtilitySlots/WeaponSlots
-// are slot counts; every ship has exactly one Internal slot and one dedicated
-// Jump Drive slot (not configurable per-ship, per gameplay/05).
+// are slot counts; InternalSlots is one except on the two-slot Lantern.
 type ShipModel struct {
 	ID    string `toml:"id"`
 	Name  string `toml:"name"`
@@ -240,8 +243,13 @@ type ShipModel struct {
 	BaseMass  float64 `toml:"base_mass"`
 	BaseCargo float64 `toml:"base_cargo"` // unit capacity before Extra Cargo devices
 
-	UtilitySlots int `toml:"utility_slots"`
-	WeaponSlots  int `toml:"weapon_slots"`
+	UtilitySlots  int      `toml:"utility_slots"`
+	WeaponSlots   int      `toml:"weapon_slots"`
+	InternalSlots int      `toml:"internal_slots"`
+	SoldIn        []string `toml:"sold_in"`
+	NoBuyback     bool     `toml:"no_buyback"`
+	NoShield      bool     `toml:"no_shield"`
+	DockRepairPct float64  `toml:"dock_repair_pct"`
 
 	ThrustersStart int `toml:"thrusters_start"`
 	ThrustersCap   int `toml:"thrusters_cap"`
@@ -380,7 +388,7 @@ type SlotsConfig struct {
 	HeatSinkBasePrice        int     `toml:"heat_sink_base_price"`
 	HeatSinkCapacityPerGrade float64 `toml:"heat_sink_capacity_per_grade"`
 
-	JumpDriveBasePrice int `toml:"jump_drive_base_price"`
+	LegacyDriveBasePrice int `toml:"legacy_drive_base_price"`
 }
 
 type worldsFile struct {
@@ -389,16 +397,20 @@ type worldsFile struct {
 }
 
 type balanceFile struct {
-	Pilot  PilotStart   `toml:"pilot"`
-	Belt   BeltConfig   `toml:"belt"`
-	Tiers  TierConfig   `toml:"tiers"`
-	Mining MiningConfig `toml:"mining"`
-	Combat CombatConfig `toml:"combat"`
-	Events EventsConfig `toml:"events"`
-	Port   PortConfig   `toml:"port"`
-	Fleet  FleetConfig  `toml:"fleet"`
-	Slots  SlotsConfig  `toml:"slots"`
-	Ships  []ShipModel  `toml:"ships"`
+	Jump    JumpConfig   `toml:"jump"`
+	Ferry   FerryConfig  `toml:"ferry"`
+	Gates   []Gate       `toml:"gates"`
+	Ratings []Rating     `toml:"ratings"`
+	Pilot   PilotStart   `toml:"pilot"`
+	Belt    BeltConfig   `toml:"belt"`
+	Tiers   TierConfig   `toml:"tiers"`
+	Mining  MiningConfig `toml:"mining"`
+	Combat  CombatConfig `toml:"combat"`
+	Events  EventsConfig `toml:"events"`
+	Port    PortConfig   `toml:"port"`
+	Fleet   FleetConfig  `toml:"fleet"`
+	Slots   SlotsConfig  `toml:"slots"`
+	Ships   []ShipModel  `toml:"ships"`
 }
 
 type piratesFile struct {
@@ -407,6 +419,10 @@ type piratesFile struct {
 
 // Content is immutable validated game configuration.
 type Content struct {
+	Jump    JumpConfig
+	Ferry   FerryConfig
+	Gates   []Gate
+	Ratings []Rating
 	Systems []System
 	Worlds  []World
 	Pilot   PilotStart
@@ -424,6 +440,7 @@ type Content struct {
 
 // ShipByID returns the ship model with the given ID, or nil.
 func (c *Content) ShipByID(id string) *ShipModel {
+	id, _, _ = strings.Cut(id, "@")
 	for i := range c.Ships {
 		if c.Ships[i].ID == id {
 			return &c.Ships[i]
@@ -462,6 +479,7 @@ func Load(overrideDir string) (*Content, error) {
 	}
 	c := &Content{
 		Systems: wf.Systems,
+		Jump:    bf.Jump, Ferry: bf.Ferry, Gates: bf.Gates, Ratings: bf.Ratings,
 		Worlds:  wf.Destinations,
 		Pilot:   bf.Pilot,
 		Belt:    bf.Belt,
@@ -486,13 +504,44 @@ func decodeTOML(fsys fs.FS, name string, v any) error {
 	if err != nil {
 		return fmt.Errorf("content: read %s: %w", name, err)
 	}
-	if err := toml.Unmarshal(b, v); err != nil {
+	metadata, err := toml.Decode(string(b), v)
+	if err != nil {
 		return fmt.Errorf("content: parse %s: %w", name, err)
+	}
+	if keys := metadata.Undecoded(); len(keys) > 0 {
+		return fmt.Errorf("content: %s has unknown keys: %v", name, keys)
 	}
 	return nil
 }
 
 func (c *Content) validate() error {
+	if err := c.validateJump(); err != nil {
+		return err
+	}
+	// TOML supports nan/inf; ordinary range comparisons do not reject NaN.
+	// Validate all numeric leaves once at boot, including future tuning fields.
+	if err := validateFinite(reflect.ValueOf(*c), "content"); err != nil {
+		return err
+	}
+	if c.Pilot.StartFuel <= 0 || c.Pilot.StartHull <= 0 || c.Pilot.StartCredits < 0 {
+		return fmt.Errorf("content: pilot fuel/hull must be positive and credits non-negative")
+	}
+	if len(c.Belt.NamePrefixes) == 0 {
+		return fmt.Errorf("content: belt name_prefixes must not be empty")
+	}
+	if c.Belt.VolumeMin <= 0 || c.Belt.VolumeMax < c.Belt.VolumeMin || c.Belt.VolumeStep <= 0 || c.Belt.ValueStep <= 0 {
+		return fmt.Errorf("content: belt volume bounds and volume/value steps must be positive and ordered")
+	}
+	if c.Belt.DrillSecPerVol <= 0 || c.Belt.DrillSecMin <= 0 || c.Belt.DrillSecMax < c.Belt.DrillSecMin || c.Belt.ValuePerVolume <= 0 {
+		return fmt.Errorf("content: belt drill bounds/divisor and value_per_volume must be positive and ordered")
+	}
+	if c.Belt.ScanFuelCost < 0 {
+		return fmt.Errorf("content: belt scan_fuel_cost must be non-negative")
+	}
+	if c.Mining.TickHz > int(time.Second) {
+		return fmt.Errorf("content: mining tick_hz exceeds timer resolution")
+	}
+
 	if len(c.Systems) < 2 {
 		return fmt.Errorf("content: need at least 2 systems, got %d", len(c.Systems))
 	}
@@ -504,15 +553,13 @@ func (c *Content) validate() error {
 		if systems[system.ID] {
 			return fmt.Errorf("content: duplicate system id %q", system.ID)
 		}
-		if system.TransferFee < 0 {
-			return fmt.Errorf("content: system %q transfer_fee must be non-negative", system.ID)
+		if system.RequiredRating < -1 {
+			return fmt.Errorf("content: system %q required_rating must be at least -1", system.ID)
 		}
 		if system.RequiredShipClass != "" && !validClasses[system.RequiredShipClass] {
 			return fmt.Errorf("content: system %q has invalid required_ship_class %q", system.ID, system.RequiredShipClass)
 		}
-		if system.RequiredItemID != "" && system.RequiredItemID != "jump_drive" {
-			return fmt.Errorf("content: system %q has unsupported required_item_id %q", system.ID, system.RequiredItemID)
-		}
+
 		systems[system.ID] = true
 	}
 	for _, system := range c.Systems {
@@ -714,7 +761,7 @@ func (c *Content) SystemByID(id string) *System {
 	return nil
 }
 
-var validBrands = map[string]bool{"federation": true, "alliance": true, "independent": true}
+var validBrands = map[string]bool{"federation": true, "alliance": true, "independent": true, "frontier": true}
 var validClasses = map[string]bool{"miner": true, "fighter": true, "freighter": true}
 
 const maxGrade = 5
@@ -841,6 +888,29 @@ func (c *Content) WorldByID(id string) *World {
 	for i := range c.Worlds {
 		if c.Worlds[i].ID == id {
 			return &c.Worlds[i]
+		}
+	}
+	return nil
+}
+
+// Reflection is confined to startup validation; simulation hot paths do not use it.
+func validateFinite(v reflect.Value, path string) error {
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if err := validateFinite(v.Field(i), path+"."+v.Type().Field(i).Name); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice:
+		for i := 0; i < v.Len(); i++ {
+			if err := validateFinite(v.Index(i), fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+	case reflect.Float64:
+		if math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0) {
+			return fmt.Errorf("%s must be finite", path)
 		}
 	}
 	return nil

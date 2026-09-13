@@ -221,6 +221,7 @@ func TestTributeCannotBecomeFreeWithOnlyPriorCargo(t *testing.T) {
 	}
 	ast := s.Belt[0]
 	ast.Scanned = true
+	ast.Distance = sim.ScannerLockKm(s, c)
 	s.Belt[0] = ast
 	if err := sim.Lock(s, c, ast.ID, 1); err != nil {
 		t.Fatal(err)

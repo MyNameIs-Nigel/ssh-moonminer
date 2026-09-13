@@ -8,8 +8,8 @@
 > [05-shipyard-screen.md](05-shipyard-screen.md) and
 > [../gameplay/05-fleet-ships-and-shipyard-economy.md](../gameplay/05-fleet-ships-and-shipyard-economy.md).
 > Wherever this doc below describes the Shipyard as a sub-view/overlay
-> (the `[S] SHIPYARD` sketch row and the "Shipyard (sub-view or overlay)"
-> paragraph), tui/05 wins. The Star Chart still owns the `[S] SHIPYARD`
+> (the `[E] SHIPYARD` sketch row and the "Shipyard (sub-view or overlay)"
+> paragraph), tui/05 wins. The Star Chart still owns the `[E] SHIPYARD`
 > button that *navigates* there, plus everything else on this page
 > (port services, cosmetics, stations, run summary, death, ship's log).
 >
@@ -62,10 +62,10 @@ after death, and reflects.
 │   CERES CLAIMS      LOCK TANK I   │ CARGO ██░░░░░ 12/40   │
 │   IO SHADOW         LOCK ◈25,000  │ [F] REFUEL ◈135       │
 │ ◇ ERIDANI DRIFT     LOCK CUTTER   │ [H] REPAIR FULL       │
-│ KEPLER REACH        LOCK HAULER   │ [S] SHIPYARD          │
+│ KEPLER REACH        LOCK HAULER   │ [E] SHIPYARD          │
 │                                   │ [C] SELL CARGO        │
 │  "Thin, legal, and picked over.   │ [I] INSURANCE         │
-│   Good enough to buy a tank."     │ [L] SHIP'S LOG        │
+│   Good enough to buy a tank."     │ [X] SHIP'S LOG        │
 └ ↑↓ SELECT · ENTER DEPART · F REFUEL · R REPAIR · S SHIPYARD · Q ─ █ ┘
 ```
 
@@ -112,6 +112,46 @@ Shipyard, and Ship's Log.
   I insurance advance when eligible, S Shipyard, L Ship's Log, T Tweaks, and
   Q quit; every rendered row and button is click/wheel-able per tui/01.
 
+### Port Services refresh (September 2026)
+
+This supersedes the historical service sketch above. The equal chart/services
+split remains; the chart starts directly with system rows. Port Services uses
+five right-aligned, 20-column by three-row bordered buttons: `[F] REFUEL`,
+`[R] REPAIR`, `[C] SELL CARGO`, `[E] SHIPYARD`, and `[X] SHIP'S LOG`.
+Labels are centered; ASCII-safe mode uses ASCII button borders. The entire
+rectangle, including border and padding, is clickable through existing actions.
+Disabled styling and dock restrictions retain their existing semantics.
+
+Fuel and hull retain three-row bands beside their buttons, but each gauge is
+one terminal row tall to avoid font/line-spacing gaps. Both labels share a
+column sized to the wider display-cell label (HULL or the fuel glyph), plus
+one space. Both bars therefore start and end together, using the smaller of
+the two available gauge widths. The next row shows current/max fuel or hull
+points, left-aligned exactly at the gauge start; percentages remain in the HUD.
+Service credit amounts align to the gauge's right edge. If points and price
+cannot fit on that row with a separating space, put the complete price on the
+band's third row, still right-aligned, rather than clipping either value.
+Cargo capacity, sale value, and optional bounty vouchers sit beside Sell Cargo;
+SALE and BOUNTY labels stay left while their credit amounts align to that same
+right edge. The stable button label still sells both cargo and vouchers. Conditional
+insurance occupies the space below these details. Port Services omits shield
+status (the global HUD retains it) and the old bigger-rocks tip.
+
+The last two service-body rows contain `JUMP RATING: <rating> [J] CERTIFY`
+and `[H] HAULER FERRY · ENTER REMOTE: JUMP`, with clickable certification and
+ferry controls. They replace the jump text above the system list. Five button
+bands use 15 rows and this footer uses two, fitting 80×24 without hiding any
+service action. Extra height separates the service bands from the footer.
+Offline charts retain their warning and Return to Belt action in the lower-left
+service area; port actions remain gated, and the log remains available.
+
+Acceptance coverage checks geometry and full-rectangle hitboxes at 80×24,
+108×32, 144×48, and larger centered terminals, including ASCII mode; moved
+progression controls; unchanged keyboard/mouse actions; full/empty fuel,
+damaged/full hull, insufficient credits, bounty sales, insurance, and offline
+states. Update docs, then write and run tests against the old implementation,
+then change production code.
+
 ### Run Summary
 
 Rendered when the actor reports a resolved run (gameplay/02's `RunRecord`):
@@ -129,7 +169,7 @@ the manifest/log viewport; it does not create a second column.
 - `ESCAPED UNDER FIRE` shows hull loss in red.
 - `SHIP LOST` should usually be preceded by the Death Screen below; the recap
   explains active ship, upgrades, and cargo lost.
-- `[ENTER] RETURN TO BELT · [Q] DOCK AT PORT` — if the ship survived. If death
+- `[E/ENTER] RETURN TO BELT · [Q] DOCK AT PORT` — if the ship survived. If death
   occurred, `[ENTER] RESPAWN AT SOL DOCK`.
 
 ### Death screen
@@ -176,8 +216,8 @@ recap:
 ### Onboarding tie-in
 
 For `Created` pilots (fresh save), the shell shows the onboarding overlay
-(tui/01) over the chart. This task provides its 3 pages of copy: (1) the
-fiction + goal, (2) the loop diagram in words, (3) the control cheatsheet.
+(tui/01) over the chart. This task provides the onboarding copy: the fiction
+and goal, the loop in words, control cheatsheet, and pirate/death warning.
 
 ## Acceptance criteria
 

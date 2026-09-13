@@ -58,22 +58,35 @@ sessions because the actor serializes all access.
   copy idlefarmer's mechanism.
 - **Autosave ticker**: every `cfg.AutosaveInterval`, persist if dirty
   (encode state → `store.SaveState`), clear dirty.
-- **Dirty tracking**: any action or tick that mutates state marks dirty.
+- **Dirty tracking**: any action or tick that mutates state marks dirty,
+  including attach-time LastSeen updates. A failed disconnect write retains
+  the actor for an autosave/reconnect retry, with simulation ticks stopped
+  while no terminal owns it. Such actors remain cached until reconnect or
+  shutdown even if an autosave retry succeeds.
 - **Mining ticks run here.** The actor runs its own 4 Hz ticker while a run is
   active (gameplay/02's decision) and pushes state snapshots. The TUI must not
   drive ticks; suspended output must not pause pirates, event timers, tribute
   decisions, or escape damage. The TUI only ever holds **snapshots** (value
-  copies), never the live state pointer.
+  copies), never the live state pointer. Snapshot revisions order tick and
+  action responses so delayed output cannot overwrite a newer state. Replaced
+  sessions cannot read or mutate the save; their snapshot stream closes.
 
 ### Disconnect emergency bail (Moon Miner-specific)
 
-If a session detaches (or is kicked/taken over/shut down) while a mining run
+If the owning session detaches or the manager shuts down while a mining run
 is active, the actor starts the same emergency bail/escape resolution as if the
 player pressed B. It then advances the run synchronously with a bounded
 disconnect-resolution budget until the ship either escapes or dies, then
 persists. A disconnect must not become a free pause or guaranteed safe cargo
 bank. This rule lives in the actor's detach path and calls gameplay/02's
-`sim.BailOrDepart(...)` plus tick resolution helpers.
+`sim.BailOrDepart(...)` plus tick resolution helpers. A takeover transfers the
+still-running actor to the new terminal; the replaced terminal's eventual
+detach must not resolve the new owner's run.
+
+Emergency resolution uses the normal simulation step, including growing
+fuel-out penalties. A 10,000-step CPU safety budget retains a pathological
+unresolved run; persistence refuses to silently drop that run after detach.
+Shutdown surfaces final-flush errors rather than reporting a successful save.
 
 ### Reconnect: the run resolves, the location restores
 

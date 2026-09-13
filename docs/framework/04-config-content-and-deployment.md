@@ -132,7 +132,12 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   container port 2222 (`MOONMINER_LISTEN_PORT=2222` in the image, unprivileged),
   `stop_grace_period: 45s` (must exceed the 30s shutdown-hook context so the
   save flush always wins), `restart: unless-stopped`, durability env vars
-  commented out by default, plus the hardening block above.
+  commented out by default, plus the hardening block above. Its
+  `MOONMINER_DEV_MODE` environment value is controlled by the host-side
+  `MOONMINER_COMPOSE_DEV_MODE` variable (default `false`): run
+  `MOONMINER_COMPOSE_DEV_MODE=true docker compose up --build` for local
+  development, and leave it unset (or set it to `false`) for production-like
+  behavior. The application validates this as a boolean at startup.
 - **Fleet compose**: this repo does *not* own its production compose entry —
   `../ssh-arcadelobby/deploy/docker-compose.yml` already has a `moonminer`
   service block (currently disconnected, pending this repo shipping a real
@@ -209,3 +214,20 @@ default slot, autosave ≥ 1s, policy enum. `Load()` returns
   image with the right env-var contract.
 - CI/CD workflow files — small effort once this task lands (copy farm's
   verbatim), but not part of this task's acceptance criteria.
+
+## Configuration validation
+
+Content loading rejects unknown TOML keys, non-finite numeric values, empty
+asteroid name pools, invalid generation divisors/ranges, and tick rates below
+the timer's resolution. Treat new tuning keys as schema changes: add validation
+and rejection tests before using them in simulation formulas.
+
+`MOONMINER_DEV_MODE` is a boolean (`true`/`1` enables it, `false`/`0` disables
+it; unset is false). Non-boolean values fail startup. Rate limits must be finite
+and positive, burst and IP-cache capacity must be at least one, and idle timeout
+must be positive. IPv6 listen hosts are formatted with standard address brackets.
+
+Dev mode enables developer-only controls, including Pirate Threat Assist. Those
+controls are unavailable in ordinary play; production saves always use the
+standard pirate-aggression value of `1.0`, including saves that had a dev-only
+assist value when last opened in development.

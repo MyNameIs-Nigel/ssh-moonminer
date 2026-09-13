@@ -95,7 +95,7 @@ func TestChartWhileInBeltOffersReturn(t *testing.T) {
 // the sim (there is no session in this fixture — a call would panic) and tell
 // the pilot how to recover instead.
 func TestChartWhileInBeltRefusesPortServices(t *testing.T) {
-	for _, k := range []string{"f", "r", "c", "i", "s"} {
+	for _, k := range []string{"f", "r", "c", "i", "e"} {
 		g := reconnectTestGame(t, func(st *sim.State) {
 			st.WorldIdx = 1
 			st.SystemID = "sol"

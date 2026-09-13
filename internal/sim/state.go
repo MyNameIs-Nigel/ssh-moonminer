@@ -3,13 +3,15 @@ package sim
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/mynameis-nigel/ssh-moonminer/internal/content"
 )
 
-// StateVersion is the current save schema version. Version 7 adds a dedicated
-// Jump Drive slot and converts legacy Mass Drivers into missile launchers.
-const StateVersion = 7
+// StateVersion is the save schema. Version 8 adds pilot ratings, frontier
+// records, physical ship locations, and removes installed route devices.
+const StateVersion = 8
 
 // BeltViewMode is the default belt rendering mode.
 type BeltViewMode int
@@ -43,7 +45,7 @@ type TrackGrades struct {
 	Scanner   int `json:"scanner"`
 }
 
-// SlotDevice is one installed Utility/Weapon/Internal/Jump Drive item and
+// SlotDevice is one installed Utility/Weapon/Internal item and
 // its grade (0..5, E..S).
 type SlotDevice struct {
 	ItemID   string `json:"item_id"`
@@ -60,19 +62,21 @@ type SlotDevice struct {
 // ShipInstance is one owned, persistent hangar ship: its model, its own
 // stat grades, and its own slot loadout. Utility/Weapon slices are
 // fixed-length (model.UtilitySlots/WeaponSlots) with nil entries for empty
-// slots; Internal and JumpDrive are each exactly one slot per ship.
+// slots. Internal retains the first slot for save compatibility; Lantern adds
+// a second slot in AdditionalInternal.
 type ShipInstance struct {
-	ModelID string `json:"model_id"`
+	ModelID  string `json:"model_id"`
+	SystemID string `json:"system_id"`
 	// Hull and BaseFuel are physical condition on this specific hull. Extra
 	// Fuel Tank reserves are carried by their individual SlotDevices.
 	Hull     int     `json:"hull"`
 	BaseFuel float64 `json:"base_fuel"`
 
-	Grades    TrackGrades   `json:"grades"`
-	Utility   []*SlotDevice `json:"utility,omitempty"`
-	Weapon    []*SlotDevice `json:"weapon,omitempty"`
-	Internal  *SlotDevice   `json:"internal,omitempty"`
-	JumpDrive *SlotDevice   `json:"jump_drive,omitempty"`
+	Grades             TrackGrades   `json:"grades"`
+	Utility            []*SlotDevice `json:"utility,omitempty"`
+	Weapon             []*SlotDevice `json:"weapon,omitempty"`
+	Internal           *SlotDevice   `json:"internal,omitempty"`
+	AdditionalInternal []*SlotDevice `json:"additional_internal,omitempty"`
 
 	// JammerCharges is how many more asteroids this run's Pirate Jammer
 	// internal module can suppress before it must be rearmed at dock.
@@ -110,6 +114,8 @@ type Stats struct {
 
 // RunRecord is one ship's-log entry.
 type RunRecord struct {
+	SystemID             string   `json:"system_id,omitempty"`
+	DestinationID        string   `json:"destination_id,omitempty"`
 	When                 int64    `json:"when"`
 	World                string   `json:"world"`
 	Asteroid             string   `json:"asteroid"`
@@ -143,7 +149,6 @@ type Asteroid struct {
 	Volume   int     `json:"volume"`
 	DrillSec float64 `json:"drill_sec"`
 	Value    int     `json:"value"`
-	FuelCost int     `json:"fuel_cost"`
 	Risk     int     `json:"risk"`
 	Dots     int     `json:"dots"`
 	Size     string  `json:"size"`
@@ -288,8 +293,9 @@ type SkillCheck struct {
 
 // ActiveRun is in-progress mining state (never persisted non-nil).
 type ActiveRun struct {
-	AsteroidID int      `json:"asteroid_id"`
-	Phase      RunPhase `json:"phase"`
+	BeltStability float64  `json:"belt_stability"`
+	AsteroidID    int      `json:"asteroid_id"`
+	Phase         RunPhase `json:"phase"`
 
 	// ExtractedUnits is permanently removed from the asteroid. HeldUnits is
 	// the portion still aboard this ship; tribute may reduce it, but never
@@ -397,11 +403,18 @@ type State struct {
 	// SystemID is the dock/belt system the pilot currently occupies. The
 	// permit maps only record purchases; content-defined starter routes need
 	// not be written into every save.
-	SystemID           string          `json:"system_id"`
-	SystemPermits      map[string]bool `json:"system_permits,omitempty"`
-	DestinationPermits map[string]bool `json:"destination_permits,omitempty"`
-	CargoUnits         float64         `json:"cargo_units,omitempty"`
-	CargoValue         int             `json:"cargo_value,omitempty"`
+	SystemID           string                     `json:"system_id"`
+	JumpClass          int                        `json:"jump_class"`
+	JumpCount          uint64                     `json:"jump_count"`
+	Frontier           map[string]*FrontierRecord `json:"frontier,omitempty"`
+	CargoOrigins       map[string]int             `json:"cargo_origins,omitempty"`
+	ShipsLostAt        map[string]string          `json:"ships_lost_at,omitempty"`
+	HotArrivals        map[string]bool            `json:"hot_arrivals,omitempty"`
+	CrossedGates       map[string]bool            `json:"crossed_gates,omitempty"`
+	LastJump           *JumpResult                `json:"last_jump,omitempty"`
+	DestinationPermits map[string]bool            `json:"destination_permits,omitempty"`
+	CargoUnits         float64                    `json:"cargo_units,omitempty"`
+	CargoValue         int                        `json:"cargo_value,omitempty"`
 
 	// BountyVouchers are confirmed pirate kills awaiting dock redemption
 	// (the C key sells cargo and redeems vouchers together). Unlike cargo,
@@ -442,15 +455,16 @@ type State struct {
 	DisconnectNotice *RunRecord `json:"disconnect_notice,omitempty"`
 
 	// DevGodMode disables hull damage. It is a dev-server-only debug flag.
-	// It has a real json tag so it survives Clone()'s JSON round-trip
-	// in-memory, but Encode() (used for the persisted DB payload) always
+	// Clone preserves it in memory, but Encode (the persisted DB payload) always
 	// zeroes it first so it can never leak into a saved pilot file.
 	DevGodMode bool `json:"dev_god_mode,omitempty"`
 }
 
 // Snapshot is a value copy for rendering.
 type Snapshot struct {
-	State State
+	// Revision orders actor snapshots across tick and action delivery channels.
+	Revision uint64
+	State    State
 }
 
 // New creates a fresh pilot save, owning the free starter ship.
@@ -462,12 +476,14 @@ func New(c *content.Content, seed uint64, now int64) *State {
 		Credits:   c.Pilot.StartCredits,
 		WorldIdx:  -1,
 		SystemID:  "sol",
+		JumpClass: -1,
 		Settings: Settings{
 			BeltView:         BeltViewOreScan,
 			PirateAggression: 1.0,
 		},
 		Stats: Stats{FirstSeen: now, LastSeen: now},
 	}
+	visitSystem(s, "sol", now)
 	grantStarterShip(s, c)
 	s.Fuel = FuelCapacity(s, c)
 	s.Hull = MaxHull(s, c)
@@ -477,12 +493,12 @@ func New(c *content.Content, seed uint64, now int64) *State {
 
 // Encode serializes state for storage. Run is cleared before encode.
 func (s *State) Encode() ([]byte, error) {
-	copy := s.Clone()
-	syncActiveConditionMirrorForEncode(copy)
+	copy := *s
+	syncActiveConditionMirrorForEncode(&copy)
 	copy.Run = nil
 	copy.Scan = nil
 	copy.DevGodMode = false
-	return json.Marshal(copy)
+	return json.Marshal(&copy)
 }
 
 func syncActiveConditionMirrorForEncode(s *State) {
@@ -504,22 +520,82 @@ func (s *State) Clone() *State {
 	if s == nil {
 		return nil
 	}
-	b, err := json.Marshal(s)
-	if err != nil {
-		return nil
+	out := *s
+	out.Belt = slices.Clone(s.Belt)
+	out.Frontier = maps.Clone(s.Frontier)
+	for id, f := range s.Frontier {
+		out.Frontier[id] = cloneValue(f)
+		if f != nil {
+			out.Frontier[id].RunsByDestination = maps.Clone(f.RunsByDestination)
+		}
 	}
-	var out State
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil
+	out.CargoOrigins = maps.Clone(s.CargoOrigins)
+	out.ShipsLostAt = maps.Clone(s.ShipsLostAt)
+	out.HotArrivals = maps.Clone(s.HotArrivals)
+	out.CrossedGates = maps.Clone(s.CrossedGates)
+	out.LastJump = cloneValue(s.LastJump)
+	out.DestinationPermits = maps.Clone(s.DestinationPermits)
+	out.ShipsUnlocked = maps.Clone(s.ShipsUnlocked)
+	out.Ships = maps.Clone(s.Ships)
+	for id, ship := range s.Ships {
+		copy := cloneValue(ship)
+		if copy != nil {
+			copy.Utility = cloneDevices(ship.Utility)
+			copy.Weapon = cloneDevices(ship.Weapon)
+			copy.Internal = cloneValue(ship.Internal)
+			copy.AdditionalInternal = cloneDevices(ship.AdditionalInternal)
+		}
+		out.Ships[id] = copy
+	}
+	out.Inventory = cloneDevices(s.Inventory)
+	out.RunLog = slices.Clone(s.RunLog)
+	for i := range out.RunLog {
+		out.RunLog[i].Events = slices.Clone(s.RunLog[i].Events)
+	}
+	out.DisconnectNotice = cloneValue(s.DisconnectNotice)
+	if out.DisconnectNotice != nil {
+		out.DisconnectNotice.Events = slices.Clone(s.DisconnectNotice.Events)
+	}
+	out.Scan = cloneValue(s.Scan)
+	out.Run = cloneValue(s.Run)
+	if r := out.Run; r != nil {
+		r.PressurePoints = slices.Clone(s.Run.PressurePoints)
+		r.SkillCheck = cloneValue(s.Run.SkillCheck)
+		r.ActiveEvent = cloneValue(s.Run.ActiveEvent)
+		r.EventLog = slices.Clone(s.Run.EventLog)
+		r.Combat = cloneValue(s.Run.Combat)
+		if r.Combat != nil {
+			r.Combat.Log = slices.Clone(s.Run.Combat.Log)
+		}
 	}
 	return &out
+}
+
+func cloneValue[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+func cloneDevices(devices []*SlotDevice) []*SlotDevice {
+	out := slices.Clone(devices)
+	for i, d := range devices {
+		out[i] = cloneValue(d)
+	}
+	return out
 }
 
 // DecodeState parses and upgrades stored state. c is required to build a
 // fresh starter ship when migrating a pre-fleet (version < 2) save.
 func DecodeState(b []byte, c *content.Content) (*State, error) {
 	var s State
-	if err := json.Unmarshal(b, &s); err != nil {
+	migrated, driveCount, oldPermit, migrationErr := retireLegacyDrives(b)
+	if migrationErr != nil {
+		return nil, migrationErr
+	}
+	if err := json.Unmarshal(migrated, &s); err != nil {
 		return nil, fmt.Errorf("sim: decode state: %w", err)
 	}
 	savedVersion := s.Version
@@ -540,9 +616,7 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 			}
 		}
 	}
-	if s.SystemPermits == nil {
-		s.SystemPermits = make(map[string]bool)
-	}
+
 	if s.DestinationPermits == nil {
 		s.DestinationPermits = make(map[string]bool)
 	}
@@ -564,7 +638,7 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 		// in content (e.g. removed from data/*.toml) so later lookups like
 		// CargoCapacityUnits can't silently resolve against a nil model.
 		for id, inst := range s.Ships {
-			if id != s.ActiveShipID && c.ShipByID(inst.ModelID) == nil {
+			if id != s.ActiveShipID && (inst == nil || c.ShipByID(inst.ModelID) == nil) {
 				delete(s.Ships, id)
 				delete(s.ShipsUnlocked, id)
 			}
@@ -599,6 +673,21 @@ func DecodeState(b []byte, c *content.Content) (*State, error) {
 		for shipID := range s.Ships {
 			normalizeShipMissiles(&s, c, shipID)
 		}
+	}
+	if savedVersion < 8 {
+		migrateFrontier(&s, c, driveCount, oldPermit)
+	}
+	for _, ship := range s.Ships {
+		if ship.SystemID == "" {
+			ship.SystemID = s.SystemID
+		}
+		n := c.ShipByID(ship.ModelID).InternalSlots - 1
+		for len(ship.AdditionalInternal) < n {
+			ship.AdditionalInternal = append(ship.AdditionalInternal, nil)
+		}
+	}
+	for id := range s.Frontier {
+		frontierRecord(&s, id)
 	}
 	syncActiveConditionMirror(&s, c)
 	return &s, nil
@@ -658,11 +747,7 @@ func migrateEMPLaunchers(s *State) {
 	}
 }
 
-// migrateUpgradeRework keeps v6 loadouts usable after the v1.6.1 equipment
-// changes. A legacy Mass Driver becomes a loaded Missile Launcher, while an
-// old Internal-slot Jump Drive moves to its permanent dedicated slot. The
-// defensive inventory fallback preserves a corrupted duplicate instead of
-// silently overwriting either device.
+// migrateUpgradeRework converts legacy Mass Drivers into loaded missile launchers.
 func migrateUpgradeRework(s *State, c *content.Content) {
 	migrateDevice := func(d *SlotDevice) {
 		if d != nil && d.ItemID == legacyItemMassDriver {
@@ -680,15 +765,7 @@ func migrateUpgradeRework(s *State, c *content.Content) {
 		for _, d := range ship.Weapon {
 			migrateDevice(d)
 		}
-		migrateDevice(ship.JumpDrive)
-		if ship.Internal != nil && ship.Internal.ItemID == ItemJumpDrive {
-			if ship.JumpDrive == nil {
-				ship.JumpDrive, ship.Internal = ship.Internal, nil
-			} else {
-				s.Inventory = append(s.Inventory, ship.Internal)
-				ship.Internal = nil
-			}
-		}
+
 		RearmMissilesForShip(s, c, shipID)
 	}
 	for _, d := range s.Inventory {

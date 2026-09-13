@@ -116,10 +116,48 @@ func applyTweakDelta(s *sim.Settings, row, delta int) {
 
 func (g *Game) cycleTweak(delta int) []tea.Cmd {
 	i := g.tweaksSel
+	if i == tweakPirateAgg && !g.devMode {
+		return nil
+	}
 	snap, err := g.sess.UpdateSettings(g.now, func(s *sim.Settings) {
 		applyTweakDelta(s, i, delta)
 	})
 	return g.refreshSnap(snap, err)
+}
+
+// normalizePirateThreatAssist removes the dev-only pirate threat setting from
+// a state opened by a normal server. The setting is persisted, so this also
+// prevents an old development save from changing production simulation.
+func normalizePirateThreatAssist(s *sim.Settings, devMode bool) bool {
+	if !devMode && s.PirateAggression != 1.0 {
+		s.PirateAggression = 1.0
+		return true
+	}
+	return false
+}
+
+func (g *Game) tweakRows() []int {
+	rows := []int{tweakBeltView}
+	if g.devMode {
+		rows = append(rows, tweakPirateAgg)
+	}
+	return append(rows, tweakHighContrast, tweakASCII, tweakReducedMotion, tweakWrapLongText)
+}
+
+func (g *Game) moveTweakSelection(delta int) {
+	rows := g.tweakRows()
+	idx := 0
+	for i, row := range rows {
+		if row == g.tweaksSel {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(rows)
+	if idx < 0 {
+		idx += len(rows)
+	}
+	g.tweaksSel = rows[idx]
 }
 
 func pirateAggIndex(v float64) int {
@@ -137,12 +175,20 @@ func (g *Game) renderTweaksOverlay() string {
 	panelW, panelH := g.layoutOverlaySize(tweaksPanelW, tweaksPanelH)
 	panelBodyH := panelH - 2
 	innerW := panelW - 4
-	lines := []string{
-		theme.LabelStyle(hc).Render("Arrow keys change values · T, Q, or Esc close"),
-		theme.DimStyle.Render("Pirate speed only. Rewards unchanged."),
+	lines := []string{theme.LabelStyle(hc).Render("WASD or arrow keys change values · Z, Q, or Esc close")}
+	if g.devMode {
+		lines = append(lines, theme.DimStyle.Render("Pirate speed only. Rewards unchanged."))
 	}
-	tweakLineIdx := 2
-	for i := 0; i < tweakCount; i++ {
+	tweakLineIdx := len(lines)
+	rows := g.tweakRows()
+	selectedRow := 0
+	for rowIdx, i := range rows {
+		if i == g.tweaksSel {
+			selectedRow = rowIdx
+			break
+		}
+	}
+	for _, i := range rows {
 		marker := "  "
 		sel := i == g.tweaksSel
 		if sel {
@@ -161,13 +207,13 @@ func (g *Game) renderTweaksOverlay() string {
 	}
 	scroll := 0
 	if len(lines) > panelBodyH {
-		scroll = centeredScroll(g.tweaksSel+tweakLineIdx, len(lines), panelBodyH)
+		scroll = centeredScroll(selectedRow+tweakLineIdx, len(lines), panelBodyH)
 	}
 	visible := scrollWindowLines(lines, scroll, panelBodyH)
 	for i, line := range visible {
 		src := scroll + i
-		if src >= tweakLineIdx && src < tweakLineIdx+tweakCount {
-			g.tweaksHitLine(i, line, src-tweakLineIdx, panelW, panelH)
+		if src >= tweakLineIdx && src < tweakLineIdx+len(rows) {
+			g.tweaksHitLine(i, line, rows[src-tweakLineIdx], panelW, panelH)
 		}
 	}
 	body := strings.Join(visible, "\n")
@@ -180,15 +226,15 @@ func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx, panelW, panelH
 
 func (g *Game) updateTweaksOverlay(k string) []tea.Cmd {
 	switch k {
-	case "esc", "t", "q", "?":
+	case "esc", "z", "q", "?":
 		g.overlay = ovNone
-	case "up", "k":
-		g.tweaksSel = (g.tweaksSel - 1 + tweakCount) % tweakCount
-	case "down", "j":
-		g.tweaksSel = (g.tweaksSel + 1) % tweakCount
-	case "left", "h":
+	case "up", "w":
+		g.moveTweakSelection(-1)
+	case "down", "s":
+		g.moveTweakSelection(1)
+	case "left", "a":
 		return g.cycleTweak(-1)
-	case "right", "l", "enter", " ":
+	case "right", "d", "enter", " ":
 		return g.cycleTweak(1)
 	}
 	return nil
@@ -198,9 +244,9 @@ func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 	switch k {
 	case "esc", "q", "?":
 		g.overlay = ovNone
-	case "up", "k":
+	case "up", "w":
 		g.helpScrollBy(-1)
-	case "down", "j":
+	case "down", "s":
 		g.helpScrollBy(1)
 	}
 	return nil
@@ -211,6 +257,27 @@ func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 	case ovSignalLost:
 		// Dismissed by any input, mouse included — the game is mouse-everywhere.
 		return g.dismissSignalLost()
+	case ovJump:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "jump:cancel" {
+			return g.updateJumpConfirm("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "jump:confirm" {
+			return g.updateJumpConfirm("enter")
+		}
+	case ovCertify:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "certify:cancel" {
+			return g.updateCertify("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "certify:confirm" {
+			return g.updateCertify("enter")
+		}
+	case ovFerry:
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "ferry:cancel" {
+			return g.updateFerry("esc")
+		}
+		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "ferry:confirm" {
+			return g.updateFerry("enter")
+		}
 	case ovPermit:
 		if b, ok := g.hitAt(m.X, m.Y); ok && b.ID == "permit:buy" {
 			return g.confirmPermitPurchase()

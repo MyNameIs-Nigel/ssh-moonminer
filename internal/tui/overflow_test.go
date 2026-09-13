@@ -21,7 +21,7 @@ func TestMiningMinimumViewportDoesNotSilentlyClipStatusMeaning(t *testing.T) {
 		fmt.Sprintf("of ◈ %d", ast.Value),
 		"(not sold)",
 		"PIRATE ETA",
-		"[B] BAIL",
+		"[Q] BAIL",
 	)
 }
 

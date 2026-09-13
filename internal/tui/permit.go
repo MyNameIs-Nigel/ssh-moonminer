@@ -35,16 +35,6 @@ func (g *Game) permitForWorld(worldIdx int) (permitPurchase, bool) {
 	}
 	w := g.content.Worlds[worldIdx]
 	reason := sim.RouteLockReason(&st, g.content, worldIdx)
-	if system := g.content.SystemByID(w.SystemID); system != nil && strings.HasPrefix(reason, "BUY TRANSFER ") {
-		return permitPurchase{
-			worldIdx: worldIdx,
-			name:     w.Name,
-			kind:     "SYSTEM TRANSFER",
-			price:    system.TransferFee,
-			system:   true,
-			id:       system.ID,
-		}, true
-	}
 	if strings.HasPrefix(reason, "BUY NAV PERMIT ") {
 		return permitPurchase{
 			worldIdx: worldIdx,
@@ -85,13 +75,7 @@ func (g *Game) confirmPermitPurchase() []tea.Cmd {
 		g.overlay = ovNone
 		return nil
 	}
-	var snap sim.Snapshot
-	var err error
-	if purchase.system {
-		snap, err = g.sess.BuySystemPermit(g.now, purchase.id)
-	} else {
-		snap, err = g.sess.BuyDestinationPermit(g.now, purchase.id)
-	}
+	snap, err := g.sess.BuyDestinationPermit(g.now, purchase.id)
 	if err == nil {
 		g.overlay = ovNone
 	}

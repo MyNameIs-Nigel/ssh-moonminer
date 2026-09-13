@@ -121,7 +121,6 @@ Also `bar.Mini(n, of, width)` for stat-grid bars in the ship's log.
 | Setting | Values | Default | Effect |
 | --- | --- | --- | --- |
 | BELT VIEW | tiles / orescan / radar | tiles | default belt rendering (tui/03) |
-| PIRATE AGGRESSION | 0.75 / 1.0 / 1.25 / 1.5 | 1.0 | multiplier into pirate arrival/event pressure (gameplay/02) — self-serve difficulty, still dangerous |
 | HIGH CONTRAST | on / off | off | swaps `dim` for `txt`, thickens selection markers |
 | ASCII SAFE MODE | on / off | off | replaces ◇◆✦★⛽☠◈● with ASCII (`* + # @ F ! $ o`) for fonts without the glyphs |
 | REDUCED MOTION | on / off | off | disables blink, radar sweep, event jitter/pulse |
@@ -131,6 +130,13 @@ Arrow keys/click to change values; changes apply immediately and persist
 via a `sim` settings action (coordinate the `Settings` struct with
 gameplay/01). Note the divergence doc: CRT glow from the prototype has no
 terminal equivalent; these accessibility toggles replace it.
+
+When `MOONMINER_DEV_MODE` is enabled, the overlay additionally shows **PIRATE
+THREAT ASSIST** (`0.5 / 1.0 / 1.5 / 2.0`). It changes pirate approach speed
+only, with rewards unchanged, and exists solely to support development and
+testing. It is never rendered or adjustable in production. Opening a save in
+production resets any previously persisted dev-assist value to the standard
+`1.0`.
 
 Cosmetic configuration (HUD theme, border style, radar sweep, ship paint/name)
 lives in the chart Cosmetics screen from tui/02 because it has unlock costs and

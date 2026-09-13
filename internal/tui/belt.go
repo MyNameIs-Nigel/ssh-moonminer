@@ -19,11 +19,11 @@ func (g *Game) keyBelt(k string) []tea.Cmd {
 	st := g.snap.State
 	n := len(st.Belt)
 	switch k {
-	case "up", "k", "left":
+	case "up", "w", "left", "a":
 		if n > 0 {
 			g.rockSel = (g.rockSel - 1 + n) % n
 		}
-	case "down", "j", "right":
+	case "down", "s", "right", "d":
 		if n > 0 {
 			g.rockSel = (g.rockSel + 1) % n
 		}
@@ -37,7 +37,7 @@ func (g *Game) keyBelt(k string) []tea.Cmd {
 			g.scr = scrMining
 		}
 		return g.refreshSnap(snap, err)
-	case "s":
+	case "e":
 		if n == 0 {
 			return nil
 		}
@@ -304,7 +304,7 @@ func (g *Game) renderBelt() string {
 		}
 	}
 	body := strings.Join(lines, "\n")
-	hint := "↑/↓ SELECT · S SCAN · ENTER LOCK · V VIEW · Q DOCK"
+	hint := "WASD SELECT · E SCAN · ENTER LOCK · V VIEW · Q DOCK"
 	return g.renderBottomKeybar(body, hint)
 }
 
@@ -382,18 +382,11 @@ func (g *Game) beltFooterLines(st *sim.State) (lines []string, hits []beltFooter
 			theme.DimStyle.Render("[Q] DOCK"),
 		}, nil
 	case rock.Scanned:
-		fuelAmount := sim.FuelAmount(st, g.content)
-		fuelStr := fmt.Sprintf("%d fuel", rock.FuelCost)
-		if float64(rock.FuelCost) > fuelAmount {
-			fuelStr = theme.Red.Render(fuelStr)
-		} else {
-			fuelStr = theme.White.Render(fuelStr)
-		}
 		lockBtn := theme.Button("ENTER", "LOCK & FLY", "", sim.RemainingCargoCapacity(st, g.content) > 0, theme.HueGold)
 		lines := []string{
 			"",
-			fmt.Sprintf("TARGET LOCK: %s  FLIGHT %s  VALUE %s",
-				theme.Gold.Render(rock.Name), fuelStr, theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
+			fmt.Sprintf("TARGET LOCK: %s  VALUE %s",
+				theme.Gold.Render(rock.Name), theme.Gold.Render(fmt.Sprintf("%d", rock.Value))),
 			lockBtn,
 		}
 		hits := []beltFooterHit{{footerIdx: 2, label: lockBtn, id: "btn:lock", data: nil}}

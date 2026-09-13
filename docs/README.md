@@ -102,6 +102,17 @@ against them):
    downstream (session caps, store rows, logging) keys on the *resolved*
    fingerprint, never the wire key. See framework/01.
 
+See [the beta progression audit](tests/04-beta-progression-audit.md) for the
+2.0.0 test-first evidence, balance decisions, and migration behavior.
+
+## Test-first implementation
+
+Follow [tests/README.md](tests/README.md) for every feature and update. Start
+with an affected-test audit and a failing acceptance or regression test; then
+implement and refactor. Tests belong in the same change as the behavior they
+protect. The historical phases below describe dependencies, not permission to
+postpone testing until Phase 4.
+
 ## Build order and parallelism
 
 ```
@@ -124,7 +135,7 @@ Phase 6 (live, single doc):   gameplay/07 (pirate combat, named roster,
 Live fix (done, v1.6.2):
   framework/05 (reconnect and location restore — the shipped softlock)
 
-Beta (design complete, not implemented): gameplay/08 (jump network, pilot
+Beta 2.0.0 (implemented): gameplay/08 (jump network, pilot
   ratings, frontier systems and hulls — supersedes the Jump Drive slot from
   gameplay/05 and the system transfer fee from gameplay/03; save schema v8)
 
@@ -140,8 +151,9 @@ Dependencies are listed per-task; the summary:
   `tui/02,03` their data types.
 - `framework/01` (SSH server) and `tui/01` (app shell) can be built with stub
   models/stores; they meet in Phase 3.
-- `tests/*` tasks can start as soon as their target area has landed; writing
-  them in the same PR as the feature is also fine.
+- Feature acceptance tests are written before implementation in every phase.
+  `tests/*` adds deeper integration, replay, distribution, and fuzz coverage;
+  it does not replace the tests required in each feature PR.
 
 ## Task-doc format
 
@@ -152,7 +164,10 @@ context:
 - **References** — exact files in `../ssh-idlefarmer` (or the prototype) to
   mirror for standalone game mechanics; `../ssh-arcadelobby` and `../ssh-farm`
   for anything touching the arcade fleet (identity, durability, deployment).
-- **Deliverables** — packages/files to create.
+- **Test plan and affected-test audit** — observable expectations, boundary and
+  failure cases, existing tests to review, and the focused command to run red
+  before implementation.
+- **Deliverables** — packages/files and tests to create or update.
 - **Spec** — requirements, including exact formulas/values where they exist.
 - **Acceptance criteria** — checklist the work must pass.
 - **Out of scope / handoffs** — what belongs to a different task.
@@ -189,7 +204,9 @@ postdate idlefarmer and come from `../ssh-arcadelobby`/`../ssh-farm` instead:
    durability entrypoint (item 10), which distroless can't run. This
    supersedes any older "distroless" guidance; see framework/04.
 9. Run `go build ./...`, `go vet ./...`, and `go test ./...` before declaring
-   any task done. Table-driven tests live alongside code as `*_test.go`.
+   any task done; run `CGO_ENABLED=1 go test -race ./...` before a PR. Follow
+   the [test-first workflow](tests/README.md), including an audit of existing
+   tests affected by feature updates. Tests live alongside code as `*_test.go`.
 10. **This game lives behind the arcade router.** Identity must resolve both
     direct connections (dev/local) and proxied connections from
     `ssh-arcadelobby` per its canonical protocol
@@ -219,7 +236,7 @@ acceptance lists as regressions.
 | --- | --- | --- |
 | **Space stations** — build cost, ownership, capped offline passive income, the late-game credit sink | `02-danger-economy-and-progression.md` (16 refs), `gameplay/03` (32 refs), `gameplay/01`, `gameplay/04`, `tui/02` (17 refs), `framework/03` ("the actor calls the gameplay/03 station-income helper on attach") | No `Station` identifier anywhere in the repo. The attach path has no income helper. `B build station` is not a key on any screen |
 | **Cosmetics** — purchasable, persist through death, never change derived values | `gameplay/04` (18 refs), `tui/02` (12 refs), `tui/04`, `01-concept-and-story.md` | No `Cosmetic` identifier anywhere. `sim.Settings` carries only belt view, pirate aggression, high contrast, ASCII-safe, reduced motion, wrap, insurance-used. `C` on the star chart is **sell cargo**, not cosmetics |
-| **KEPLER REACH / REDLINE EXPANSE systems** | `01-concept-and-story.md` § "Systems, worlds, and ships"; now fully specified in [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md) | `data/worlds.toml` ships two systems (SOL, ERIDANI DRIFT) and eight destinations. The lock model those two were meant to demonstrate is instead carried by permits and required-item gates on the Sol/Eridani destinations. **No longer aspirational** — gameplay/08 specifies both systems, their distinct pressures, the rating ladder that opens them, and the hulls sold there |
+| **KEPLER REACH / REDLINE EXPANSE systems** | `01-concept-and-story.md` § "Systems, worlds, and ships"; now fully specified in [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md) | `data/worlds.toml` ships two systems (SOL, ERIDANI DRIFT) and eight destinations. The lock model those two were meant to demonstrate is instead carried by permits and required-item gates on the Sol/Eridani destinations. **Implemented on beta in 2.0.0** — gameplay/08 adds both systems, their distinct pressures, the rating ladder, and frontier hulls |
 
 The economy is currently balanced without a station sink, so adding one is a
 balance change, not a fill-in-the-blank. Decide whether stations and cosmetics

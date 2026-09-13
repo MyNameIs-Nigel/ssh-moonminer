@@ -21,6 +21,9 @@ services:
 
     environment:
       MOONMINER_LOG_FORMAT: json
+      # Set MOONMINER_COMPOSE_DEV_MODE=true for developer tools; production
+      # defaults to false and must leave it that way.
+      MOONMINER_DEV_MODE: ${MOONMINER_COMPOSE_DEV_MODE:-false}
       # Durability (leave unset for dev mode; see entrypoint.sh):
       # LITESTREAM_REPLICA_URL: s3://<bucket>/moonminer/db
       # LITESTREAM_S3_REGION: us-east-1

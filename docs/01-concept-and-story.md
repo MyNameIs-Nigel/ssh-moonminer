@@ -44,7 +44,7 @@ LOST`.
    reasons, buy fuel/repairs/ships/upgrades/cosmetics, sell cargo, and fund
    local station construction. Most destinations are locked at first.
 2. **Asteroid Belt** — a scanner shows procedurally generated contacts. Each
-   rock trades off resource value, mining duration, cargo load, flight fuel,
+   rock trades off resource value, mining duration, cargo load,
    and pirate attention. Estimates are intentionally rough.
 3. **Mining Site** — the long real-time screen. The asteroid is mined into the
    cargo hold while the pirate radar closes. The player must manually leave:
@@ -80,19 +80,19 @@ expansion:
 | System | Starting access | Design role | Built? |
 | --- | --- | --- | --- |
 | **SOL** | unlocked | tutorial economy; several planets locked by fuel tank or permit | shipped |
-| **ERIDANI DRIFT** | locked by an installed Jump Drive | harsher rings, distant pirates, lethal attacks | shipped |
-| **KEPLER REACH** | Jump Rating Class D | **planning pressure** — vast distances, few docks, punishing fuel arithmetic | **designed, not built** |
-| **REDLINE EXPANSE** | Jump Rating Class C | **everything, faster** — unstable belts, short pirate ETAs, a hard clock | **designed, not built** |
+| **ERIDANI DRIFT** | Jump Rating Class E | harsher rings, distant pirates, lethal attacks | shipped |
+| **KEPLER REACH** | Jump Rating Class D | **planning pressure** — vast distances, few docks, punishing fuel arithmetic | **shipped on beta 2.0.0** |
+| **REDLINE EXPANSE** | Jump Rating Class C | **everything, faster** — unstable belts, short pirate ETAs, a hard clock | **shipped on beta 2.0.0** |
 
 > **Updated by** [gameplay/08-jump-network-and-frontier-progression.md](gameplay/08-jump-network-and-frontier-progression.md):
 > the "locked by an installed Jump Drive" gate on Eridani and the "expensive
 > transfer + higher jump rating" gate on Kepler are both replaced by the pilot
 > **Jump Rating** ladder (Class E → D → C). That doc also specifies the two
-> unbuilt systems above, three frontier hulls, and the located-hangar model in
+> frontier systems above, three frontier hulls, and the located-hangar model in
 > which ships are parked at a specific dock rather than following the pilot.
 
-`data/worlds.toml` ships the first two systems and eight destinations between
-them. The last two remain aspirational, and "late-game station value" is doubly
+`data/worlds.toml` on beta ships all four systems and eleven destinations.
+Stations remain aspirational, and "late-game station value" is doubly
 so — **stations and cosmetics were never implemented**; see `README.md`
 § "Designed but not built" before planning against either.
 
@@ -102,8 +102,8 @@ planet locked behind a permit, and one outer destination that needs both a
 bigger tank and a better ship.
 
 Ships gate range and risk capacity. **Superseded:** the five-ship list below
-is historical — the authoritative fleet is now 4 ships across 3 brands
-(Federation, Alliance, Independent) and 3 classes (Miner, Fighter, Freighter),
+is historical — the authoritative beta fleet is now 7 ships across 4 brands
+(Federation, Alliance, Independent, Frontier) and 3 classes (Miner, Fighter, Freighter),
 each with persistent per-ship stat grades and swappable slot devices under a
 per-ship power/mass budget, owned simultaneously in a hangar rather than
 replaced one-for-one. See
@@ -149,7 +149,7 @@ Asteroid rarity tiers (the one place color breaks from blue monochrome):
 
 ## Controls (global contract)
 
-Arrow keys move selection; **Enter/Space** confirms; the **mouse works
+WASD or arrow keys move selection; **Enter/Space** confirms; the **mouse works
 everywhere the keyboard does** — clicking a list row selects it, clicking a
 selected row (or double-clicking) activates it, clicking `[F] REFUEL` style
 buttons triggers them, and the scroll wheel moves selection in lists.
@@ -161,14 +161,14 @@ actions:
 
 | Screen | Keys |
 | --- | --- |
-| Star Chart | ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · S shipyard · L log · J jump certification (gameplay/08) · I salvage advance (only while eligible) · T tweaks · Q quit |
-| Belt | ↑/↓/←/→ cycle contacts · Enter/Space lock & fly · S scan selected contact · V cycle view mode · Q dock |
-| Mining | B/Esc/Enter bail while ore remains, depart once depleted · Space/click fracture a lit pressure point |
-| Tribute prompt | D accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |
-| Combat | F pulse laser · G guided missile · B/Esc/Enter start the escape burn — see gameplay/07 |
+| Star Chart | W/S or ↑/↓ select destination · Enter depart (opens the permit prompt if the route is buyable) · F refuel · R repair hull · C sell cargo + bounty vouchers · E shipyard · X log · J jump certification (gameplay/08) · I salvage advance (only while eligible) · Z tweaks · Q quit |
+| Belt | WASD or arrow keys cycle contacts · Enter/Space lock & fly · E scan selected contact · V cycle view mode · Q dock |
+| Mining | Q bail while ore remains, depart once depleted · E/Space/click fracture a lit pressure point |
+| Tribute prompt | X accept (jettison and run) · R/Esc refuse (flee under fire) · F fight (armed ships only) |
+| Combat | F pulse laser · G guided missile · Q start the escape burn — see gameplay/07 |
 | Escape | no menu actions; ship is fleeing under current conditions |
-| Run Summary | Enter/Space continue into the same belt · Q dock |
-| Ship-lost recap | Enter/Space/Q — all dock; there is no belt to return to |
+| Run Summary | E/Enter continue into the same belt · Q dock |
+| Ship-lost recap | E/Enter/Q — all dock; there is no belt to return to |
 | Anywhere | ? help overlay · Ctrl+C disconnect |
 
 Note what the belt screen owns: `Q` is the **only** way to dock. The star chart

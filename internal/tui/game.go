@@ -35,6 +35,7 @@ const (
 	scrLog
 	scrShipyard
 	scrDeath
+	scrJump
 )
 
 type overlay int
@@ -50,6 +51,9 @@ const (
 	ovSlotRemove
 	ovPermit
 	ovSignalLost
+	ovJump
+	ovCertify
+	ovFerry
 )
 
 type (
@@ -83,9 +87,15 @@ type Game struct {
 	tweaksSel  int
 	devSel     int
 
-	worldSel  int
-	rockSel   int
-	logScroll int
+	jumpFlash      bool
+	jumpTarget     string
+	jumpBeat       int
+	jumpGeneration uint64
+	jumpResult     *sim.JumpResult
+	ferrySel       int
+	worldSel       int
+	rockSel        int
+	logScroll      int
 
 	// Shipyard screen navigation state (internal/tui/shipyard.go).
 	shipyardPane      int
@@ -149,6 +159,11 @@ func NewGame(id identity.SessionIdentity, attach game.AttachResult, c *content.C
 		g.overlay = ovOnboard
 	}
 	snap, _ := g.sess.SnapshotNow()
+	if normalizePirateThreatAssist(&snap.State.Settings, devMode) {
+		snap, _ = g.sess.UpdateSettings(now, func(s *sim.Settings) {
+			normalizePirateThreatAssist(s, devMode)
+		})
+	}
 	g.snap = snap
 	// Open the session where the pilot actually is. WorldIdx, SystemID and
 	// Belt survive a disconnect by design (framework/02), so hardcoding the
@@ -241,6 +256,20 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, g.consumeRunOutcome()...)
 		cmds = append(cmds, tickCmd())
+	case jumpTickMsg:
+		if g.scr == scrJump && m.generation == g.jumpGeneration && g.jumpBeat > 0 {
+			g.jumpBeat--
+			if g.jumpBeat > 0 {
+				cmds = append(cmds, jumpTickCmd(g.jumpGeneration))
+			} else {
+				g.jumpFlash = true
+				cmds = append(cmds, jumpFlashCmd(g.jumpGeneration))
+			}
+		}
+	case jumpFlashDoneMsg:
+		if g.scr == scrJump && m.generation == g.jumpGeneration {
+			g.jumpFlash = false
+		}
 	case deathTickMsg:
 		if g.scr == scrDeath && g.deathFrame < g.deathFlickerFrames {
 			g.deathFrame++
@@ -249,6 +278,10 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case snapMsg:
+		if m.Revision < g.snap.Revision {
+			cmds = append(cmds, listenSnaps(g.sess))
+			break
+		}
 		g.snap = sim.Snapshot(m)
 		if g.snap.State.Run != nil && g.scr != scrMining {
 			g.scr = scrMining
@@ -264,12 +297,11 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			g.overlay = ovKicked
 		}
 	case tea.KeyPressMsg:
+		if m.String() == "ctrl+c" {
+			return g, tea.Quit
+		}
 		g.lastInput = g.now
 		if g.combatIntroActive {
-			if m.String() == "ctrl+c" {
-				cmds = append(cmds, tea.Quit)
-				break
-			}
 			g.combatIntroActive = false
 			break
 		}
@@ -337,6 +369,12 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 		return g.updateSlotPickerOverlay(m.String())
 	case ovSlotRemove:
 		return g.updateSlotRemoveOverlay(m.String())
+	case ovJump:
+		return g.updateJumpConfirm(m.String())
+	case ovCertify:
+		return g.updateCertify(m.String())
+	case ovFerry:
+		return g.updateFerry(m.String())
 	case ovPermit:
 		return g.updatePermitOverlay(m.String())
 	}
@@ -345,6 +383,9 @@ func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 
 func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 	k := m.String()
+	if g.scr == scrJump {
+		return g.keyJump(k)
+	}
 	// The death screen bypasses overlay compositing entirely (see View()),
 	// so an overlay opened here would be invisible and unclosable — never
 	// let these global bindings open one while g.scr == scrDeath.
@@ -410,7 +451,7 @@ func (g *Game) setFlash(text string) {
 // mining view.
 func (g *Game) consumeRunOutcome() []tea.Cmd {
 	out := g.sess.LastOutcome()
-	if out == nil || g.scr != scrMining {
+	if out == nil || g.scr != scrMining || g.snap.State.Run != nil {
 		return nil
 	}
 	g.lastOutcome = out
@@ -444,6 +485,9 @@ func (g *Game) refreshSnap(snap sim.Snapshot, err error) []tea.Cmd {
 		g.setFlash(err.Error())
 		return nil
 	}
+	if snap.Revision < g.snap.Revision {
+		return nil
+	}
 	g.snap = snap
 	if g.snap.State.Run != nil {
 		g.scr = scrMining
@@ -461,6 +505,8 @@ func (g *Game) View() tea.View {
 	} else {
 		var frame string
 		switch {
+		case g.scr == scrJump:
+			frame = g.renderJump()
 		case g.scr == scrDeath:
 			frame = g.renderDeath()
 		case g.combatIntroActive:

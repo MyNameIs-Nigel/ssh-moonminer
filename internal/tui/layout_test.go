@@ -70,7 +70,7 @@ func TestChartHitboxAlignment(t *testing.T) {
 	out := g.View().Content
 	assertHitboxAtText(t, g, out, c.Worlds[0].Name, "world:0")
 	assertHitboxAtText(t, g, out, "REFUEL", "svc:refuel")
-	assertHitboxAtText(t, g, out, "REPAIR — FULL", "svc:repair")
+	assertHitboxAtText(t, g, out, "[R] REPAIR", "svc:repair")
 }
 
 func TestMiningHitboxAlignment(t *testing.T) {
@@ -277,12 +277,12 @@ func TestPanelViewportWithFooterKeepsSelection(t *testing.T) {
 
 func TestLayoutPinnedColumnPinsBottomRows(t *testing.T) {
 	top := []string{"status-1", "status-2", "status-3", "status-4", "status-5"}
-	bottom := []string{"[B] BAIL"}
+	bottom := []string{"[Q] BAIL"}
 	lines, scroll := layoutPinnedColumn(top, bottom, 20, 4)
 	if scroll != 2 || len(lines) != 4 {
 		t.Fatalf("layout = %#v scroll=%d", lines, scroll)
 	}
-	if lines[len(lines)-1] != "[B] BAIL" {
+	if lines[len(lines)-1] != "[Q] BAIL" {
 		t.Fatalf("action not pinned: %#v", lines)
 	}
 }

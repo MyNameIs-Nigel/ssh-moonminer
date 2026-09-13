@@ -18,15 +18,15 @@ func shieldStatusGame(t *testing.T) (*Game, *sim.State) {
 	return newShipyardGame(t, st), st
 }
 
-func TestShieldStatusAppearsInGlobalHUDAndDock(t *testing.T) {
+func TestShieldStatusAppearsInGlobalHUDButNotPortServices(t *testing.T) {
 	g, _ := shieldStatusGame(t)
 	g.scr = scrChart
 
 	if hud := g.renderChrome(); !strings.Contains(hud, "SHD 30/30") {
 		t.Fatalf("global HUD should show shield charge, got:\n%s", hud)
 	}
-	if dock := g.renderChart(); !strings.Contains(dock, "SHIELD") || !strings.Contains(dock, "CHARGED") {
-		t.Fatalf("dock should confirm the installed, charged shield, got:\n%s", dock)
+	if dock := g.renderChart(); strings.Contains(dock, "SHIELD") || strings.Contains(dock, "CHARGED") {
+		t.Fatalf("port services should omit redundant shield status, got:\n%s", dock)
 	}
 }
 

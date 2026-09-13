@@ -71,7 +71,6 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 		drill := round1(clamp(float64(vol)/bc.DrillSecPerVol, bc.DrillSecMin, bc.DrillSecMax) * drillMul)
 		tierMult := c.Tiers.Mults[tier]
 		value := int(math.Round(float64(vol)*bc.ValuePerVolume*tierMult/float64(bc.ValueStep))) * bc.ValueStep
-		fuelCost := int(math.Round(clamp(distance*bc.FuelPerKm+float64(tier*bc.FuelCostTierBon), float64(bc.FuelCostMin), float64(bc.FuelCostMax))))
 		risk := int(math.Round(clamp(w.PirateMul*float64(bc.RiskBase+tier*bc.RiskPerTier)+rng.Float64()*16, float64(bc.RiskMin), float64(bc.RiskMax))))
 		dots := clampInt(int(math.Ceil(float64(risk)/20)), 1, 5)
 		size := "sm"
@@ -87,10 +86,28 @@ func GenerateBelt(s *State, c *content.Content, worldIdx int) []Asteroid {
 
 		rocks[i] = Asteroid{
 			ID: i + 1, Name: name, Tier: tier, Volume: vol,
-			DrillSec: drill, Value: value, FuelCost: fuelCost,
+			DrillSec: drill, Value: value,
 			Risk: risk, Dots: dots, Size: size, X: x, Y: y,
 			Distance: distance,
 		}
+	}
+	// A belt must always offer at least one manual scan target. Preserve the
+	// generated contact's other properties and move only the nearest contact
+	// when every distance roll fell beyond the active Scanner's lock.
+	lockKm := ScannerLockKm(s, c)
+	nearest := 0
+	inRange := false
+	for i := range rocks {
+		if rocks[i].Distance <= lockKm {
+			inRange = true
+			break
+		}
+		if rocks[i].Distance < rocks[nearest].Distance {
+			nearest = i
+		}
+	}
+	if !inRange && len(rocks) > 0 {
+		rocks[nearest].Distance = lockKm
 	}
 	sort.Slice(rocks, func(i, j int) bool { return rocks[i].Distance < rocks[j].Distance })
 	s.BeltCount++
@@ -161,9 +178,13 @@ func Dock(s *State, c *content.Content) {
 	if s.Run != nil {
 		return
 	}
+	arrived := !s.IsDocked()
 	s.WorldIdx = -1
 	s.Belt = nil
 	s.Scan = nil
+	if model := c.ShipByID(s.ActiveShipID); arrived && model != nil && model.DockRepairPct > 0 {
+		setActiveHull(s, c, s.Hull+int(math.Round(float64(MaxHull(s, c))*model.DockRepairPct)))
+	}
 	RearmJammer(s, c)
 	RearmEMPLaunchers(s)
 	RearmMissiles(s, c)
@@ -178,7 +199,7 @@ func Dock(s *State, c *content.Content) {
 // way to bypass the Scanner distance lock that gates Lock()/manual Scan().
 func applySeismicSensors(s *State, c *content.Content) {
 	inst := ActiveShip(s)
-	if inst == nil || inst.Internal == nil || inst.Internal.ItemID != ItemSeismic {
+	if inst == nil || internalDevice(inst, ItemSeismic) == nil {
 		return
 	}
 	n := c.Slots.SeismicScanCount
@@ -188,7 +209,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 	lockKm := ScannerLockKm(s, c)
 	candidates := make([]int, 0, len(s.Belt))
 	for i := range s.Belt {
-		if s.Belt[i].Distance < lockKm {
+		if s.Belt[i].Distance <= lockKm {
 			candidates = append(candidates, i)
 		}
 	}
@@ -207,7 +228,7 @@ func applySeismicSensors(s *State, c *content.Content) {
 		picked = append(picked, idx)
 	}
 
-	minTier := seismicMinTierGuarantee(inst.Internal.Grade)
+	minTier := seismicMinTierGuarantee(internalDevice(inst, ItemSeismic).Grade)
 	if minTier == 0 {
 		return
 	}

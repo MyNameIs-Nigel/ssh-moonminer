@@ -142,7 +142,7 @@ One new phase, `PhaseCombat`, appended after `PhaseEscaping`:
 ```
 PhaseMining ──(distance 0, EMP resolved)──> rollPirateAction
     ├─ tribute roll (0.55) ──> PhaseTribute
-    │      ├─ [D] AcceptTribute ──> PhaseEscaping (no attack)        (unchanged)
+    │      ├─ [X] AcceptTribute ──> PhaseEscaping (no attack)        (unchanged)
     │      ├─ [R] RefuseTribute ──> PhaseCombat, burn RUNNING
     │      ├─ [F] FightPirates  ──> PhaseCombat, burn NOT started    (armed only)
     │      └─ 12 s timeout ──> RefuseTribute                          (unchanged)
@@ -153,7 +153,7 @@ PhaseMining ──(distance 0, EMP resolved)──> rollPirateAction
 PhaseCombat
     ├─ autocannon damage applies continuously (when installed)
     ├─ [F] FireWeapons (manual weapon, not overheated)
-    ├─ [B]/[Enter] CombatEscape — starts the burn if not started
+    ├─ [Q] CombatEscape — starts the burn if not started
     │      (BAIL/DEPART intent by RunDepleted, exactly like BailOrDepart)
     ├─ burn completes ──> resolveRun(OutcomeEscapedUnderFire)
     ├─ pirate hull ≤ 0 ──> resolveRun(OutcomePirateDestroyed)
@@ -167,7 +167,7 @@ and for **immediate attack against an unarmed ship** (so weaponless players
 are never worse off than today's auto-escape — they see the combat screen,
 but their ship is already running). It is *not* started for **Fight** or for
 **immediate attack against an armed ship**; those players are standing their
-ground until they press B/Enter, exactly like choosing when to leave a rock
+ground until they press Q, exactly like choosing when to leave a rock
 while mining. `configureEscape` is `startEscape`'s duration math extracted so
 it can run without switching phase (escape seconds are computed at burn
 start, from cargo load at that moment, same formula).
@@ -380,7 +380,7 @@ matrix above, nobody is eating damage they wouldn't have eaten anyway.
   > Direct hit! Marauder hull -16
   > Marauder returns fire — shield absorbs 9
 
-  [B] BAIL  ·  [ENTER] DEPART (begin escape burn)
+  [Q] BAIL / DEPART (begin escape burn)
 ```
 
 - Scope ≈ 34×10 (a bigger sibling of the 16×6 `renderPirateRadar`): player
@@ -392,7 +392,7 @@ matrix above, nobody is eating damage they wouldn't have eaten anyway.
   (`120 + Range·680`).
 - `SOLUTION nn%` line tracks `Combat.Solution`; last 3 `Combat.Log` lines.
 - When `EscapeStarted`: the escape-burn progress bar (reuse `renderEscape`'s
-  bar block) appears below the log, and the keybar drops B/Enter for
+  bar block) appears below the log, and the keybar drops Q for
   `ESCAPE BURN nn%`.
 - Autocannon-only: `AUTOCANNON ONLINE — CONSTANT DAMAGE n.n DPS`, without an
   F key. Unarmed: no FIRE line/HEAT bar; instead a flashing

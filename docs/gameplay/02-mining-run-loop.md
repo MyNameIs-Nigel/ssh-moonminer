@@ -115,15 +115,18 @@ empty tank cannot self-start from a vein.
 ### Locking a target — `Lock(state, content, asteroidID) error`
 
 - Requires: currently in a destination belt (`DestinationID != ""`), no active
-  run, asteroid exists in `state.Belt`, `Fuel ≥ asteroid.FuelCost`, `Hull > 0`,
-  cargo hold not full.
-- Deducts flight fuel immediately, initializes `ActiveRun` with:
+  run, asteroid exists in `state.Belt`, has been scanned and is within Scanner
+  range, `Hull > 0`, cargo hold not full.
+- Initializes `ActiveRun` without consuming fuel: travel to the belt pays the
+  route fuel cost; scanning, mining, and fleeing retain their own fuel costs.
+  It initializes:
   - `RemainingUnits = asteroid.Units`;
   - `PirateDistance = 100`;
   - a true pirate arrival time derived from asteroid risk/system risk;
   - a rough ETA range whose width depends on the ship's Scanner grade
     (gameplay/05, superseding the old Surveyor track).
-- Failure returns `ErrInsufficientFuel` etc. without mutation.
+- Failure returns the applicable validation error without mutation. Target
+  selection itself cannot fail for insufficient fuel.
 
 ### The tick — `TickRun(state, content, dtSeconds float64) (RunOutcome, bool)`
 

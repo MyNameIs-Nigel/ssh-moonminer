@@ -234,12 +234,12 @@ func responsiveRenderVariants() []responsiveRenderVariant {
 	base := func(t testing.TB, w, h int) *Game { return newResponsiveTestGame(t, w, h) }
 	variants := []responsiveRenderVariant{
 		{name: "chart-docked", anchors: []string{"STAR CHART", "PORT SERVICES", "SHIPYARD"}, build: base},
-		{name: "chart-locked-route", anchors: []string{"CERES", "LOCK"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "chart-locked-route", anchors: []string{"ERIDANI DRIFT", "LOCKED"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.worldSel = 0
 			return g
 		}},
-		{name: "chart-unaffordable-services", anchors: []string{"REFUEL", "REPAIR — FULL"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "chart-unaffordable-services", anchors: []string{"REFUEL", "[R] REPAIR"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.snap.State.Credits = 0
 			g.snap.State.Hull = 5
@@ -263,7 +263,7 @@ func responsiveRenderVariants() []responsiveRenderVariant {
 			departResponsiveTestGame(t, g)
 			return g
 		}},
-		{name: "shipyard-owned", anchors: []string{"HANGAR", "STATUS", "JUMP DRIVE"}, build: func(t testing.TB, w, h int) *Game {
+		{name: "shipyard-owned", anchors: []string{"HANGAR", "STATUS", "INTERNAL"}, build: func(t testing.TB, w, h int) *Game {
 			g := base(t, w, h)
 			g.scr = scrShipyard
 			return g

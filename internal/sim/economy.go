@@ -2,37 +2,6 @@ package sim
 
 import "github.com/mynameis-nigel/ssh-moonminer/internal/content"
 
-// BuySystemPermit permanently opens a system transfer for this pilot.
-func BuySystemPermit(s *State, c *content.Content, systemID string) error {
-	if !s.IsDocked() {
-		return ErrInBelt
-	}
-	system := c.SystemByID(systemID)
-	if system == nil {
-		return ErrInvalidSystem
-	}
-	if system.StartsUnlocked || s.SystemPermits[systemID] {
-		return ErrAlreadyUnlocked
-	}
-	if source := c.SystemByID(s.SystemID); source == nil || (source.ID != system.ID && !systemsLinked(source, system.ID)) {
-		return ErrRouteLocked
-	}
-	model := c.ShipByID(s.ActiveShipID)
-	if system.RequiredShipClass != "" && (model == nil || model.Class != system.RequiredShipClass) {
-		return ErrRouteLocked
-	}
-	if s.Credits < system.TransferFee {
-		return ErrInsufficientFunds
-	}
-	if s.SystemPermits == nil {
-		s.SystemPermits = make(map[string]bool)
-	}
-	s.Credits -= system.TransferFee
-	s.Stats.CreditsSpent += system.TransferFee
-	s.SystemPermits[systemID] = true
-	return nil
-}
-
 // BuyDestinationPermit permanently opens a locally gated destination.
 func BuyDestinationPermit(s *State, c *content.Content, destinationID string) error {
 	if !s.IsDocked() {
@@ -46,7 +15,7 @@ func BuyDestinationPermit(s *State, c *content.Content, destinationID string) er
 		return ErrAlreadyUnlocked
 	}
 	system := c.SystemByID(w.SystemID)
-	if system == nil || (!system.StartsUnlocked && !s.SystemPermits[w.SystemID]) {
+	if system == nil || w.SystemID != s.SystemID {
 		return ErrRouteLocked
 	}
 	if s.Credits < w.PermitFee {
@@ -78,6 +47,10 @@ func SellCargo(s *State, c *content.Content, now int64) (int, error) {
 	bounty := s.BountyVouchers
 	value := cargoValue + bounty
 	s.Credits += value
+	for id, value := range s.CargoOrigins {
+		frontierRecord(s, id).CargoValueSold += value
+	}
+	s.CargoOrigins = nil
 	s.CargoValue = 0
 	s.CargoUnits = 0
 	s.BountyVouchers = 0
@@ -151,6 +124,9 @@ func InsuranceAdvance(s *State, c *content.Content) error {
 		return ErrNotEligible
 	}
 	s.Credits = c.Port.InsuranceCredits
+	if sys := c.SystemByID(s.SystemID); sys != nil {
+		s.Credits = max(s.Credits, sys.SalvageAdvance)
+	}
 	s.Settings.InsuranceUsed = true
 	s.Stats.InsuranceClaims++
 	return nil

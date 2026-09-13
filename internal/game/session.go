@@ -58,6 +58,7 @@ func (s *Session) deliverKick(reason string) {
 			}
 		}
 		close(s.kicked)
+		close(s.snapCh)
 	})
 }
 
@@ -71,11 +72,15 @@ func (s *Session) intent(now int64, apply func(st *sim.State) error) (Snapshot, 
 	var snap Snapshot
 	var actErr error
 	ok := s.actor.do(func() {
+		if s.actor.session != s {
+			actErr = ErrSessionClosed
+			return
+		}
 		actErr = apply(s.actor.state)
 		if actErr == nil {
 			s.actor.dirty = true
 		}
-		snap = Snapshot{State: *s.actor.state.Clone()}
+		snap = s.actor.snapshot()
 	})
 	if !ok {
 		return Snapshot{}, ErrSessionClosed
@@ -86,10 +91,15 @@ func (s *Session) intent(now int64, apply func(st *sim.State) error) (Snapshot, 
 // SnapshotNow returns current state without mutation.
 func (s *Session) SnapshotNow() (Snapshot, error) {
 	var snap Snapshot
+	var closed bool
 	ok := s.actor.do(func() {
-		snap = Snapshot{State: *s.actor.state.Clone()}
+		if s.actor.session != s {
+			closed = true
+			return
+		}
+		snap = s.actor.snapshot()
 	})
-	if !ok {
+	if !ok || closed {
 		return Snapshot{}, ErrSessionClosed
 	}
 	return snap, nil
@@ -221,10 +231,14 @@ func (s *Session) Insurance(now int64) (Snapshot, error) {
 	})
 }
 
-func (s *Session) BuySystemPermit(now int64, systemID string) (Snapshot, error) {
-	return s.intent(now, func(st *sim.State) error {
-		return sim.BuySystemPermit(st, s.actor.content(), systemID)
-	})
+func (s *Session) Jump(now int64, systemID string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { _, err := sim.Jump(st, s.actor.content(), systemID, now); return err })
+}
+func (s *Session) CertifyRating(now int64) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { return sim.CertifyRating(st, s.actor.content()) })
+}
+func (s *Session) FerryShip(now int64, shipID, to string) (Snapshot, error) {
+	return s.intent(now, func(st *sim.State) error { return sim.FerryShip(st, s.actor.content(), shipID, to) })
 }
 
 func (s *Session) BuyDestinationPermit(now int64, destinationID string) (Snapshot, error) {
@@ -240,8 +254,8 @@ func (s *Session) SellCargo(now int64) (Snapshot, error) {
 	})
 }
 
-// AcquireShip buys (or buys back) a ship model into the hangar and makes it
-// active.
+// AcquireShip buys (or buys back) a ship model into the hangar.
+// Switching to it is a separate action.
 func (s *Session) AcquireShip(now int64, modelID string) (Snapshot, error) {
 	return s.intent(now, func(st *sim.State) error {
 		return sim.AcquireShip(st, s.actor.content(), modelID)

@@ -281,6 +281,7 @@ func winCombat(s *State, c *content.Content, run *ActiveRun, now int64) *RunOutc
 	}
 	s.BountyVouchers += cs.Bounty
 	s.Stats.PiratesDestroyed++
+	frontierRecord(s, s.SystemID).PiratesDestroyed++
 	s.Stats.BountyCreditsEarned += cs.Bounty
 	run.PirateDestroyed = cs.PirateName
 	run.BountyEarned = cs.Bounty

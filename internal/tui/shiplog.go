@@ -13,13 +13,13 @@ import (
 
 func (g *Game) keyLog(k string) []tea.Cmd {
 	switch k {
-	case "esc", "q", "l":
+	case "esc", "q", "x":
 		g.scr = scrChart
-	case "up", "k":
+	case "up", "w":
 		if g.logScroll > 0 {
 			g.logScroll--
 		}
-	case "down", "j":
+	case "down", "s":
 		g.logScroll++
 	}
 	return nil
@@ -36,7 +36,7 @@ func (g *Game) renderLog() string {
 	clampScroll(&g.logScroll, len(lines), panelBodyH)
 	viewport := scrollWindowLines(lines, g.logScroll, panelBodyH)
 	body := strings.Join(viewport, "\n")
-	hint := "↑/↓ SCROLL · ESC BACK TO CHART"
+	hint := "W/S SCROLL · ESC BACK TO CHART"
 	return theme.Panel("SHIP'S LOG", panelW, panelH, body, accent) + "\n" + g.renderKeybar(hint)
 }
 
