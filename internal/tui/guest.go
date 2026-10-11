@@ -9,6 +9,9 @@ import (
 )
 
 func (g *Game) requestQuit() []tea.Cmd {
+	if g.overlay == ovKicked {
+		return []tea.Cmd{tea.Quit}
+	}
 	if g.id.IsGuest() {
 		g.overlay = ovGuestQuit
 		return nil
