@@ -124,3 +124,8 @@ progress. A fresh visit starts from scratch; guest state cannot be claimed by a
 key. Deploy backend support before enabling guests in the lobby. See the fleet's
 [guest access plan](../ssh-arcadelobby/docs/08-guest-access-plan.md); no schema
 migration or production data changes are needed.
+
+## Releases
+
+See [Publishing a release](docs/releasing.md) for versioning, GitHub environment
+setup, deployment order, and rollback. Production deploys on published releases.

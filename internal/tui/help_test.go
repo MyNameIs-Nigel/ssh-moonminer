@@ -21,7 +21,7 @@ func TestHelpOverlayShowsVersionAndScreen(t *testing.T) {
 		snap:    sim.Snapshot{State: *sim.New(c, 1, 1000)},
 	}
 	out := g.renderHelpOverlay()
-	wantVer := "MOON MINER v" + version.Version + " (" + version.Channel + ")"
+	wantVer := "MOON MINER v" + version.Version
 	if !strings.Contains(out, wantVer) {
 		t.Fatalf("help overlay missing version %q:\n%s", wantVer, out)
 	}

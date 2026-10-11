@@ -194,7 +194,7 @@ func (g *Game) renderHelpOverlay() string {
 	if g.helpScrollMax() == 0 {
 		hint = theme.DimStyle.Render("?, Esc, or Q close")
 	}
-	ver := theme.DimStyle.Render("MOON MINER v" + version.Version + " (" + version.Channel + ")")
+	ver := theme.DimStyle.Render("MOON MINER v" + version.Version)
 	footer := []string{"", hint, ver}
 	scrollRows := panelBodyH - len(footer)
 	view := scrollWindowLines(lines, g.helpScroll, scrollRows)
