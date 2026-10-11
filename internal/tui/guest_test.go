@@ -52,3 +52,19 @@ func TestTweaksWheelSkipsHiddenDevRow(t *testing.T) {
 		t.Fatalf("wheel selected hidden setting %d", g.tweaksSel)
 	}
 }
+
+func TestKickedGuestCtrlCExitsWithoutDiscardDialog(t *testing.T) {
+	g := newResponsiveTestGame(t, 80, 24)
+	g.id = identity.SessionIdentity{Kind: identity.Guest, GuestID: strings.Repeat("f", 32)}
+	g.overlay = ovKicked
+	_, cmd := g.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("kicked guest was offered a cancelable exit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("kicked guest did not quit")
+	}
+	if g.overlay != ovKicked {
+		t.Fatal("terminal kick notice was replaced")
+	}
+}
