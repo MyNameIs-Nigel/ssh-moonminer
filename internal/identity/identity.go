@@ -11,8 +11,18 @@ import (
 
 const maxSlotLen = 32
 
+type Kind uint8
+
+const (
+	Invalid Kind = iota
+	Keyed
+	Guest
+)
+
 // SessionIdentity is the resolved account for one SSH connection.
 type SessionIdentity struct {
+	Kind        Kind
+	GuestID     string
 	Fingerprint string
 	Slot        string
 }

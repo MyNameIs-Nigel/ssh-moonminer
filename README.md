@@ -104,3 +104,23 @@ MIT — see [`LICENSE`](LICENSE).
 published container image (currently Litestream, Apache-2.0). Update it if the
 image ever gains another bundled binary — Apache-2.0 requires that attribution
 to travel with the artifact, not merely with the source.
+
+## Guest visits
+
+`MOONMINER_ALLOW_GUESTS=true` enables disposable visitors from a configured
+trusted arcade proxy (default `false`). The proxy uses protocol v2 username
+`guest.<32 lowercase hex>` and omits `ARCADE_PLAYER_KEY`. Direct SSH still
+requires a public key; existing keyed saves and usernames keep their meaning.
+
+Guest pilots see `PILOT: GUEST` and `NOT SAVED`. Ships, credits, upgrades,
+ratings, permits, settings and logs work normally but last for one game visit.
+Leaving intentionally asks for confirmation. Disconnect, idle or maintenance
+stops and removes the actor even when dirty or mining; no account/save calls,
+autosave retries or disconnect emergency-save resolution run for guests.
+The gameplay ticker and normal in-game escape/death outcomes are unchanged.
+
+Run `ssh-keygen -t ed25519` **on your computer**, then reconnect to save future
+progress. A fresh visit starts from scratch; guest state cannot be claimed by a
+key. Deploy backend support before enabling guests in the lobby. See the fleet's
+[guest access plan](../ssh-arcadelobby/docs/08-guest-access-plan.md); no schema
+migration or production data changes are needed.

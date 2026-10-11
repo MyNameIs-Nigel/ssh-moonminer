@@ -35,7 +35,7 @@ func testManager(t *testing.T) *Manager {
 	return m
 }
 
-var testID = identity.SessionIdentity{Fingerprint: "SHA256:test", Slot: "default"}
+var testID = identity.SessionIdentity{Kind: identity.Keyed, Fingerprint: "SHA256:test", Slot: "default"}
 
 func mustAttach(t *testing.T, m *Manager, now int64) AttachResult {
 	t.Helper()

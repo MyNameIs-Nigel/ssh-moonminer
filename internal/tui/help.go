@@ -52,6 +52,9 @@ func (g *Game) helpEntries() []helpTextLine {
 		{"Wheel: scroll lists and help text", plain},
 		{"", plain},
 	}
+	if g.id.IsGuest() {
+		global = append(global, helpTextLine{"GUEST: all progress and settings last for this visit only. Ctrl+C leaves after confirmation.", theme.Gold}, helpTextLine{"Run ssh-keygen -t ed25519 locally, then reconnect. Existing guest progress cannot be saved.", plain})
+	}
 	if g.devMode {
 		global = append(global,
 			helpTextLine{"Ctrl+D dev tools (this is a dev build)", theme.Red},

@@ -13,6 +13,8 @@ import (
 
 func (g *Game) renderOverlay() string {
 	switch g.overlay {
+	case ovGuestQuit:
+		return g.renderGuestQuit()
 	case ovHelp:
 		return g.renderHelpOverlay()
 	case ovTweaks:
@@ -50,8 +52,12 @@ func (g *Game) renderOverlay() string {
 		if pg == len(onboardPages)-1 {
 			hint = "Press any key to start."
 		}
+		page := onboardPages[pg]
+		if g.id.IsGuest() && pg == 0 {
+			page = "Welcome, GUEST. Ships, credits, upgrades, ratings, permits, settings and the log last for this visit only. Run ssh-keygen -t ed25519 locally, then reconnect to save future progress."
+		}
 		lines := reflowOverlayLines([]string{
-			onboardPages[pg],
+			page,
 			"",
 			theme.DimStyle.Render(hint),
 		}, panelW-4)

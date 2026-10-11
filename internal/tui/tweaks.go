@@ -217,7 +217,11 @@ func (g *Game) renderTweaksOverlay() string {
 		}
 	}
 	body := strings.Join(visible, "\n")
-	return theme.Panel("TWEAKS", panelW, panelH, body, theme.Accent(theme.HueViolet))
+	title := "TWEAKS"
+	if g.id.IsGuest() {
+		title = "TWEAKS — GUEST VISIT ONLY"
+	}
+	return theme.Panel(title, panelW, panelH, body, theme.Accent(theme.HueViolet))
 }
 
 func (g *Game) tweaksHitLine(lineIdx int, label string, tweakIdx, panelW, panelH int) {
@@ -254,6 +258,15 @@ func (g *Game) updateHelpOverlay(k string) []tea.Cmd {
 
 func (g *Game) updateOverlayClick(m tea.MouseClickMsg) []tea.Cmd {
 	switch g.overlay {
+	case ovGuestQuit:
+		if b, ok := g.hitAt(m.X, m.Y); ok {
+			switch b.ID {
+			case "guest:leave":
+				return g.updateGuestQuit("enter")
+			case "guest:stay":
+				return g.updateGuestQuit("esc")
+			}
+		}
 	case ovSignalLost:
 		// Dismissed by any input, mouse included — the game is mouse-everywhere.
 		return g.dismissSignalLost()
@@ -344,9 +357,9 @@ func (g *Game) updateOverlayWheel(m tea.MouseWheelMsg) []tea.Cmd {
 		}
 	case ovTweaks:
 		if delta < 0 {
-			g.tweaksSel = (g.tweaksSel - 1 + tweakCount) % tweakCount
+			g.moveTweakSelection(-1)
 		} else {
-			g.tweaksSel = (g.tweaksSel + 1) % tweakCount
+			g.moveTweakSelection(1)
 		}
 	case ovDev:
 		if delta < 0 {

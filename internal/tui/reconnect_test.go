@@ -28,7 +28,7 @@ func reconnectTestGame(t *testing.T, mutate func(*sim.State)) *Game {
 		height:    24,
 		scr:       initialScreen(st),
 		snap:      sim.Snapshot{State: *st},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		hits:      hitbox.New(),
 		tickCount: 1,
 		now:       2000,

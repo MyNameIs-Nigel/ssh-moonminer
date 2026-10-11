@@ -187,3 +187,18 @@ wish.WithMiddleware(
 - The real TUI model (tui/01) — a "hello, pilot" placeholder model is fine.
 - Config struct fields you need (framework/04) — add them to
   `internal/config` if it doesn't exist yet; framework/04 will consolidate.
+
+## Guest protocol v2 extension
+
+The trusted proxy may assert `guest.<32 lowercase hex>` only when
+`MOONMINER_ALLOW_GUESTS=true`. Contradictory key metadata, malformed tokens and
+invalid identity kinds fail before storage. Guest actor keys have a separate
+namespace; the public label GUEST is never a save or limiter key. Per-shell
+context values are independent even on one SSH transport.
+
+Guest attachment uses a fresh simulation, no account/save lookups and no autosave
+timer. The mining ticker and snapshot ordering remain intact. Guest detach and
+shutdown skip emergency-save resolution and stop/remove the actor regardless of
+dirty state. Keyed disconnect recovery and retry retention are unchanged. The UI
+labels the entire visit unsaved, keeps normal gameplay/settings available, and
+confirms intentional discard. See README and the fleet guest plan for rollout.

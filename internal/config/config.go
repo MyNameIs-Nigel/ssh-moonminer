@@ -31,6 +31,7 @@ type Config struct {
 	DataDir             string
 	ProxyKeysPath       string
 	DevMode             bool
+	AllowGuests         bool
 }
 
 // Load reads configuration from the environment.
@@ -46,6 +47,12 @@ func Load() (Config, error) {
 		SessionPolicy: envOr("MOONMINER_SESSION_POLICY", "takeover"),
 		DataDir:       os.Getenv("MOONMINER_DATA_DIR"),
 		ProxyKeysPath: os.Getenv("MOONMINER_PROXY_KEYS_PATH"),
+	}
+	if raw := os.Getenv("MOONMINER_ALLOW_GUESTS"); raw != "" {
+		cfg.AllowGuests, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("MOONMINER_ALLOW_GUESTS: invalid boolean %q", raw)
+		}
 	}
 	if raw := os.Getenv("MOONMINER_DEV_MODE"); raw != "" {
 		cfg.DevMode, err = strconv.ParseBool(raw)
