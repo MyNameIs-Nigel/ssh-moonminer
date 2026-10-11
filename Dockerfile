@@ -11,7 +11,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X github.com/mynameis-nigel/ssh-moonminer/internal/version.Version=${VERSION}" \
         -o /out/ssh-moonminer ./cmd/ssh-moonminer
 
 # restore-check ships in the runtime image on purpose: the durability drills
