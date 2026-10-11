@@ -84,7 +84,7 @@ func (g *Game) keyChart(k string) []tea.Cmd {
 			g.overlay = ovTweaks
 		}
 	case "q":
-		return []tea.Cmd{tea.Quit}
+		return g.requestQuit()
 	}
 	return nil
 }

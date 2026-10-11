@@ -53,7 +53,7 @@ func Run() {
 		logger.Error("proxy keys load failed", "error", err)
 		os.Exit(1)
 	}
-	resolver := identity.NewResolver(cfg.DefaultSlot, proxyKeys)
+	resolver := identity.NewResolver(cfg.DefaultSlot, proxyKeys, identity.WithGuests(cfg.AllowGuests))
 
 	games := game.NewManager(st, c, logger, cfg.AutosaveInterval, game.Policy(cfg.SessionPolicy))
 	server.RegisterShutdownHook(games.Shutdown)

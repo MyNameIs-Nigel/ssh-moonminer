@@ -12,6 +12,7 @@ import (
 type saveKey struct {
 	fingerprint string
 	slot        string
+	guestID     string
 }
 
 type actor struct {
@@ -51,8 +52,12 @@ func (a *actor) do(fn func()) bool {
 
 func (a *actor) run() {
 	defer close(a.done)
-	autosave := time.NewTicker(a.mgr.autosave)
-	defer autosave.Stop()
+	var saves <-chan time.Time
+	if a.key.guestID == "" {
+		autosave := time.NewTicker(a.mgr.autosave)
+		defer autosave.Stop()
+		saves = autosave.C
+	}
 
 	tickDur := sim.TickInterval(a.mgr.content)
 	mineTick := time.NewTicker(tickDur)
@@ -79,12 +84,12 @@ func (a *actor) run() {
 		select {
 		case fn := <-a.reqs:
 			fn()
-		case <-autosave.C:
+		case <-saves:
 			a.persist("autosave")
 		case <-mineTick.C:
 			a.tick()
 		case <-a.stop:
-			if a.state.Run != nil {
+			if a.key.guestID == "" && a.state.Run != nil {
 				sim.EmergencyResolve(a.state, a.mgr.content, time.Now().Unix())
 				a.dirty = true
 			}
@@ -127,6 +132,9 @@ func (a *actor) tick() {
 }
 
 func (a *actor) persist(reason string) error {
+	if a.key.guestID != "" {
+		return nil
+	}
 	if !a.dirty {
 		return nil
 	}

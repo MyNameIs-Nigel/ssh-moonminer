@@ -54,6 +54,7 @@ const (
 	ovJump
 	ovCertify
 	ovFerry
+	ovGuestQuit
 )
 
 type (
@@ -298,7 +299,7 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		if m.String() == "ctrl+c" {
-			return g, tea.Quit
+			return g, tea.Batch(g.requestQuit()...)
 		}
 		g.lastInput = g.now
 		if g.combatIntroActive {
@@ -340,6 +341,8 @@ func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (g *Game) updateOverlay(m tea.KeyPressMsg) []tea.Cmd {
 	switch g.overlay {
+	case ovGuestQuit:
+		return g.updateGuestQuit(m.String())
 	case ovKicked:
 		if m.String() != "" {
 			return []tea.Cmd{tea.Quit}
@@ -399,7 +402,7 @@ func (g *Game) updateKey(m tea.KeyPressMsg) []tea.Cmd {
 		return nil
 	}
 	if k == "ctrl+c" {
-		return []tea.Cmd{tea.Quit}
+		return g.requestQuit()
 	}
 	if g.devMode && k == "ctrl+d" && g.scr != scrDeath {
 		if g.overlay == ovDev {
@@ -514,11 +517,19 @@ func (g *Game) View() tea.View {
 		default:
 			frame = g.compositeView(g.renderChrome() + "\n" + g.renderScreen())
 		}
+		if g.overlay == ovGuestQuit || g.overlay == ovKicked {
+			if g.scr == scrJump || g.scr == scrDeath || g.combatIntroActive {
+				frame = g.compositeView(frame)
+			}
+		}
+		if g.id.IsGuest() {
+			frame = g.guestFrame(frame)
+		}
 		body = g.placeFrame(g.assembleFrameContent(frame))
 	}
 	v := tea.NewView(body)
 	v.AltScreen = true
-	v.WindowTitle = fmt.Sprintf("MOON MINER — %s", strings.ToUpper(g.id.Slot))
+	v.WindowTitle = fmt.Sprintf("MOON MINER — %s", strings.ToUpper(g.id.Label()))
 	return v
 }
 
@@ -552,7 +563,7 @@ func (g *Game) renderChrome() string {
 	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
 
 	title := theme.Cyan.Render("MOON MINER")
-	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Slot))
+	pilot := theme.Violet.Render("PILOT: " + strings.ToUpper(g.id.Label()))
 	credits := theme.Gold.Render(fmt.Sprintf("%s %d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
 	fuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%s %.0f%%", theme.Glyph("fuel", st.Settings.ASCIISafe), fuelPct))
 	hullPct := sim.HullPct(&st, g.content)
@@ -568,7 +579,10 @@ func (g *Game) renderChrome() string {
 	if lipgloss.Width(hud) > g.contentWidth() {
 		// Preserve both defensive charge and cargo in compact mode. The pilot
 		// label and verbose fuel/credit spacing are the expendable chrome.
-		compactPilot := theme.Violet.Render(strings.ToUpper(g.id.Slot))
+		compactPilot := theme.Violet.Render(strings.ToUpper(g.id.Label()))
+		if g.id.IsGuest() {
+			compactPilot = pilot
+		}
 		compactCredits := theme.Gold.Render(fmt.Sprintf("%s%d", theme.Glyph("credit", st.Settings.ASCIISafe), st.Credits))
 		compactFuel := theme.FuelStyle(fuelPct).Render(fmt.Sprintf("%s%.0f%%", theme.Glyph("fuel", st.Settings.ASCIISafe), fuelPct))
 		compactHull := theme.HullStyle(hullPct).Render(fmt.Sprintf("HULL%.0f%%", hullPct))

@@ -25,7 +25,7 @@ func TestCompositeViewCentersOverlay(t *testing.T) {
 		scr:       scrChart,
 		overlay:   ovHelp,
 		snap:      sim.Snapshot{State: *sim.New(c, 1, 1000)},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		hits:      hitbox.New(),
 		tickCount: 1,
 	}
@@ -59,7 +59,7 @@ func TestCompositeViewPreservesBackgroundBesideOverlay(t *testing.T) {
 		scr:       scrChart,
 		overlay:   ovHelp,
 		snap:      sim.Snapshot{State: *sim.New(c, 1, 1000)},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		hits:      hitbox.New(),
 		tickCount: 1,
 	}

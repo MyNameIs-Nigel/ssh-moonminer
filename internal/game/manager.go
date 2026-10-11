@@ -75,6 +75,23 @@ func (m *Manager) Attach(ctx context.Context, id identity.SessionIdentity, publi
 	if m.closing {
 		return AttachResult{}, ErrShuttingDown
 	}
+	if err := id.Validate(); err != nil {
+		return AttachResult{}, err
+	}
+	if id.IsGuest() {
+		if publicKey != "" {
+			return AttachResult{}, errors.New("guest cannot carry a public key")
+		}
+		key := saveKey{guestID: id.GuestID}
+		if _, exists := m.actors[key]; exists {
+			return AttachResult{}, ErrSaveBusy
+		}
+		a := newActor(m, key, sim.New(m.content, randomSeed(), now))
+		m.actors[key] = a
+		sess := &Session{id: m.nextID.Add(1), actor: a, kicked: make(chan string, 1), kickFn: kick, snapCh: make(chan sim.Snapshot, 8)}
+		a.do(func() { a.session = sess })
+		return AttachResult{Session: sess, Created: true}, nil
+	}
 	if err := m.store.TouchAccount(ctx, id.Fingerprint, publicKey, now); err != nil {
 		return AttachResult{}, err
 	}
@@ -134,7 +151,7 @@ func (m *Manager) detach(s *Session) {
 	var stop bool
 	a.do(func() {
 		if a.session == s {
-			if a.state.Run != nil {
+			if a.key.guestID == "" && a.state.Run != nil {
 				sim.EmergencyResolve(a.state, m.content, time.Now().Unix())
 				a.dirty = true
 			}
@@ -142,7 +159,7 @@ func (m *Manager) detach(s *Session) {
 		}
 		a.persist("disconnect")
 		// Keep failed saves in memory for autosave/reconnect to retry.
-		stop = a.session == nil && !a.dirty
+		stop = a.session == nil && (a.key.guestID != "" || !a.dirty)
 	})
 	if stop {
 		m.stopActorLocked(a)
@@ -178,11 +195,15 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		for _, a := range actors {
 			a.do(func() {
 				if a.session != nil {
-					if a.state.Run != nil {
+					if a.key.guestID == "" && a.state.Run != nil {
 						sim.EmergencyResolve(a.state, m.content, time.Now().Unix())
 						a.dirty = true
 					}
-					a.session.deliverKick("Maintenance shutdown — progress saved.")
+					reason := "Maintenance shutdown — progress saved."
+					if a.key.guestID != "" {
+						reason = "Maintenance — guest progress is discarded. Reconnect with a key to save future progress."
+					}
+					a.session.deliverKick(reason)
 					a.session = nil
 				}
 			})

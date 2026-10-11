@@ -31,7 +31,7 @@ func newShipyardGame(t *testing.T, st *sim.State) *Game {
 		scr:       scrShipyard,
 		hits:      hitbox.New(),
 		snap:      sim.Snapshot{State: *st},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		tickCount: 1,
 	}
 }

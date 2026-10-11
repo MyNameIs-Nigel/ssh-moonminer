@@ -101,7 +101,7 @@ func newResponsiveTestGame(t testing.TB, width, height int) *Game {
 		scr:       scrChart,
 		hits:      hitbox.New(),
 		snap:      sim.Snapshot{State: *sim.New(c, 42, 1000)},
-		id:        identity.SessionIdentity{Slot: "layout-test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "layout-test"},
 		tickCount: 1,
 	}
 }

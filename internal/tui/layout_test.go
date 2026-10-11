@@ -63,7 +63,7 @@ func TestChartHitboxAlignment(t *testing.T) {
 		scr:       scrChart,
 		hits:      hitbox.New(),
 		snap:      sim.Snapshot{State: *st},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		worldSel:  0,
 		tickCount: 1,
 	}
@@ -95,7 +95,7 @@ func TestMiningHitboxAlignment(t *testing.T) {
 		scr:       scrMining,
 		hits:      hitbox.New(),
 		snap:      sim.Snapshot{State: *st},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		tickCount: 1,
 	}
 	view := g.View()
@@ -140,7 +140,7 @@ func TestMiningSkillCheckHitboxAlignment(t *testing.T) {
 		scr:       scrMining,
 		hits:      hitbox.New(),
 		snap:      sim.Snapshot{State: *st},
-		id:        identity.SessionIdentity{Slot: "test"},
+		id:        identity.SessionIdentity{Kind: identity.Keyed, Slot: "test"},
 		tickCount: 1,
 	}
 	out := g.View().Content
