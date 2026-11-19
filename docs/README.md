@@ -272,3 +272,5 @@ unachievable.
 | [tests/01-sim-engine-tests.md](tests/01-sim-engine-tests.md) | Determinism, outcome tables, distribution + property tests |
 | [tests/02-server-integration-tests.md](tests/02-server-integration-tests.md) | In-process SSH client tests: auth, PTY, policy, shutdown |
 | [tests/03-tui-rendering-and-input-tests.md](tests/03-tui-rendering-and-input-tests.md) | Update-loop tests, golden renders, hitbox/mouse tests |
+
+[Capture development SSH screens and test terminal behavior](../scripts/tui-tools/README.md)
