@@ -47,6 +47,7 @@ func (g *Game) helpEntries() []helpTextLine {
 	plain := lipgloss.NewStyle()
 	global := []helpTextLine{
 		{"GLOBAL", theme.Bright},
+		{g.rtt.String(), plain},
 		{"? toggle help · Esc or Q close help", plain},
 		{"Mouse: click to select · double-click to activate", plain},
 		{"Wheel: scroll lists and help text", plain},

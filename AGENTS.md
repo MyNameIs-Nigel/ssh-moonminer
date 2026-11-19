@@ -1,20 +1,14 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
-
 ## What this is
 
 **Moon Miner**: a hard roguelite asteroid-mining game played entirely over SSH — the player's SSH
 public key is their account, no client install required. It runs live behind the `ssh-arcadelobby`
-router as part of the ssharcade fleet (see `/home/nigel/repos/ssh-games/AGENTS.md` for fleet-wide
-context — sibling repos `../ssh-farm` and `../ssh-arcadelobby` are reference implementations for
-fleet-specific patterns like identity and durability).
+router as part of the ssharcade fleet. The sibling `../ssh-farm` and `../ssh-arcadelobby`
+checkouts document shared identity and durability conventions.
 
-**`main` publishes for real** on every push (`release.yml` builds and pushes to `ghcr.io`) —
-never commit directly to `main`. It no longer deploys: the self-hosted runners were removed on
-2026-09-04 ahead of the repos going public, so putting a published image on
-`play.ssharcade.dev` is a manual step (`../ssh-arcadelobby/deploy/README.md` §
-"Deploying by hand").
+Work on a branch and open a PR against `main`. Publishing a release can deploy to production.
+Check `.github/workflows/release.yml` and `../ssh-arcadelobby/deploy/README.md` before release work.
 
 ## Commands
 
@@ -27,13 +21,19 @@ MOONMINER_LISTEN_PORT=2222 go run ./cmd/ssh-moonminer
 ssh -p 2222 -o StrictHostKeyChecking=accept-new localhost
 ```
 
-Run `go build ./...`, `go vet ./...`, and `go test ./...` before declaring any task done.
-`go test -race` **now works locally** — `build-essential` was installed on the dev WSL box on
-2026-08-15, so `CGO_ENABLED=1 go test -race ./...` runs here. Do that before opening a PR rather
-than waiting on CI: race conditions used to surface only in CI (`.github/workflows/ci.yml`, which
-still runs `-race` on PRs and non-main pushes) because no local run was possible.
+Use the Go version declared in `go.mod`. Run the build, vet, and tests before opening a PR,
+plus `go test -race ./...` where CGO and a C toolchain are available. To verify a targeted gameplay
+change, start with `./internal/sim`. For connection or save lifecycle changes, test
+`./internal/server`, `./internal/game`, and `./internal/store`.
 
-Local data lands in gitignored `var/` (`var/moonminer.db`, `var/ssh_host_key`) — never commit it.
+- Use `go run ./cmd/dev-moonminer` for interactive development. Keep local databases and host keys
+  in an isolated directory or gitignored `var/`.
+- Follow the [terminal tools guide](scripts/tui-tools/README.md) to capture onboarding and Help
+  through a real SSH connection. Use PNGs for layout, GIFs for motion, and the loopback latency
+  relay to check delayed input and output.
+- Run `go test ./internal/sim -run TestPressurePointLatencySweep -v -count=1` when tuning
+  time-sensitive mining input. It models a fixed reaction time across several RTTs with real sim ticks.
+- Use `scripts/restore-drill/` to exercise backup and restore behavior with scratch data.
 
 ## Architecture
 
@@ -72,8 +72,7 @@ Other conventions worth knowing before touching code:
   save-attach middleware adjacent to the Bubble Tea handler.
 - **Raw-session messages use `\r\n`** (no tty cooking before the TUI starts).
 - **Windows-host PTY fixes** (color-profile forcing + `cursorDownWriter` newline rewriting) in
-  `internal/server` must be preserved — sessions render garbage on Windows hosts without them. The
-  dev machine is Windows.
+  `internal/server` must be preserved — they keep terminal rendering usable on Windows hosts.
 - **Balance lives in TOML, not code** — tunable constants go in `data/*.toml`, formulas in Go.
 - A mining run's emergency bail/escape path (`internal/sim/run.go`) is also what graceful shutdown
   and disconnects resolve through — cargo is kept only if the ship escapes, and ship death remains

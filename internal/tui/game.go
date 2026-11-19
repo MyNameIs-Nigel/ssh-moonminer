@@ -71,6 +71,7 @@ type flash struct {
 
 // Game is the root TUI model.
 type Game struct {
+	rtt     terminalRTT
 	sess    *game.Session
 	content *content.Content
 	id      identity.SessionIdentity
@@ -241,6 +242,15 @@ func listenSnaps(s *game.Session) tea.Cmd {
 }
 
 func (g *Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := g.updateScreen(msg)
+	probe := g.rtt.observe(g.overlay == ovHelp, msg, time.Now())
+	if probe != nil {
+		cmd = tea.Batch(cmd, probe)
+	}
+	return next, cmd
+}
+
+func (g *Game) updateScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch m := msg.(type) {
