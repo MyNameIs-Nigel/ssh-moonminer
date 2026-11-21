@@ -1,11 +1,17 @@
 # ssh-moonminer
 
+[![CI](https://github.com/MyNameIs-Nigel/ssh-moonminer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MyNameIs-Nigel/ssh-moonminer/actions/workflows/ci.yml)
+[![Release](https://github.com/MyNameIs-Nigel/ssh-moonminer/actions/workflows/release.yml/badge.svg?event=release)](https://github.com/MyNameIs-Nigel/ssh-moonminer/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/MyNameIs-Nigel/ssh-moonminer?label=latest%20release)](https://github.com/MyNameIs-Nigel/ssh-moonminer/releases/latest)
+
 **Moon Miner** is a hard roguelite asteroid mining game played entirely over SSH.
 Your SSH public key is your account — no client install required.
 
 ```bash
-ssh moonminer.example.com
+ssh ssharcade.dev
 ```
+
+**Select MOON MINER in the lobby to play.**
 
 ## Status
 
