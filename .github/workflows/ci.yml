@@ -1,27 +1,66 @@
 name: CI
 
-# No `pull_request:` trigger, deliberately. Once these repos are public that
-# trigger would run on every fork PR from anyone on the internet. Branches pushed
-# inside the repo still get full CI through `push` below — which covers every PR
-# opened from a branch here — so the only thing dropped is running unreviewed
-# fork code automatically. Review a fork PR, then run this by hand if you want a
-# signal on it.
+# pull_request (never pull_request_target): a fork PR gets a read-only token
+# and no secrets, so running it is safe. It also tests the merge result, which
+# is what actually ships. This replaces the old `push: branches: ["**"]`
+# trigger, which never ran on a PR and gave every branch push the default token.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  test:
+  verify:
+    name: verify
+    uses: ./.github/workflows/verify.yml
+
+  supply-chain:
+    name: supply chain
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # gitleaks scans history
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - run: python3 scripts/deploy/test_deploy.py
-      - run: go vet ./...
-      - run: go build ./...
-      - run: go test -race ./...
-      - name: Verify build-injected version
-        run: go test -tags releasecheck -ldflags="-X github.com/mynameis-nigel/ssh-moonminer/internal/version.Version=2.4.3" ./internal/version ./internal/server ./internal/tui
+          cache: true
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          govulncheck ./...
+      - name: gitleaks
+        # Host keys and the router's proxy key must never enter history.
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  gate:
+    # One stable check name for branch protection, however the jobs above change.
+    name: CI gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    needs: [verify, supply-chain]
+    if: ${{ always() }}
+    steps:
+      - name: Require every CI job to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            test "$result" = success
+          done

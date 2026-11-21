@@ -214,11 +214,31 @@ func TestEverySystemHasALocalRecoveryRun(t *testing.T) {
 	}
 }
 
-func TestFreeLocalSkiffPreservesRemoteProperty(t *testing.T){
- c:=testContent(t);s:=sim.New(c,1,0);s.Ships["skiff"].Internal=&sim.SlotDevice{ItemID:sim.ItemFuelMiner,Grade:2};remote:=s.Ships["skiff"]
- s.SystemID="eridani";s.Credits=0
- if err:=sim.AcquireShip(s,c,"skiff");err!=nil{t.Fatalf("no-local-hull recovery denied: %v",err)}
- if s.ActiveShipID!="skiff"||sim.ActiveShip(s).SystemID!="eridani"||s.Credits!=0{t.Fatal("recovery not free and local")}
- if s.Ships["skiff@sol"]!=remote||remote.SystemID!="sol"||remote.Internal.Grade!=2{t.Fatal("recovery lost or teleported remote property")}
- b,err:=s.Encode();if err!=nil{t.Fatal(err)};got,err:=sim.DecodeState(b,c);if err!=nil{t.Fatal(err)};if got.Ships["skiff@sol"].Internal.Grade!=2{t.Fatal("remote Skiff did not persist")}
+func TestFreeLocalSkiffPreservesRemoteProperty(t *testing.T) {
+	c := testContent(t)
+	s := sim.New(c, 1, 0)
+	s.Ships["skiff"].Internal = &sim.SlotDevice{ItemID: sim.ItemFuelMiner, Grade: 2}
+	remote := s.Ships["skiff"]
+	s.SystemID = "eridani"
+	s.Credits = 0
+	if err := sim.AcquireShip(s, c, "skiff"); err != nil {
+		t.Fatalf("no-local-hull recovery denied: %v", err)
+	}
+	if s.ActiveShipID != "skiff" || sim.ActiveShip(s).SystemID != "eridani" || s.Credits != 0 {
+		t.Fatal("recovery not free and local")
+	}
+	if s.Ships["skiff@sol"] != remote || remote.SystemID != "sol" || remote.Internal.Grade != 2 {
+		t.Fatal("recovery lost or teleported remote property")
+	}
+	b, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := sim.DecodeState(b, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Ships["skiff@sol"].Internal.Grade != 2 {
+		t.Fatal("remote Skiff did not persist")
+	}
 }

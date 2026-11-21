@@ -1,0 +1,125 @@
+name: Verify
+
+# The test contract, defined once so the gate on main can never drift weaker
+# than the gate on branches. CI calls it today; Release still runs its own
+# inline copy until the release pipeline is moved onto it.
+
+on:
+  workflow_call:
+    inputs:
+      test-count:
+        description: How many times to run each test. Two runs in one process catch tests that pass only because of state an earlier test left behind.
+        type: number
+        default: 2
+      build-image:
+        description: Build the container image (without pushing it).
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check workflows
+        run: |
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$RUNNER_TEMP/bin/actionlint"
+      - name: Check rollout scripts
+        run: |
+          shellcheck entrypoint.sh scripts/deploy/remote-deploy.sh scripts/restore-drill/*.sh
+          python3 scripts/deploy/test_deploy.py
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt-clean (fix with: gofmt -w .)"
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go.mod is tidy
+        run: go mod tidy -diff
+      - name: module checksums verify
+        run: go mod verify
+      - name: build
+        run: go build ./...
+      - name: Verify build-injected version
+        run: go test -tags releasecheck -ldflags="-X github.com/mynameis-nigel/ssh-moonminer/internal/version.Version=2.4.3" ./internal/version ./internal/server ./internal/tui
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # only-new-issues needs the merge base
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@d583c34f0599d37dbac4a198b9c83201be380893 # v9.3.0
+        with:
+          version: v2.15.0
+          # A ratchet, as in ssh-farm: new and changed code must be clean, and
+          # the existing backlog (27 findings when this was added) is
+          # visible but does not block. `golangci-lint run ./...` lists it.
+          only-new-issues: true
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: test -race -shuffle=on
+        run: go test -race -count=${{ inputs.test-count }} -shuffle=on ./...
+      - name: working tree is unchanged
+        run: |
+          if ! git diff --exit-code; then
+            echo "::error::the test run modified tracked files"
+            exit 1
+          fi
+
+  image:
+    name: container build
+    if: ${{ inputs.build-image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          provenance: false
+          tags: ssh-moonminer:ci
+          build-args: |
+            VERSION=0.0.0-ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"sync"
 	"context"
+	"sync"
 )
 
 // ShutdownHook runs during graceful shutdown.
